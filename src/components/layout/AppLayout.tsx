@@ -4,6 +4,8 @@ import { useFamilyStore } from '@/store/familyStore';
 import { seedPersons, seedRelationships } from '@/lib/seedData';
 import { v4 as uuidv4 } from 'uuid';
 import { Loader2 } from 'lucide-react';
+import { storage } from '@/storage';
+import type { Person, Relationship } from '@/types';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -11,7 +13,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { loadData, persons, isLoading, addPerson, addRelationship } = useFamilyStore();
+  const { loadData, persons, isLoading } = useFamilyStore();
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -22,30 +24,40 @@ export function AppLayout({ children }: AppLayoutProps) {
     initialize();
   }, [loadData]);
 
-  // Seed data if empty
+  // Seed data if empty - directly to storage to preserve IDs
   useEffect(() => {
     const seedIfEmpty = async () => {
       if (initialized && !isLoading && persons.length === 0) {
-        // Add seed persons
         const now = new Date().toISOString();
-        for (const personData of seedPersons) {
-          await addPerson({
-            ...personData,
-            createdAt: now,
-            updatedAt: now,
-          } as any);
-        }
+        
+        // Create persons with their original seed IDs
+        const personsToAdd: Person[] = seedPersons.map(p => ({
+          ...p,
+          id: p.id, // Keep original ID
+          tags: p.tags || [],
+          confidenceScore: p.confidenceScore ?? 50,
+          createdAt: now,
+          updatedAt: now,
+        }));
 
-        // Add seed relationships
-        for (const relData of seedRelationships) {
-          await addRelationship({
-            ...relData,
-          } as any);
-        }
+        // Create relationships with generated IDs but keep person IDs
+        const relationshipsToAdd: Relationship[] = seedRelationships.map(r => ({
+          ...r,
+          id: uuidv4(),
+          meta: r.meta || {},
+          createdAt: now,
+          updatedAt: now,
+        }));
+
+        // Bulk import to storage
+        await storage.importData(personsToAdd, relationshipsToAdd, []);
+        
+        // Reload data
+        await loadData();
       }
     };
     seedIfEmpty();
-  }, [initialized, isLoading, persons.length, addPerson, addRelationship]);
+  }, [initialized, isLoading, persons.length, loadData]);
 
   if (!initialized || isLoading) {
     return (
