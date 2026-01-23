@@ -1,16 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { 
   ZoomIn, 
   ZoomOut, 
@@ -25,29 +18,22 @@ import {
   GitBranch
 } from 'lucide-react';
 import type { Person } from '@/types';
+import { FamilyTree } from '@/features/chart/FamilyTree';
 
 type ViewMode = 'tree' | 'timeline' | 'stats';
 
 export default function ChartPage() {
-  const { persons, relationships, getChartData, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
-  const chartRef = useRef<HTMLDivElement>(null);
+  const { persons, relationships, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [searchQuery, setSearchQuery] = useState('');
-  const [chartInstance, setChartInstance] = useState<any>(null);
   const [scale, setScale] = useState(1);
 
   const selectedPerson = persons.find(p => p.id === selectedPersonId);
   const relatives = selectedPersonId ? getPersonRelatives(selectedPersonId) : null;
 
-  // Initialize chart - simplified without family-chart due to type issues
-  useEffect(() => {
-    if (viewMode !== 'tree' || !chartRef.current || persons.length === 0) return;
-    // Chart will be rendered via the timeline/stats views for now
-  }, [persons, relationships, viewMode]);
-
   // Handle search/focus
   const handleSearch = useCallback(() => {
-    if (!searchQuery || !chartInstance) return;
+    if (!searchQuery) return;
     
     const person = persons.find(p => 
       p.fullName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -55,9 +41,8 @@ export default function ChartPage() {
     
     if (person) {
       setSelectedPerson(person.id);
-      // Chart focus would be handled by family-chart API
     }
-  }, [searchQuery, chartInstance, persons, setSelectedPerson]);
+  }, [searchQuery, persons, setSelectedPerson]);
 
   const handleZoom = (direction: 'in' | 'out') => {
     setScale(prev => {
@@ -197,10 +182,16 @@ export default function ChartPage() {
             </div>
           ) : viewMode === 'tree' ? (
             <div 
-              ref={chartRef}
-              className="chart-container w-full h-full"
-              style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
-            />
+              className="w-full h-full overflow-auto"
+              style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
+            >
+              <FamilyTree
+                persons={persons}
+                relationships={relationships}
+                selectedPersonId={selectedPersonId}
+                onSelectPerson={setSelectedPerson}
+              />
+            </div>
           ) : viewMode === 'timeline' ? (
             <div className="p-6 space-y-6">
               {getTimelineData().map(({ generation, people }) => (
