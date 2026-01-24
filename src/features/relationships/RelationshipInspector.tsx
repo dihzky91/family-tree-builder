@@ -672,17 +672,12 @@ function RelationshipCard({
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           {/* Relationship label & person */}
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm flex-wrap">
             <span>{info.icon}</span>
             <span className="text-muted-foreground">{info.label}</span>
             <ArrowRight className="w-3 h-3 text-muted-foreground" />
             {info.person && (
-              <button
-                onClick={() => onPersonClick?.(info.person!.id)}
-                className="font-medium hover:text-primary transition-colors truncate"
-              >
-                {info.person.fullName}
-              </button>
+              <PersonName person={info.person} onPersonClick={onPersonClick} />
             )}
           </div>
 
