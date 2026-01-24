@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { useFamilyStore } from '@/store/familyStore';
 import { DocumentTypeEnum, VerificationStatusEnum, EntityTypeEnum } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -15,8 +16,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useState, useRef } from 'react';
-import { Upload, X, FileText, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { uploadEvidenceFile } from '@/lib/evidenceStorage';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -40,8 +42,9 @@ interface EvidenceFormProps {
 export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
   const { addEvidence, persons, relationships } = useFamilyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fileData, setFileData] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,8 +70,8 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
     setFileError(null);
 
     if (!file) {
-      setFileData(null);
-      setFileName(null);
+      setSelectedFile(null);
+      setPreviewUrl(null);
       return;
     }
 
@@ -82,20 +85,23 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFileData(reader.result as string);
-      setFileName(file.name);
-    };
-    reader.onerror = () => {
-      setFileError('Gagal membaca file.');
-    };
-    reader.readAsDataURL(file);
+    setSelectedFile(file);
+    
+    // Create preview URL for images
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl(null);
+    }
   };
 
   const removeFile = () => {
-    setFileData(null);
-    setFileName(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -104,14 +110,35 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
   const onSubmit = async (data: EvidenceFormData) => {
     setIsSubmitting(true);
     try {
+      const evidenceId = uuidv4();
+      let fileUrl: string | null = null;
+      let filePath: string | null = null;
+      let fileName: string | null = null;
+
+      // Upload file to Supabase Storage if selected
+      if (selectedFile) {
+        setIsUploading(true);
+        try {
+          const result = await uploadEvidenceFile(selectedFile, evidenceId);
+          fileUrl = result.url;
+          filePath = result.path;
+          fileName = selectedFile.name;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
       await addEvidence({
         ...data,
-        fileData,
+        id: evidenceId,
+        fileUrl,
+        filePath,
         fileName,
       });
       onSuccess?.();
     } catch (error) {
       console.error('Failed to save evidence:', error);
+      setFileError('Gagal menyimpan dokumen. Silakan coba lagi.');
     } finally {
       setIsSubmitting(false);
     }
@@ -126,7 +153,8 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
     other: 'Lainnya',
   };
 
-  const isImage = fileName?.match(/\.(jpg|jpeg|png|webp)$/i);
+  const isImage = selectedFile?.type.startsWith('image/');
+  const isProcessing = isSubmitting || isUploading;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -134,25 +162,26 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
       <div>
         <Label>Upload File (Opsional)</Label>
         <div className="mt-2">
-          {fileData ? (
+          {selectedFile ? (
             <div className="relative border rounded-lg p-4 bg-muted/50">
               <button
                 type="button"
                 onClick={removeFile}
                 className="absolute top-2 right-2 p-1 rounded-full bg-background hover:bg-muted transition-colors"
+                disabled={isProcessing}
               >
                 <X className="w-4 h-4" />
               </button>
               
-              {isImage ? (
+              {isImage && previewUrl ? (
                 <div className="flex items-center gap-4">
                   <img 
-                    src={fileData} 
+                    src={previewUrl} 
                     alt="Preview" 
                     className="w-24 h-24 object-cover rounded-lg"
                   />
                   <div>
-                    <p className="font-medium text-sm">{fileName}</p>
+                    <p className="font-medium text-sm">{selectedFile.name}</p>
                     <p className="text-xs text-muted-foreground">Preview gambar</p>
                   </div>
                 </div>
@@ -162,7 +191,7 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
                     <FileText className="w-8 h-8 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="font-medium text-sm">{fileName}</p>
+                    <p className="font-medium text-sm">{selectedFile.name}</p>
                     <p className="text-xs text-muted-foreground">File PDF</p>
                   </div>
                 </div>
@@ -191,6 +220,7 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
                 className="hidden"
                 accept=".jpg,.jpeg,.png,.webp,.pdf"
                 onChange={handleFileChange}
+                disabled={isProcessing}
               />
             </label>
           )}
@@ -325,11 +355,20 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
 
       {/* Submit */}
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onSuccess}>
+        <Button type="button" variant="outline" onClick={onSuccess} disabled={isProcessing}>
           Batal
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Menyimpan...' : 'Tambah Dokumen'}
+        <Button type="submit" disabled={isProcessing}>
+          {isUploading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Mengupload...
+            </>
+          ) : isSubmitting ? (
+            'Menyimpan...'
+          ) : (
+            'Tambah Dokumen'
+          )}
         </Button>
       </div>
     </form>
