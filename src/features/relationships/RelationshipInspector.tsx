@@ -462,6 +462,11 @@ function CombinedChildCard({
                   className="font-medium hover:text-primary transition-colors"
                 >
                   {child.fullName}
+                  {child.birthDate && (
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({new Date(child.birthDate).getFullYear()})
+                    </span>
+                  )}
                 </button>
               </span>
             ))}
