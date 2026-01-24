@@ -43,6 +43,7 @@ import { FamilyView } from '@/features/chart/views/FamilyView';
 import { PedigreeView } from '@/features/chart/views/PedigreeView';
 import { RelationshipForm } from '@/features/relationships/RelationshipForm';
 import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
+import { MiniMap } from '@/features/chart/components/MiniMap';
 import { exportTreeAsImage, type ExportFormat } from '@/features/chart/utils/exportTreeAsImage';
 import { PrintDialog } from '@/features/chart/components/PrintDialog';
 
@@ -719,6 +720,16 @@ export default function ChartPage() {
         elementRef={chartRef}
         title="Silsilah Keluarga"
       />
+
+      {/* Mini Map for navigation */}
+      {(viewMode === 'family' || viewMode === 'pedigree' || viewMode === 'tree') && (
+        <MiniMap
+          persons={persons}
+          relationships={relationships}
+          selectedPersonId={selectedPersonId}
+          onSelectPerson={setSelectedPerson}
+        />
+      )}
     </div>
   );
 }
