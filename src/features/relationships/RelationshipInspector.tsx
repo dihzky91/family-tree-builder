@@ -283,19 +283,33 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Confirmation - Multiple (Combined Parents) */}
+      {/* Delete Confirmation - Multiple Relationships */}
       <AlertDialog open={!!deletingRelationships} onOpenChange={() => setDeletingRelationships(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Kedua Relasi Orang Tua?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deletingRelationships?.length === 1 
+                ? 'Hapus Relasi?' 
+                : deletingRelationships?.length === 2 
+                  ? 'Hapus Kedua Relasi?' 
+                  : `Hapus ${deletingRelationships?.length} Relasi?`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Kedua relasi orang tua akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.
+              {deletingRelationships?.length === 1 
+                ? 'Relasi ini akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.'
+                : deletingRelationships?.length === 2
+                  ? 'Kedua relasi akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.'
+                  : `Semua ${deletingRelationships?.length} relasi akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteMultiple} className="bg-destructive text-destructive-foreground">
-              Hapus Keduanya
+              {deletingRelationships?.length === 1 
+                ? 'Hapus' 
+                : deletingRelationships?.length === 2 
+                  ? 'Hapus Keduanya' 
+                  : `Hapus Semua (${deletingRelationships?.length})`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
