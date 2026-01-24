@@ -14,7 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { Upload, X, FileText, Image as ImageIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 const EvidenceFormSchema = z.object({
   entityType: EntityTypeEnum,
@@ -35,6 +40,10 @@ interface EvidenceFormProps {
 export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
   const { addEvidence, persons, relationships } = useFamilyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fileData, setFileData] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -47,18 +56,58 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
     defaultValues: {
       entityType: 'PERSON',
       status: 'draft',
+      docType: 'other',
     },
   });
 
   const watchEntityType = watch('entityType');
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    setFileError(null);
+
+    if (!file) {
+      setFileData(null);
+      setFileName(null);
+      return;
+    }
+
+    if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
+      setFileError('Format file tidak didukung. Gunakan JPG, PNG, WebP, atau PDF.');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setFileError('Ukuran file terlalu besar. Maksimal 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFileData(reader.result as string);
+      setFileName(file.name);
+    };
+    reader.onerror = () => {
+      setFileError('Gagal membaca file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeFile = () => {
+    setFileData(null);
+    setFileName(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const onSubmit = async (data: EvidenceFormData) => {
     setIsSubmitting(true);
     try {
       await addEvidence({
         ...data,
-        fileData: null, // File upload would go here
-        fileName: null,
+        fileData,
+        fileName,
       });
       onSuccess?.();
     } catch (error) {
@@ -77,9 +126,81 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
     other: 'Lainnya',
   };
 
+  const isImage = fileName?.match(/\.(jpg|jpeg|png|webp)$/i);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Entity Type */}
+      {/* File Upload */}
+      <div>
+        <Label>Upload File (Opsional)</Label>
+        <div className="mt-2">
+          {fileData ? (
+            <div className="relative border rounded-lg p-4 bg-muted/50">
+              <button
+                type="button"
+                onClick={removeFile}
+                className="absolute top-2 right-2 p-1 rounded-full bg-background hover:bg-muted transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              
+              {isImage ? (
+                <div className="flex items-center gap-4">
+                  <img 
+                    src={fileData} 
+                    alt="Preview" 
+                    className="w-24 h-24 object-cover rounded-lg"
+                  />
+                  <div>
+                    <p className="font-medium text-sm">{fileName}</p>
+                    <p className="text-xs text-muted-foreground">Preview gambar</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-background rounded-lg flex items-center justify-center">
+                    <FileText className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{fileName}</p>
+                    <p className="text-xs text-muted-foreground">File PDF</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <label 
+              className={cn(
+                "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors",
+                "hover:bg-muted/50 hover:border-primary/50",
+                fileError && "border-destructive"
+              )}
+            >
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <Upload className="w-8 h-8 text-muted-foreground mb-2" />
+                <p className="mb-1 text-sm text-muted-foreground">
+                  <span className="font-semibold">Klik untuk upload</span> atau drag & drop
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG, WebP, atau PDF (maks. 5MB)
+                </p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".jpg,.jpeg,.png,.webp,.pdf"
+                onChange={handleFileChange}
+              />
+            </label>
+          )}
+          {fileError && (
+            <p className="text-sm text-destructive mt-2">{fileError}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Entity Type & Entity */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>Tipe Entitas</Label>
@@ -130,7 +251,7 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
         </div>
       </div>
 
-      {/* Document Type */}
+      {/* Document Type & Status */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>Tipe Dokumen</Label>
@@ -150,7 +271,7 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
         </div>
 
         <div>
-          <Label>Status</Label>
+          <Label>Status Awal</Label>
           <Select 
             defaultValue="draft"
             onValueChange={(value) => setValue('status', value as any)}
@@ -162,7 +283,6 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="under_review">Dalam Review</SelectItem>
               <SelectItem value="verified">Terverifikasi</SelectItem>
-              <SelectItem value="rejected">Ditolak</SelectItem>
             </SelectContent>
           </Select>
         </div>

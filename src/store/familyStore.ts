@@ -37,6 +37,7 @@ interface FamilyState {
   
   // Evidence actions
   addEvidence: (evidence: Omit<Evidence, 'id' | 'createdAt'>) => Promise<Evidence>;
+  updateEvidence: (id: string, updates: Partial<Evidence>) => Promise<void>;
   deleteEvidence: (id: string) => Promise<void>;
   
   // UI actions
@@ -246,6 +247,32 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     }));
     
     return evidence;
+  },
+  
+  updateEvidence: async (id, updates) => {
+    const state = get();
+    const existing = state.evidence.find(e => e.id === id);
+    if (!existing) return;
+    
+    const updated: Evidence = {
+      ...existing,
+      ...updates,
+    };
+    
+    await storage.updateEvidence(updated);
+    await storage.createAuditLog({
+      id: uuidv4(),
+      action: 'UPDATE',
+      entityType: 'EVIDENCE',
+      entityId: id,
+      changes: updates,
+      timestamp: new Date().toISOString(),
+      userId: null,
+    });
+    
+    set(state => ({
+      evidence: state.evidence.map(e => e.id === id ? updated : e),
+    }));
   },
   
   deleteEvidence: async (id) => {
