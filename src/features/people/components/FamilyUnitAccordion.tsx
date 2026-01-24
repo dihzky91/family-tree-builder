@@ -1,161 +1,103 @@
-import { ChevronDown, Users as UsersIcon, Heart } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import type { NuclearFamily, Person } from '@/types';
+import { Users, Heart } from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Badge } from '@/components/ui/badge';
 import { FamilyUnitCard } from './FamilyUnitCard';
-import { getPersonFamilies } from '@/lib/familyUnits';
+import type { NuclearFamily, Person } from '@/types';
 
 interface FamilyUnitAccordionProps {
-    family: NuclearFamily;
-    allFamilies: NuclearFamily[]; // for cross-reference
-    isExpanded: boolean;
-    onToggle: () => void;
-    currentUserId?: string;
-    onSelectPerson: (id: string) => void;
+  family: NuclearFamily;
+  onEditPerson?: (person: Person) => void;
+  defaultOpen?: boolean;
 }
 
 /**
- * Collapsible accordion component for one nuclear family unit
+ * Collapsible accordion for displaying a single nuclear family
  * Contains parents section and children section
  */
-export function FamilyUnitAccordion({
-    family,
-    allFamilies,
-    isExpanded,
-    onToggle,
-    currentUserId,
-    onSelectPerson,
+export function FamilyUnitAccordion({ 
+  family, 
+  onEditPerson,
+  defaultOpen = false 
 }: FamilyUnitAccordionProps) {
-    const totalMembers = family.parents.length + family.children.length;
-    const isUserInFamily = [...family.parents, ...family.children].some(
-        p => p.id === currentUserId
-    );
+  const childCount = family.children.length;
 
-    return (
-        <motion.div
-            className={cn(
-                'border rounded-lg overflow-hidden',
-                isUserInFamily && 'border-accent'
-            )}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-        >
-            {/* Header */}
-            <button
-                onClick={onToggle}
-                className={cn(
-                    'w-full flex items-center justify-between p-4 transition-colors',
-                    'hover:bg-muted/50',
-                    isExpanded && 'bg-muted/30'
-                )}
-            >
-                <div className="flex items-center gap-3">
-                    <ChevronDown
-                        className={cn(
-                            'w-5 h-5 transition-transform text-muted-foreground',
-                            isExpanded && 'rotate-180'
-                        )}
+  return (
+    <Accordion 
+      type="single" 
+      collapsible 
+      defaultValue={defaultOpen ? family.id : undefined}
+    >
+      <AccordionItem value={family.id} className="border rounded-lg bg-card">
+        <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-accent/50 rounded-t-lg [&[data-state=open]]:rounded-b-none">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* Family Icon */}
+            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+            
+            {/* Family Info */}
+            <div className="flex-1 min-w-0 text-left">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold truncate">{family.familyName}</span>
+                <Badge variant="secondary" className="text-xs shrink-0">
+                  Gen {family.generation}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                <Heart className="w-3 h-3" />
+                <span>{family.parents.length} orang tua</span>
+                <span>•</span>
+                <span>{childCount} anak</span>
+              </div>
+            </div>
+          </div>
+        </AccordionTrigger>
+        
+        <AccordionContent className="px-4 pb-4">
+          <div className="space-y-4">
+            {/* Parents Section */}
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                Orang Tua
+              </h4>
+              <div className="space-y-2">
+                {family.parents.map(parent => (
+                  <FamilyUnitCard
+                    key={parent.id}
+                    person={parent}
+                    role="parent"
+                    onEdit={onEditPerson}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Children Section */}
+            {childCount > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                  Anak-anak ({childCount})
+                </h4>
+                <div className="space-y-2">
+                  {family.children.map(child => (
+                    <FamilyUnitCard
+                      key={child.id}
+                      person={child}
+                      role="child"
+                      onEdit={onEditPerson}
                     />
-
-                    <div className="text-left">
-                        <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-base">
-                                {family.familyName}
-                            </h3>
-                            {isUserInFamily && (
-                                <span className="text-accent">⭐</span>
-                            )}
-                        </div>
-
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                            <span className="flex items-center gap-1">
-                                📅 Gen {family.generation}
-                            </span>
-                            <span>•</span>
-                            <span>{totalMembers} anggota</span>
-                        </div>
-                    </div>
+                  ))}
                 </div>
-
-                {/* Member count badges */}
-                <div className="flex items-center gap-2 text-xs">
-                    <span className="px-2 py-1 rounded bg-primary/10 text-primary">
-                        {family.parents.length} Orang Tua
-                    </span>
-                    <span className="px-2 py-1 rounded bg-secondary/10 text-secondary-foreground">
-                        {family.children.length} Anak
-                    </span>
-                </div>
-            </button>
-
-            {/* Content */}
-            <AnimatePresence>
-                {isExpanded && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                    >
-                        <div className="p-4 pt-0 space-y-4">
-                            {/* Parents Section */}
-                            {family.parents.length > 0 && (
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                                        <Heart className="w-4 h-4" />
-                                        <span>Orang Tua ({family.parents.length})</span>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        {family.parents.map(parent => (
-                                            <FamilyUnitCard
-                                                key={parent.id}
-                                                person={parent}
-                                                role="parent"
-                                                isCurrentUser={parent.id === currentUserId}
-                                                otherFamilies={getPersonFamilies(parent.id, allFamilies)}
-                                                onClick={() => onSelectPerson(parent.id)}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Children Section */}
-                            {family.children.length > 0 && (
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                                        <UsersIcon className="w-4 h-4" />
-                                        <span>Anak-anak ({family.children.length})</span>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        {family.children.map((child, index) => (
-                                            <FamilyUnitCard
-                                                key={child.id}
-                                                person={child}
-                                                role="child"
-                                                isCurrentUser={child.id === currentUserId}
-                                                otherFamilies={getPersonFamilies(child.id, allFamilies)}
-                                                onClick={() => onSelectPerson(child.id)}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Empty state */}
-                            {family.children.length === 0 && family.parents.length === 1 && (
-                                <p className="text-sm text-muted-foreground text-center py-2">
-                                    Belum ada anak dalam keluarga ini
-                                </p>
-                            )}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </motion.div>
-    );
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
 }

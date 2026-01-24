@@ -1,128 +1,88 @@
-import { User, Heart, Users } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import type { Person, NuclearFamily } from '@/types';
+import { User, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import type { Person } from '@/types';
 
 interface FamilyUnitCardProps {
-    person: Person;
-    role: 'parent' | 'child';
-    isCurrentUser?: boolean;
-    otherFamilies?: { asParent?: NuclearFamily; asChild?: NuclearFamily };
-    onClick: () => void;
+  person: Person;
+  role: 'parent' | 'child';
+  onEdit?: (person: Person) => void;
 }
 
 /**
- * Compact card for displaying a person within a family unit
- * Shows photo/initials, name, birth year, role badge, and cross-references
+ * Card component for displaying a single person within a family unit
+ * Shows photo/initials, name, birth year, role badge
  */
-export function FamilyUnitCard({
-    person,
-    role,
-    isCurrentUser,
-    otherFamilies,
-    onClick,
-}: FamilyUnitCardProps) {
-    const yearBirth = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
-    const isVerified = person.tags.includes('verified');
+export function FamilyUnitCard({ person, role, onEdit }: FamilyUnitCardProps) {
+  const formatDate = (date: string | null | undefined) => {
+    if (!date) return null;
+    return new Date(date).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
 
-    // Get initials for fallback display
-    const getInitials = (name: string): string => {
-        const parts = name.trim().split(/\s+/);
-        if (parts.length === 0) return '?';
-        if (parts.length === 1) return parts[0][0].toUpperCase();
-        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    };
+  return (
+    <div
+      className={`
+        flex items-center gap-3 p-3 rounded-lg border bg-card
+        hover:bg-accent/50 transition-colors cursor-pointer
+        ${role === 'parent' ? 'border-primary/30' : 'border-border'}
+      `}
+      onClick={() => onEdit?.(person)}
+    >
+      {/* Avatar */}
+      <div className="relative shrink-0">
+        <div className={`
+          w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+          ${person.photoUrl ? 'border-2 border-border shadow-sm' : ''}
+          ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
+            person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
+              'bg-node-unknown/20 text-node-unknown'}
+        `}>
+          {person.photoUrl ? (
+            <img
+              src={person.photoUrl}
+              alt={person.fullName}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <User className="w-5 h-5" />
+          )}
+        </div>
+        {person.tags.includes('verified') && (
+          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+            <CheckCircle className="w-2.5 h-2.5 text-white" />
+          </div>
+        )}
+      </div>
 
-    // Determine if person appears in other families
-    const hasOtherFamily = role === 'child'
-        ? otherFamilies?.asParent
-        : otherFamilies?.asChild;
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium truncate">{person.fullName}</span>
+          {role === 'parent' && (
+            <Badge variant="outline" className="text-xs shrink-0">
+              Orang Tua
+            </Badge>
+          )}
+        </div>
+        {person.birthDate && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+            <Calendar className="w-3 h-3" />
+            <span>{formatDate(person.birthDate)}</span>
+            {person.deathDate && <span> - {formatDate(person.deathDate)}</span>}
+          </div>
+        )}
+      </div>
 
-    const genderColors = {
-        male: 'bg-node-male/20 text-node-male border-node-male/30',
-        female: 'bg-node-female/20 text-node-female border-node-female/30',
-        unknown: 'bg-node-unknown/20 text-node-unknown border-node-unknown/30',
-    };
-
-    return (
-        <motion.button
-            onClick={onClick}
-            className={cn(
-                'flex items-center gap-3 p-3 rounded-lg border transition-all',
-                'hover:shadow-md hover:scale-[1.02] active:scale-[0.98]',
-                'bg-card text-left w-full',
-                isCurrentUser && 'ring-2 ring-accent ring-offset-2'
-            )}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-        >
-            {/* Avatar */}
-            <div className={cn(
-                'w-10 h-10 rounded-full flex items-center justify-center shrink-0 border',
-                genderColors[person.gender]
-            )}>
-                {person.photoUrl ? (
-                    <img
-                        src={person.photoUrl}
-                        alt={person.fullName}
-                        className="w-full h-full rounded-full object-cover"
-                    />
-                ) : (
-                    <span className="text-sm font-semibold">
-                        {getInitials(person.fullName)}
-                    </span>
-                )}
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                    <span className="font-medium truncate">
-                        {person.fullName}
-                    </span>
-                    {isCurrentUser && (
-                        <span className="text-accent shrink-0">⭐</span>
-                    )}
-                    {isVerified && (
-                        <span className="text-success text-xs shrink-0">✓</span>
-                    )}
-                </div>
-
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {/* Role badge */}
-                    <span className="flex items-center gap-1">
-                        {role === 'parent' ? (
-                            <>
-                                <Heart className="w-3 h-3" />
-                                Orang Tua
-                            </>
-                        ) : (
-                            <>
-                                <Users className="w-3 h-3" />
-                                Anak
-                            </>
-                        )}
-                    </span>
-
-                    {yearBirth && (
-                        <>
-                            <span>•</span>
-                            <span>{yearBirth}</span>
-                        </>
-                    )}
-
-                    {/* Cross-reference indicator */}
-                    {hasOtherFamily && (
-                        <>
-                            <span>•</span>
-                            <span className="text-primary">
-                                → Also in: {role === 'child' ? 'sebagai Orang Tua' : 'sebagai Anak'}
-                            </span>
-                        </>
-                    )}
-                </div>
-            </div>
-        </motion.button>
-    );
+      {/* Tags indicator */}
+      <div className="flex gap-1 shrink-0">
+        {person.tags.includes('needs review') && (
+          <AlertCircle className="w-4 h-4 text-yellow-500" />
+        )}
+      </div>
+    </div>
+  );
 }

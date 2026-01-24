@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,8 +32,13 @@ import {
   AlertCircle,
   Undo2,
   Users as UsersIcon,
-  X
+  X,
+  ListTree,
+  LayoutGrid,
 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FamilyUnitsView } from '@/features/people/components/FamilyUnitsView';
+import { calculateNuclearFamilies } from '@/lib/familyUnits';
 import { PersonForm } from '@/features/people/PersonForm';
 import type { Person, FilterConfig } from '@/types';
 import Fuse from 'fuse.js';
@@ -47,6 +52,7 @@ export default function PeoplePage() {
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Person | null>(null);
+  const [viewMode, setViewMode] = useState<'nuclear' | 'generation' | 'all'>('nuclear');
   const [filters, setFilters] = useState<FilterConfig>({
     generations: [],
     verificationStatuses: [],
@@ -66,6 +72,12 @@ export default function PeoplePage() {
     : persons;
 
   const filteredPersons = applyAllFilters(searchResults, filters, relationships);
+
+  // Calculate nuclear families for grouping view
+  const nuclearFamilies = useMemo(
+    () => calculateNuclearFamilies(persons, relationships),
+    [persons, relationships]
+  );
 
   const activeFilterCount =
     filters.generations.length +
@@ -228,157 +240,193 @@ export default function PeoplePage() {
         </p>
       )}
 
-      {/* People Grid */}
-      {isLoading ? (
-        <PersonCardSkeletonGrid count={6} />
-      ) : filteredPersons.length === 0 ? (
+      {/* View Mode Tabs */}
+      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'nuclear' | 'generation' | 'all')}>
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="nuclear" className="gap-2">
+            <UsersIcon className="w-4 h-4" />
+            Keluarga Inti
+          </TabsTrigger>
+          <TabsTrigger value="generation" className="gap-2">
+            <ListTree className="w-4 h-4" />
+            Generation
+          </TabsTrigger>
+          <TabsTrigger value="all" className="gap-2">
+            <LayoutGrid className="w-4 h-4" />
+            All List
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Content based on view mode */}
+      {viewMode === 'nuclear' ? (
+        <FamilyUnitsView
+          families={nuclearFamilies}
+          onEditPerson={(person) => setEditingPerson(person)}
+        />
+      ) : viewMode === 'generation' ? (
         <div className="empty-state py-20">
-          <UsersIcon className="empty-state-icon" />
-          <h3 className="text-lg font-medium mb-2">
-            {localSearch ? 'Tidak ada hasil' : 'Belum ada anggota'}
-          </h3>
-          <p className="text-muted-foreground mb-4">
-            {localSearch
-              ? 'Coba kata kunci lain atau hapus filter pencarian'
-              : 'Mulai dengan menambahkan anggota keluarga pertama'}
+          <ListTree className="empty-state-icon" />
+          <h3 className="text-lg font-medium mb-2">Generation View</h3>
+          <p className="text-muted-foreground">
+            Tampilan berdasarkan generasi akan segera hadir.
           </p>
-          {!localSearch && (
-            <Button onClick={() => setIsAddOpen(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Tambah Anggota Pertama
-            </Button>
-          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredPersons.map((person) => (
-            <Card key={person.id} className="p-4 hover:shadow-lg transition-shadow animate-slide-up">
-              <div className="flex items-start gap-4">
-                {/* Avatar */}
-                <div className="relative shrink-0">
-                  <div className={`
-                    w-14 h-14 rounded-full flex items-center justify-center overflow-hidden
-                    ${person.photoUrl ? 'border-2 border-border shadow-sm' : ''}
-                    ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
-                      person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
-                        'bg-node-unknown/20 text-node-unknown'}
-                  `}>
-                    {person.photoUrl ? (
-                      <img
-                        src={person.photoUrl}
-                        alt={person.fullName}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          const parent = e.currentTarget.parentElement;
-                          if (parent) {
-                            const icon = document.createElement('div');
-                            icon.className = 'w-6 h-6';
-                            icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
-                            parent.appendChild(icon);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <User className="w-6 h-6" />
-                    )}
-                  </div>
-                  {/* Verified badge on avatar */}
-                  {person.tags.includes('verified') && (
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
-                      <CheckCircle className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold truncate">{person.fullName}</h3>
-
-                  {/* Dates */}
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>
-                      {formatDate(person.birthDate) || '?'}
-                      {person.deathDate && ` - ${formatDate(person.deathDate)}`}
-                    </span>
-                  </div>
-
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {person.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="outline"
-                        className={
-                          tag === 'verified' ? 'badge-verified' :
-                            tag === 'needs review' ? 'badge-review' :
-                              tag === 'draft' ? 'badge-draft' : ''
-                        }
-                      >
-                        {tag === 'verified' && <CheckCircle className="w-3 h-3 mr-1" />}
-                        {tag === 'needs review' && <AlertCircle className="w-3 h-3 mr-1" />}
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-
-                  {/* Confidence */}
-                  <div className="mt-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">Keyakinan:</span>
-                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full"
-                          style={{ width: `${person.confidenceScore}%` }}
-                        />
+        /* All List - Original People Grid */
+        <>
+          {isLoading ? (
+            <PersonCardSkeletonGrid count={6} />
+          ) : filteredPersons.length === 0 ? (
+            <div className="empty-state py-20">
+              <UsersIcon className="empty-state-icon" />
+              <h3 className="text-lg font-medium mb-2">
+                {localSearch ? 'Tidak ada hasil' : 'Belum ada anggota'}
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                {localSearch
+                  ? 'Coba kata kunci lain atau hapus filter pencarian'
+                  : 'Mulai dengan menambahkan anggota keluarga pertama'}
+              </p>
+              {!localSearch && (
+                <Button onClick={() => setIsAddOpen(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Tambah Anggota Pertama
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredPersons.map((person) => (
+                <Card key={person.id} className="p-4 hover:shadow-lg transition-shadow animate-slide-up">
+                  <div className="flex items-start gap-4">
+                    {/* Avatar */}
+                    <div className="relative shrink-0">
+                      <div className={`
+                        w-14 h-14 rounded-full flex items-center justify-center overflow-hidden
+                        ${person.photoUrl ? 'border-2 border-border shadow-sm' : ''}
+                        ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
+                          person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
+                            'bg-node-unknown/20 text-node-unknown'}
+                      `}>
+                        {person.photoUrl ? (
+                          <img
+                            src={person.photoUrl}
+                            alt={person.fullName}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) {
+                                const icon = document.createElement('div');
+                                icon.className = 'w-6 h-6';
+                                icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+                                parent.appendChild(icon);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <User className="w-6 h-6" />
+                        )}
                       </div>
-                      <span className="font-medium">{person.confidenceScore}%</span>
+                      {/* Verified badge on avatar */}
+                      {person.tags.includes('verified') && (
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+                          <CheckCircle className="w-3 h-3 text-white" />
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
 
-                {/* Actions */}
-                <div className="flex flex-col gap-1">
-                  <Dialog>
-                    <DialogTrigger asChild>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold truncate">{person.fullName}</h3>
+
+                      {/* Dates */}
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>
+                          {formatDate(person.birthDate) || '?'}
+                          {person.deathDate && ` - ${formatDate(person.deathDate)}`}
+                        </span>
+                      </div>
+
+                      {/* Tags */}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {person.tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className={
+                              tag === 'verified' ? 'badge-verified' :
+                                tag === 'needs review' ? 'badge-review' :
+                                  tag === 'draft' ? 'badge-draft' : ''
+                            }
+                          >
+                            {tag === 'verified' && <CheckCircle className="w-3 h-3 mr-1" />}
+                            {tag === 'needs review' && <AlertCircle className="w-3 h-3 mr-1" />}
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+
+                      {/* Confidence */}
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground">Keyakinan:</span>
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary rounded-full"
+                              style={{ width: `${person.confidenceScore}%` }}
+                            />
+                          </div>
+                          <span className="font-medium">{person.confidenceScore}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-1">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setEditingPerson(person)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle className="font-display">Edit Anggota</DialogTitle>
+                          </DialogHeader>
+                          <PersonForm person={person} onSuccess={() => setEditingPerson(null)} />
+                        </DialogContent>
+                      </Dialog>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setEditingPerson(person)}
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => setDeleteConfirm(person)}
                       >
-                        <Edit className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" />
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="font-display">Edit Anggota</DialogTitle>
-                      </DialogHeader>
-                      <PersonForm person={person} onSuccess={() => setEditingPerson(null)} />
-                    </DialogContent>
-                  </Dialog>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => setDeleteConfirm(person)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+                    </div>
+                  </div>
 
-              {/* Notes preview */}
-              {person.notes && (
-                <p className="text-sm text-muted-foreground mt-3 line-clamp-2 border-t pt-3">
-                  {person.notes}
-                </p>
-              )}
-            </Card>
-          ))}
-        </div>
+                  {/* Notes preview */}
+                  {person.notes && (
+                    <p className="text-sm text-muted-foreground mt-3 line-clamp-2 border-t pt-3">
+                      {person.notes}
+                    </p>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Delete Confirmation */}
