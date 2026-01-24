@@ -52,6 +52,7 @@ export default function ChartPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('family');
   const [searchQuery, setSearchQuery] = useState('');
   const [scale, setScale] = useState(1);
+  const [pedigreeGenerations, setPedigreeGenerations] = useState(4);
   const [showAddRelationship, setShowAddRelationship] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [addRelationshipContext, setAddRelationshipContext] = useState<{
@@ -236,6 +237,22 @@ export default function ChartPage() {
               />
             </div>
 
+            {/* Pedigree Generation Slider */}
+            {viewMode === 'pedigree' && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 border">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Generasi:</span>
+                <input
+                  type="range"
+                  min={2}
+                  max={6}
+                  value={pedigreeGenerations}
+                  onChange={(e) => setPedigreeGenerations(Number(e.target.value))}
+                  className="w-20 h-1.5 accent-primary cursor-pointer"
+                />
+                <span className="text-sm font-medium w-4 text-center">{pedigreeGenerations}</span>
+              </div>
+            )}
+
             {(viewMode === 'tree' || viewMode === 'family' || viewMode === 'pedigree') && (
               <>
                 <Button variant="outline" size="icon" onClick={() => handleZoom('in')}>
@@ -287,6 +304,7 @@ export default function ChartPage() {
                   selectedPersonId={selectedPersonId}
                   onSelectPerson={setSelectedPerson}
                   onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
+                  maxGenerations={pedigreeGenerations}
                 />
               ) : viewMode === 'tree' ? (
                 <GenerationView
