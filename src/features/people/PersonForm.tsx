@@ -50,6 +50,9 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
       gender: person?.gender || 'unknown',
       birthDate: person?.birthDate || '',
       deathDate: person?.deathDate || '',
+      birthPlace: person?.birthPlace || '',
+      deathPlace: person?.deathPlace || '',
+      residence: person?.residence || '',
       photoUrl: person?.photoUrl || '',
       notes: person?.notes || '',
       tags: person?.tags || [],
@@ -175,6 +178,36 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
             id="deathDate"
             type="date"
             {...register('deathDate')}
+            className="mt-1"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="birthPlace">Tempat Lahir</Label>
+          <Input
+            id="birthPlace"
+            {...register('birthPlace')}
+            placeholder="Kota/kabupaten..."
+            className="mt-1"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="deathPlace">Tempat Wafat</Label>
+          <Input
+            id="deathPlace"
+            {...register('deathPlace')}
+            placeholder="Kota/kabupaten..."
+            className="mt-1"
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <Label htmlFor="residence">Tempat Tinggal</Label>
+          <Input
+            id="residence"
+            {...register('residence')}
+            placeholder="Alamat atau kota..."
             className="mt-1"
           />
         </div>

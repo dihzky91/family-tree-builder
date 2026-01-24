@@ -11,7 +11,8 @@ import {
   ChevronRight,
   TreeDeciduous,
   Copy,
-  History
+  History,
+  BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ const navItems = [
   { title: 'Silsilah', url: '/chart', icon: GitBranch },
   { title: 'Dokumen', url: '/evidence', icon: FileText },
   { title: 'Duplikat', url: '/duplicates', icon: Copy },
+  { title: 'Statistik', url: '/stats', icon: BarChart3 },
   { title: 'Audit Log', url: '/audit', icon: History },
   { title: 'Import/Export', url: '/data', icon: Download },
   { title: 'Pengaturan', url: '/settings', icon: Settings },
