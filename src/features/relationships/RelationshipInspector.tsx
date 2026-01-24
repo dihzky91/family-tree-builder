@@ -344,6 +344,9 @@ function CombinedChildCard({
           <div className="flex items-center gap-2 text-sm flex-wrap">
             <span>👶</span>
             <span className="text-muted-foreground">Orang tua dari</span>
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">
+              {childrenList.length}
+            </Badge>
             <ArrowRight className="w-3 h-3 text-muted-foreground" />
             
             {childrenList.map((child, idx) => (
