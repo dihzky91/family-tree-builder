@@ -273,3 +273,13 @@ export interface ApprovedMemberInfo {
   relationToBranch: RelationToBranch;
   parentName?: string;
 }
+
+// ============= NUCLEAR FAMILY (for family grouping feature) =============
+export interface NuclearFamily {
+  id: string; // generated from parent IDs
+  parents: Person[]; // 1-2 people (couple or single parent)
+  children: Person[]; // all children of this couple/parent
+  generation: number; // calculated from oldest ancestor (higher = older)
+  createdAt: Date; // earliest marriage date or birth of first child
+  familyName: string; // "Keluarga [Parent1] & [Parent2]" or "Keluarga [SingleParent]"
+}

@@ -33,7 +33,7 @@ export function PedigreeView({
 
     const buildAncestorTree = (personId: string, depth: number): AncestorNode => {
       const person = persons.find(p => p.id === personId) || null;
-      
+
       if (depth >= maxGenerations || !person) {
         return { person, father: null, mother: null };
       }
@@ -81,8 +81,8 @@ export function PedigreeView({
 
   return (
     <div className="flex items-center p-8 overflow-auto min-h-full">
-      <PedigreeColumn 
-        node={ancestorTree} 
+      <PedigreeColumn
+        node={ancestorTree}
         generation={0}
         selectedPersonId={selectedPersonId}
         onSelectPerson={onSelectPerson}
@@ -102,9 +102,9 @@ interface PedigreeColumnProps {
   maxGenerations: number;
 }
 
-function PedigreeColumn({ 
-  node, 
-  generation, 
+function PedigreeColumn({
+  node,
+  generation,
   selectedPersonId,
   onSelectPerson,
   onAddParent,
@@ -112,12 +112,14 @@ function PedigreeColumn({
 }: PedigreeColumnProps) {
   const showParents = generation < maxGenerations - 1;
   const hasAnyParent = node.father || node.mother;
-  
+
+
   // Size decreases with each generation
   const size = generation === 0 ? 'large' : generation === 1 ? 'normal' : 'small';
-  
-  // Heights for SVG connectors
-  const rowHeight = generation === 0 ? 140 : generation === 1 ? 110 : 80;
+
+  // Heights for SVG connectors - increased for better spacing
+  // Each person needs space for their own parents
+  const rowHeight = generation === 0 ? 160 : generation === 1 ? 130 : 100;
   const connectorWidth = generation === 0 ? 48 : generation === 1 ? 40 : 32;
 
   return (
@@ -132,13 +134,13 @@ function PedigreeColumn({
             size={size}
           />
         ) : (
-          <PlaceholderNode 
-            label="Tambah" 
-            onClick={() => {}} 
+          <PlaceholderNode
+            label="Tambah"
+            onClick={() => { }}
             size={size}
           />
         )}
-        
+
         {generation === 0 && (
           <div className="text-xs text-primary font-semibold mt-2 flex items-center gap-1">
             <span className="text-accent">★</span> Anda
@@ -148,9 +150,9 @@ function PedigreeColumn({
 
       {/* SVG Connector to parents */}
       {showParents && node.person && (
-        <svg 
-          className="shrink-0" 
-          width={connectorWidth} 
+        <svg
+          className="shrink-0"
+          width={connectorWidth}
           height={rowHeight * 2}
           viewBox={`0 0 ${connectorWidth} ${rowHeight * 2}`}
         >
@@ -160,7 +162,7 @@ function PedigreeColumn({
               <stop offset="100%" stopColor="hsl(var(--border))" stopOpacity="0.6" />
             </linearGradient>
           </defs>
-          
+
           {/* Main horizontal line from person */}
           <path
             d={`M 0 ${rowHeight} L ${connectorWidth * 0.3} ${rowHeight}`}
@@ -170,7 +172,7 @@ function PedigreeColumn({
             strokeLinecap="round"
             className="transition-all duration-300"
           />
-          
+
           {/* Vertical bracket */}
           {(node.father || node.mother) && (
             <path
@@ -183,7 +185,7 @@ function PedigreeColumn({
               className="transition-all duration-300"
             />
           )}
-          
+
           {/* Curved branch to father (top) */}
           {(node.father || node.person) && (
             <path
@@ -200,7 +202,7 @@ function PedigreeColumn({
               className="transition-all duration-300"
             />
           )}
-          
+
           {/* Curved branch to mother (bottom) */}
           {(node.mother || node.person) && (
             <path
@@ -217,22 +219,22 @@ function PedigreeColumn({
               className="transition-all duration-300"
             />
           )}
-          
+
           {/* Connection dots */}
           {node.father && (
-            <circle 
-              cx={connectorWidth * 0.3} 
-              cy={rowHeight * 0.5} 
-              r="3" 
+            <circle
+              cx={connectorWidth * 0.3}
+              cy={rowHeight * 0.5}
+              r="3"
               fill="hsl(var(--node-male))"
               className="animate-scale-in"
             />
           )}
           {node.mother && (
-            <circle 
-              cx={connectorWidth * 0.3} 
-              cy={rowHeight * 1.5} 
-              r="3" 
+            <circle
+              cx={connectorWidth * 0.3}
+              cy={rowHeight * 1.5}
+              r="3"
               fill="hsl(var(--node-female))"
               className="animate-scale-in"
             />
@@ -242,9 +244,9 @@ function PedigreeColumn({
 
       {/* Parents column */}
       {showParents && (
-        <div className="flex flex-col justify-center" style={{ gap: `${rowHeight * 0.2}px` }}>
-          {/* Father branch */}
-          <div className="flex items-center" style={{ height: `${rowHeight}px` }}>
+        <div className="flex flex-col justify-between" style={{ height: `${rowHeight * 2}px` }}>
+          {/* Father branch - top half */}
+          <div className="flex items-center justify-center" style={{ height: `${rowHeight}px` }}>
             {node.father ? (
               <PedigreeColumn
                 node={node.father}
@@ -255,16 +257,16 @@ function PedigreeColumn({
                 maxGenerations={maxGenerations}
               />
             ) : node.person ? (
-              <PlaceholderNode 
-                label="+ Ayah" 
-                onClick={() => onAddParent?.(node.person!.id, 'parent')} 
+              <PlaceholderNode
+                label="+ Ayah"
+                onClick={() => onAddParent?.(node.person!.id, 'parent')}
                 size={generation < 2 ? 'normal' : 'small'}
               />
             ) : null}
           </div>
 
-          {/* Mother branch */}
-          <div className="flex items-center" style={{ height: `${rowHeight}px` }}>
+          {/* Mother branch - bottom half */}
+          <div className="flex items-center justify-center" style={{ height: `${rowHeight}px` }}>
             {node.mother ? (
               <PedigreeColumn
                 node={node.mother}
@@ -275,9 +277,9 @@ function PedigreeColumn({
                 maxGenerations={maxGenerations}
               />
             ) : node.person ? (
-              <PlaceholderNode 
-                label="+ Ibu" 
-                onClick={() => onAddParent?.(node.person!.id, 'parent')} 
+              <PlaceholderNode
+                label="+ Ibu"
+                onClick={() => onAddParent?.(node.person!.id, 'parent')}
                 size={generation < 2 ? 'normal' : 'small'}
               />
             ) : null}
