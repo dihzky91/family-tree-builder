@@ -85,61 +85,70 @@ function PersonName({
     }
   };
 
+  // Build combined tooltip content
+  const getTooltipContent = () => {
+    const lines: string[] = [];
+    
+    // Gender
+    if (person.gender === 'male') {
+      lines.push('👤 Laki-laki');
+    } else if (person.gender === 'female') {
+      lines.push('👤 Perempuan');
+    }
+    
+    // Birth date
+    if (person.birthDate) {
+      lines.push(`🎂 Lahir: ${formatFullDate(person.birthDate)}`);
+    }
+    
+    // Death date or status
+    if (person.deathDate) {
+      lines.push(`✝ Meninggal: ${formatFullDate(person.deathDate)}`);
+    } else if (person.birthDate) {
+      lines.push('💚 Masih hidup');
+    }
+    
+    return lines.join('\n');
+  };
+
   const genderIcon = getGenderIcon();
+  const tooltipContent = getTooltipContent();
   
   return (
-    <span className="inline-flex items-center gap-1">
-      {genderIcon && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className={`text-xs cursor-help ${getGenderColorClass()}`}>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex items-center gap-1 cursor-help">
+            {genderIcon && (
+              <span className={`text-xs ${getGenderColorClass()}`}>
                 {genderIcon}
               </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-xs">{person.gender === 'male' ? 'Laki-laki' : 'Perempuan'}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-      <button
-        onClick={() => onPersonClick?.(person.id)}
-        className={`font-medium hover:opacity-80 transition-opacity ${getGenderColorClass()}`}
-      >
-        {person.fullName}
-      </button>
-      {isDeceased && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
+            )}
+            <button
+              onClick={() => onPersonClick?.(person.id)}
+              className={`font-medium hover:opacity-80 transition-opacity ${getGenderColorClass()}`}
+            >
+              {person.fullName}
+            </button>
+            {isDeceased && (
               <span className="text-muted-foreground/70">
                 <Cross className="w-3 h-3" />
               </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-xs">Almarhum/ah</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-      {person.birthDate && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="text-muted-foreground font-normal cursor-help">
+            )}
+            {person.birthDate && (
+              <span className="text-muted-foreground font-normal">
                 ({getAgeInfo(person.birthDate, person.deathDate)})
               </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="whitespace-pre-line text-xs">
-                {getDateTooltip(person.birthDate, person.deathDate)}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-    </span>
+            )}
+          </span>
+        </TooltipTrigger>
+        {tooltipContent && (
+          <TooltipContent>
+            <p className="whitespace-pre-line text-xs">{tooltipContent}</p>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
