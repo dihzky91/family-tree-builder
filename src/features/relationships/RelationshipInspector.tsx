@@ -72,9 +72,28 @@ function PersonName({
         return 'text-foreground';
     }
   };
+
+  // Gender icon
+  const getGenderIcon = () => {
+    switch (person.gender) {
+      case 'male':
+        return '♂';
+      case 'female':
+        return '♀';
+      default:
+        return null;
+    }
+  };
+
+  const genderIcon = getGenderIcon();
   
   return (
     <span className="inline-flex items-center gap-1">
+      {genderIcon && (
+        <span className={`text-xs ${getGenderColorClass()}`} aria-label={person.gender === 'male' ? 'Laki-laki' : 'Perempuan'}>
+          {genderIcon}
+        </span>
+      )}
       <button
         onClick={() => onPersonClick?.(person.id)}
         className={`font-medium hover:opacity-80 transition-opacity ${getGenderColorClass()}`}
