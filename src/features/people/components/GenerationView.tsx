@@ -18,21 +18,109 @@ interface GenerationGroup {
   yearRange: { min: number | null; max: number | null };
 }
 
+// Average years between generations (used for estimation)
+const GENERATION_GAP_YEARS = 25;
+
 /**
  * Generation View - Groups persons by generation number with visual timeline
+ * Uses relationship-based calculation with birth year fallback for orphan nodes
  */
 export function GenerationView({ persons, relationships, onEditPerson }: GenerationViewProps) {
   // Calculate generation for each person and group them
   const generationGroups = useMemo(() => {
-    const personsByGen: Record<number, Person[]> = {};
+    // Step 1: Calculate relationship-based generations
+    const personGenMap = new Map<string, { gen: number; hasParents: boolean }>();
     
     persons.forEach(person => {
       const gen = calculateGeneration(person.id, relationships);
+      const hasParents = relationships.some(
+        r => r.type === 'PARENT_CHILD' && r.toPersonId === person.id
+      );
+      personGenMap.set(person.id, { gen, hasParents });
+    });
+
+    // Step 2: Find reference points from persons WITH parent relationships
+    const personsWithParents = persons.filter(p => personGenMap.get(p.id)?.hasParents);
+    
+    // Build year ranges for each known generation
+    const genYearRanges = new Map<number, { min: number; max: number }>();
+    
+    personsWithParents.forEach(person => {
+      const genInfo = personGenMap.get(person.id);
+      if (!genInfo || !person.birthDate) return;
+      
+      const year = new Date(person.birthDate).getFullYear();
+      const existing = genYearRanges.get(genInfo.gen);
+      
+      if (existing) {
+        existing.min = Math.min(existing.min, year);
+        existing.max = Math.max(existing.max, year);
+      } else {
+        genYearRanges.set(genInfo.gen, { min: year, max: year });
+      }
+    });
+
+    // Step 3: Estimate generation for persons WITHOUT parent relationships
+    const personsWithoutParents = persons.filter(p => !personGenMap.get(p.id)?.hasParents);
+    
+    personsWithoutParents.forEach(person => {
+      if (!person.birthDate) return; // Can't estimate without birth date
+      
+      const birthYear = new Date(person.birthDate).getFullYear();
+      
+      // Find the best matching generation based on year ranges
+      let bestGen = 0;
+      let bestMatch = false;
+      
+      genYearRanges.forEach((range, gen) => {
+        // Check if birth year falls within or near this generation's range
+        const buffer = GENERATION_GAP_YEARS / 2; // Allow some flexibility
+        if (birthYear >= range.min - buffer && birthYear <= range.max + buffer) {
+          bestGen = gen;
+          bestMatch = true;
+        }
+      });
+      
+      // If no direct match, estimate based on year difference from known generations
+      if (!bestMatch && genYearRanges.size > 0) {
+        // Find the generation with closest year range
+        let closestGen = 0;
+        let closestDiff = Infinity;
+        
+        genYearRanges.forEach((range, gen) => {
+          const midYear = (range.min + range.max) / 2;
+          const diff = Math.abs(birthYear - midYear);
+          
+          if (diff < closestDiff) {
+            closestDiff = diff;
+            closestGen = gen;
+          }
+        });
+        
+        // Adjust generation based on year difference
+        const closestRange = genYearRanges.get(closestGen)!;
+        const midYear = (closestRange.min + closestRange.max) / 2;
+        const yearDiff = birthYear - midYear;
+        const genOffset = Math.round(yearDiff / GENERATION_GAP_YEARS);
+        
+        bestGen = closestGen + genOffset;
+      }
+      
+      // Update the person's generation
+      personGenMap.set(person.id, { gen: bestGen, hasParents: false });
+    });
+
+    // Step 4: Group persons by their (possibly estimated) generation
+    const personsByGen: Record<number, Person[]> = {};
+    
+    persons.forEach(person => {
+      const genInfo = personGenMap.get(person.id);
+      const gen = genInfo?.gen ?? 0;
       if (!personsByGen[gen]) personsByGen[gen] = [];
       personsByGen[gen].push(person);
     });
 
-    // Convert to array and sort by generation (highest/oldest first)
+    // Step 5: Convert to array and sort
     const groups: GenerationGroup[] = Object.entries(personsByGen)
       .map(([gen, people]) => {
         const genNum = parseInt(gen);
@@ -45,9 +133,12 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
         const minYear = years.length > 0 ? Math.min(...years) : null;
         const maxYear = years.length > 0 ? Math.max(...years) : null;
 
+        // Check if any person in this group has estimated generation
+        const hasEstimated = people.some(p => !personGenMap.get(p.id)?.hasParents);
+
         return {
           generation: genNum,
-          label: getGenerationLabel(genNum),
+          label: getGenerationLabel(genNum, hasEstimated),
           persons: people.sort((a, b) => {
             // Sort by birth date within generation
             if (!a.birthDate) return 1;
@@ -57,7 +148,7 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
           yearRange: { min: minYear, max: maxYear }
         };
       })
-      .sort((a, b) => b.generation - a.generation); // Oldest (highest gen) first
+      .sort((a, b) => a.generation - b.generation); // Youngest (lowest gen) first, oldest last
 
     return groups;
   }, [persons, relationships]);
@@ -187,7 +278,7 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
  * Get human-readable label for generation number
  * Generation 0 = oldest ancestor (root), higher number = younger generation
  */
-function getGenerationLabel(generation: number): string {
+function getGenerationLabel(generation: number, hasEstimated?: boolean): string {
   const labels: Record<number, string> = {
     0: 'Leluhur (Generasi Tertua)',
     1: 'Generasi ke-2',
@@ -197,5 +288,6 @@ function getGenerationLabel(generation: number): string {
     5: 'Generasi ke-6',
   };
   
-  return labels[generation] || `Generasi ke-${generation + 1}`;
+  const label = labels[generation] || `Generasi ke-${generation + 1}`;
+  return hasEstimated ? `${label} *` : label;
 }
