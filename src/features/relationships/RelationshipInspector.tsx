@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import type { Relationship, Person } from '@/types';
 import { getRelationshipDisplayInfo } from '@/lib/relationshipValidation';
@@ -37,6 +37,12 @@ interface RelationshipInspectorProps {
   onPersonClick?: (personId: string) => void;
 }
 
+interface GroupedRelationship {
+  type: 'single' | 'combined';
+  relationships: Relationship[];
+  parents: Person[];
+}
+
 export function RelationshipInspector({ personId, onPersonClick }: RelationshipInspectorProps) {
   const { relationships, persons, evidence, deleteRelationship } = useFamilyStore();
   const [editingRelationship, setEditingRelationship] = useState<Relationship | null>(null);
@@ -49,6 +55,61 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
 
   const parentChildRels = personRelationships.filter(r => r.type === 'PARENT_CHILD');
   const spouseRels = personRelationships.filter(r => r.type === 'SPOUSE');
+
+  // Helper function to check if two people are spouses
+  const areSpouses = (person1Id: string, person2Id: string) => {
+    return relationships.some(
+      r => r.type === 'SPOUSE' && 
+      ((r.fromPersonId === person1Id && r.toPersonId === person2Id) ||
+       (r.fromPersonId === person2Id && r.toPersonId === person1Id))
+    );
+  };
+
+  // Group parent-child relationships
+  const { asParentRels, groupedAsChild } = useMemo(() => {
+    const asParentRels = parentChildRels.filter(r => r.fromPersonId === personId);
+    const asChildRels = parentChildRels.filter(r => r.toPersonId === personId);
+    
+    const groupedAsChild: GroupedRelationship[] = [];
+    const processedIds = new Set<string>();
+    
+    for (const rel of asChildRels) {
+      if (processedIds.has(rel.id)) continue;
+      
+      const parentId = rel.fromPersonId;
+      
+      // Find if there's another parent who is a spouse of this parent
+      const otherParentRel = asChildRels.find(r => 
+        r.id !== rel.id && 
+        !processedIds.has(r.id) && 
+        areSpouses(parentId, r.fromPersonId)
+      );
+      
+      if (otherParentRel) {
+        // Combine both relationships
+        const parent1 = persons.find(p => p.id === rel.fromPersonId);
+        const parent2 = persons.find(p => p.id === otherParentRel.fromPersonId);
+        groupedAsChild.push({
+          type: 'combined',
+          relationships: [rel, otherParentRel],
+          parents: [parent1, parent2].filter((p): p is Person => !!p)
+        });
+        processedIds.add(rel.id);
+        processedIds.add(otherParentRel.id);
+      } else {
+        // Show as single
+        const parent = persons.find(p => p.id === rel.fromPersonId);
+        groupedAsChild.push({
+          type: 'single',
+          relationships: [rel],
+          parents: parent ? [parent] : []
+        });
+        processedIds.add(rel.id);
+      }
+    }
+    
+    return { asParentRels, groupedAsChild };
+  }, [parentChildRels, personId, persons, relationships]);
 
   const handleDelete = async () => {
     if (deletingRelationship) {
@@ -63,13 +124,10 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
     );
   };
 
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return null;
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  const getGroupedEvidence = (rels: Relationship[]) => {
+    return evidence.filter(
+      e => e.entityType === 'RELATIONSHIP' && rels.some(r => r.id === e.entityId)
+    );
   };
 
   if (personRelationships.length === 0) {
@@ -83,14 +141,38 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
   return (
     <div className="space-y-4">
       {/* Parent-Child Relationships */}
-      {parentChildRels.length > 0 && (
+      {(groupedAsChild.length > 0 || asParentRels.length > 0) && (
         <div>
           <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
             <Users className="w-4 h-4" />
             Relasi Keluarga
           </h4>
           <div className="space-y-2">
-            {parentChildRels.map(rel => {
+            {/* As Child - Grouped */}
+            {groupedAsChild.map((group, idx) => (
+              group.type === 'combined' ? (
+                <CombinedParentCard
+                  key={`combined-${idx}`}
+                  parents={group.parents}
+                  relationships={group.relationships}
+                  evidence={getGroupedEvidence(group.relationships)}
+                  onPersonClick={onPersonClick}
+                />
+              ) : (
+                <RelationshipCard
+                  key={group.relationships[0].id}
+                  relationship={group.relationships[0]}
+                  info={getRelationshipDisplayInfo(group.relationships[0], personId, persons)}
+                  evidence={getRelatedEvidence(group.relationships[0].id)}
+                  onEdit={() => setEditingRelationship(group.relationships[0])}
+                  onDelete={() => setDeletingRelationship(group.relationships[0])}
+                  onPersonClick={onPersonClick}
+                />
+              )
+            ))}
+
+            {/* As Parent */}
+            {asParentRels.map(rel => {
               const info = getRelationshipDisplayInfo(rel, personId, persons);
               const relEvidence = getRelatedEvidence(rel.id);
               
@@ -175,6 +257,63 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// Combined Parent Card for married parents
+interface CombinedParentCardProps {
+  parents: Person[];
+  relationships: Relationship[];
+  evidence: any[];
+  onPersonClick?: (personId: string) => void;
+}
+
+function CombinedParentCard({ 
+  parents, 
+  evidence, 
+  onPersonClick 
+}: CombinedParentCardProps) {
+  return (
+    <div className="p-3 bg-muted/50 rounded-lg group hover:bg-muted transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-sm flex-wrap">
+            <span>👨‍👩‍👧</span>
+            <span className="text-muted-foreground">Anak dari</span>
+            <ArrowRight className="w-3 h-3 text-muted-foreground" />
+            
+            {parents[0] && (
+              <button
+                onClick={() => onPersonClick?.(parents[0].id)}
+                className="font-medium hover:text-primary transition-colors"
+              >
+                {parents[0].fullName}
+              </button>
+            )}
+            
+            {parents[1] && (
+              <>
+                <span className="text-muted-foreground">&</span>
+                <button
+                  onClick={() => onPersonClick?.(parents[1].id)}
+                  className="font-medium hover:text-primary transition-colors"
+                >
+                  {parents[1].fullName}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Evidence count */}
+          {evidence.length > 0 && (
+            <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+              <FileText className="w-3 h-3" />
+              {evidence.length} dokumen terkait
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
