@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFamilyStore } from '@/store/familyStore';
+import { usePanZoom } from '@/hooks/usePanZoom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -35,7 +36,9 @@ import {
   Download,
   Network,
   TreePine,
-  Printer
+  Printer,
+  Move,
+  RotateCcw
 } from 'lucide-react';
 import type { Person } from '@/types';
 import { GenerationView } from '@/features/chart/views/GenerationView';
@@ -75,7 +78,6 @@ export default function ChartPage() {
   const { persons, relationships, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
   const [viewMode, setViewMode] = useState<ViewMode>('family');
   const [searchQuery, setSearchQuery] = useState('');
-  const [scale, setScale] = useState(1);
   const [pedigreeGenerations, setPedigreeGenerations] = useState(4);
   const [showAddRelationship, setShowAddRelationship] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
@@ -84,7 +86,13 @@ export default function ChartPage() {
     suggestedType?: 'parent' | 'spouse' | 'child';
   }>({});
   const chartRef = useRef<HTMLDivElement>(null);
-
+  
+  // Pan and Zoom hook
+  const { state: panZoomState, isDragging, handlers: panZoomHandlers, zoomIn, zoomOut, reset } = usePanZoom({
+    minScale: 0.3,
+    maxScale: 2,
+    initialScale: 1,
+  });
   const selectedPerson = persons.find(p => p.id === selectedPersonId);
   const relatives = selectedPersonId ? getPersonRelatives(selectedPersonId) : null;
 
@@ -102,10 +110,11 @@ export default function ChartPage() {
   }, [searchQuery, persons, setSelectedPerson]);
 
   const handleZoom = (direction: 'in' | 'out') => {
-    setScale(prev => {
-      const newScale = direction === 'in' ? prev * 1.2 : prev / 1.2;
-      return Math.max(0.3, Math.min(2, newScale));
-    });
+    if (direction === 'in') {
+      zoomIn();
+    } else {
+      zoomOut();
+    }
   };
 
   const handleExport = async (format: ExportFormat) => {
@@ -279,15 +288,19 @@ export default function ChartPage() {
 
             {(viewMode === 'tree' || viewMode === 'family' || viewMode === 'pedigree') && (
               <>
-                <Button variant="outline" size="icon" onClick={() => handleZoom('in')}>
+                <Button variant="outline" size="icon" onClick={() => handleZoom('in')} title="Zoom In">
                   <ZoomIn className="w-4 h-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => handleZoom('out')}>
+                <Button variant="outline" size="icon" onClick={() => handleZoom('out')} title="Zoom Out">
                   <ZoomOut className="w-4 h-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => setScale(1)}>
-                  <Maximize className="w-4 h-4" />
+                <Button variant="outline" size="icon" onClick={reset} title="Reset View">
+                  <RotateCcw className="w-4 h-4" />
                 </Button>
+                <div className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground bg-muted/50 rounded">
+                  <Move className="w-3 h-3" />
+                  <span>Drag to pan</span>
+                </div>
               </>
             )}
           </div>
@@ -310,14 +323,19 @@ export default function ChartPage() {
             </motion.div>
           ) : (
             <div 
-              ref={chartRef}
-              className="w-full h-full overflow-auto"
-              style={{ 
-                transform: `scale(${scale})`, 
-                transformOrigin: 'top center',
-                minHeight: '100%'
-              }}
+              className={`w-full h-full overflow-hidden ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              {...panZoomHandlers}
             >
+              <div
+                ref={chartRef}
+                className="w-full h-full"
+                style={{ 
+                  transform: `translate(${panZoomState.x}px, ${panZoomState.y}px) scale(${panZoomState.scale})`, 
+                  transformOrigin: 'center center',
+                  minHeight: '100%',
+                  transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                }}
+              >
               <AnimatePresence mode="wait">
                 {viewMode === 'family' && (
                   <motion.div
@@ -500,6 +518,7 @@ export default function ChartPage() {
                   </motion.div>
                 )}
               </AnimatePresence>
+              </div>
             </div>
           )}
         </div>
