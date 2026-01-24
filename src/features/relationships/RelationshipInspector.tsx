@@ -54,6 +54,25 @@ interface GroupedChildRelationship {
   children: Person[];
 }
 
+// Helper function to calculate age
+function getAgeInfo(birthDate?: string | null, deathDate?: string | null): string | null {
+  if (!birthDate) return null;
+  
+  const birth = new Date(birthDate);
+  const endDate = deathDate ? new Date(deathDate) : new Date();
+  
+  let age = endDate.getFullYear() - birth.getFullYear();
+  const monthDiff = endDate.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && endDate.getDate() < birth.getDate())) {
+    age--;
+  }
+  
+  if (deathDate) {
+    return `${birth.getFullYear()}, †${age} thn`;
+  }
+  return `${birth.getFullYear()}, ${age} thn`;
+}
+
 export function RelationshipInspector({ personId, onPersonClick }: RelationshipInspectorProps) {
   const { relationships, persons, evidence, deleteRelationship, undo } = useFamilyStore();
   const [editingRelationship, setEditingRelationship] = useState<Relationship | null>(null);
@@ -378,7 +397,7 @@ function CombinedParentCard({
                 {parents[0].fullName}
                 {parents[0].birthDate && (
                   <span className="text-muted-foreground font-normal ml-1">
-                    ({new Date(parents[0].birthDate).getFullYear()})
+                    ({getAgeInfo(parents[0].birthDate, parents[0].deathDate)})
                   </span>
                 )}
               </button>
@@ -394,7 +413,7 @@ function CombinedParentCard({
                   {parents[1].fullName}
                   {parents[1].birthDate && (
                     <span className="text-muted-foreground font-normal ml-1">
-                      ({new Date(parents[1].birthDate).getFullYear()})
+                      ({getAgeInfo(parents[1].birthDate, parents[1].deathDate)})
                     </span>
                   )}
                 </button>
@@ -499,7 +518,7 @@ function CombinedChildCard({
                   {child.fullName}
                   {child.birthDate && (
                     <span className="text-muted-foreground font-normal ml-1">
-                      ({new Date(child.birthDate).getFullYear()})
+                      ({getAgeInfo(child.birthDate, child.deathDate)})
                     </span>
                   )}
                 </button>
