@@ -11,6 +11,7 @@ import EvidencePage from "./pages/EvidencePage";
 import DataPage from "./pages/DataPage";
 import SettingsPage from "./pages/SettingsPage";
 import DuplicatesPage from "./pages/DuplicatesPage";
+import AuditLogPage from "./pages/AuditLogPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/chart" element={<ChartPage />} />
             <Route path="/evidence" element={<EvidencePage />} />
             <Route path="/duplicates" element={<DuplicatesPage />} />
+            <Route path="/audit" element={<AuditLogPage />} />
             <Route path="/data" element={<DataPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />

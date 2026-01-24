@@ -10,7 +10,8 @@ import {
   ChevronLeft,
   ChevronRight,
   TreeDeciduous,
-  Copy
+  Copy,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,8 +23,9 @@ const navItems = [
   { title: 'Dashboard', url: '/', icon: Home },
   { title: 'Anggota', url: '/people', icon: Users },
   { title: 'Silsilah', url: '/chart', icon: GitBranch },
-  { title: 'Duplikat', url: '/duplicates', icon: Copy },
   { title: 'Dokumen', url: '/evidence', icon: FileText },
+  { title: 'Duplikat', url: '/duplicates', icon: Copy },
+  { title: 'Audit Log', url: '/audit', icon: History },
   { title: 'Import/Export', url: '/data', icon: Download },
   { title: 'Pengaturan', url: '/settings', icon: Settings },
 ];

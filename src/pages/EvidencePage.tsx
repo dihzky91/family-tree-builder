@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -17,48 +16,30 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { 
   Plus, 
   FileText, 
-  Trash2, 
   CheckCircle,
   Clock,
   XCircle,
   File,
-  User,
-  Link2
+  RefreshCw
 } from 'lucide-react';
 import { EvidenceForm } from '@/features/evidence/EvidenceForm';
+import { EvidenceCard } from '@/features/evidence/EvidenceCard';
 import type { Evidence, VerificationStatus } from '@/types';
+import { recalculatePersonConfidence } from '@/lib/confidenceScore';
 
-const statusIcons: Record<VerificationStatus, typeof CheckCircle> = {
-  verified: CheckCircle,
-  under_review: Clock,
-  draft: File,
-  rejected: XCircle,
-};
-
-const statusColors: Record<VerificationStatus, string> = {
-  verified: 'badge-verified',
-  under_review: 'badge-review',
-  draft: 'badge-draft',
-  rejected: 'bg-destructive/15 text-destructive border-destructive/30',
+const statusConfig: Record<VerificationStatus, { icon: typeof CheckCircle; label: string }> = {
+  draft: { icon: File, label: 'Draft' },
+  under_review: { icon: Clock, label: 'Dalam Review' },
+  verified: { icon: CheckCircle, label: 'Terverifikasi' },
+  rejected: { icon: XCircle, label: 'Ditolak' },
 };
 
 export default function EvidencePage() {
-  const { evidence, persons, relationships, deleteEvidence } = useFamilyStore();
+  const { evidence, persons, relationships, deleteEvidence, updateEvidence, updatePerson } = useFamilyStore();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<Evidence | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const filteredEvidence = filterStatus === 'all' 
@@ -80,20 +61,52 @@ export default function EvidencePage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (deleteConfirm) {
-      await deleteEvidence(deleteConfirm.id);
-      setDeleteConfirm(null);
+  const handleStatusChange = async (ev: Evidence, newStatus: VerificationStatus) => {
+    await updateEvidence(ev.id, { status: newStatus });
+    
+    // Auto-adjust confidence score for person entities
+    if (ev.entityType === 'PERSON') {
+      const person = persons.find(p => p.id === ev.entityId);
+      if (person) {
+        // Update the evidence list with new status for calculation
+        const updatedEvidence = evidence.map(e => 
+          e.id === ev.id ? { ...e, status: newStatus } : e
+        );
+        await recalculatePersonConfidence(
+          ev.entityId, 
+          updatedEvidence, 
+          updatePerson,
+          person.confidenceScore
+        );
+      }
     }
   };
 
-  const docTypeLabels: Record<string, string> = {
-    birth_certificate: 'Akta Lahir',
-    family_card: 'Kartu Keluarga',
-    marriage_certificate: 'Surat Nikah',
-    death_certificate: 'Akta Kematian',
-    photo: 'Foto',
-    other: 'Lainnya',
+  const handleDelete = async (ev: Evidence) => {
+    await deleteEvidence(ev.id);
+    
+    // Recalculate confidence after deletion
+    if (ev.entityType === 'PERSON') {
+      const person = persons.find(p => p.id === ev.entityId);
+      if (person) {
+        const remainingEvidence = evidence.filter(e => e.id !== ev.id);
+        await recalculatePersonConfidence(
+          ev.entityId,
+          remainingEvidence,
+          updatePerson,
+          person.confidenceScore
+        );
+      }
+    }
+  };
+
+  // Count by status
+  const statusCounts = {
+    all: evidence.length,
+    draft: evidence.filter(e => e.status === 'draft').length,
+    under_review: evidence.filter(e => e.status === 'under_review').length,
+    verified: evidence.filter(e => e.status === 'verified').length,
+    rejected: evidence.filter(e => e.status === 'rejected').length,
   };
 
   return (
@@ -115,7 +128,7 @@ export default function EvidencePage() {
               Tambah Dokumen
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-display">Tambah Dokumen Baru</DialogTitle>
             </DialogHeader>
@@ -124,21 +137,34 @@ export default function EvidencePage() {
         </Dialog>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-muted-foreground">Filter status:</span>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua</SelectItem>
-            <SelectItem value="verified">Terverifikasi</SelectItem>
-            <SelectItem value="under_review">Dalam Review</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="rejected">Ditolak</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Status Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {(['all', 'draft', 'under_review', 'verified', 'rejected'] as const).map((status) => {
+          const config = status === 'all' 
+            ? { icon: FileText, label: 'Semua' }
+            : statusConfig[status];
+          const Icon = config.icon;
+          const isActive = filterStatus === status;
+          
+          return (
+            <Button
+              key={status}
+              variant={isActive ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilterStatus(status)}
+              className="gap-2"
+            >
+              <Icon className="w-4 h-4" />
+              {config.label}
+              <Badge 
+                variant={isActive ? 'secondary' : 'outline'} 
+                className="ml-1 h-5 px-1.5"
+              >
+                {statusCounts[status]}
+              </Badge>
+            </Button>
+          );
+        })}
       </div>
 
       {/* Evidence Grid */}
@@ -162,86 +188,17 @@ export default function EvidencePage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredEvidence.map((ev) => {
-            const StatusIcon = statusIcons[ev.status];
-            return (
-              <Card key={ev.id} className="p-4 hover:shadow-lg transition-shadow animate-slide-up">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
-                      <FileText className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{docTypeLabels[ev.docType] || ev.docType}</p>
-                      <Badge variant="outline" className={statusColors[ev.status]}>
-                        <StatusIcon className="w-3 h-3 mr-1" />
-                        {ev.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    className="text-destructive hover:text-destructive h-8 w-8"
-                    onClick={() => setDeleteConfirm(ev)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Linked Entity */}
-                <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                  {ev.entityType === 'PERSON' ? (
-                    <User className="w-4 h-4" />
-                  ) : (
-                    <Link2 className="w-4 h-4" />
-                  )}
-                  <span className="truncate">{getEntityName(ev)}</span>
-                </div>
-
-                {/* Details */}
-                {(ev.source || ev.date) && (
-                  <div className="mt-2 text-sm text-muted-foreground">
-                    {ev.source && <p>Sumber: {ev.source}</p>}
-                    {ev.date && <p>Tanggal: {new Date(ev.date).toLocaleDateString('id-ID')}</p>}
-                  </div>
-                )}
-
-                {ev.description && (
-                  <p className="mt-2 text-sm text-muted-foreground line-clamp-2 border-t pt-2">
-                    {ev.description}
-                  </p>
-                )}
-
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Ditambahkan: {new Date(ev.createdAt).toLocaleDateString('id-ID')}
-                </p>
-              </Card>
-            );
-          })}
+          {filteredEvidence.map((ev) => (
+            <EvidenceCard
+              key={ev.id}
+              evidence={ev}
+              entityName={getEntityName(ev)}
+              onStatusChange={(newStatus) => handleStatusChange(ev, newStatus)}
+              onDelete={() => handleDelete(ev)}
+            />
+          ))}
         </div>
       )}
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Dokumen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Anda akan menghapus dokumen ini. Tindakan ini tidak dapat dibatalkan.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Hapus
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
