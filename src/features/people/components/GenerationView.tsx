@@ -185,16 +185,17 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
 
 /**
  * Get human-readable label for generation number
+ * Generation 0 = oldest ancestor (root), higher number = younger generation
  */
 function getGenerationLabel(generation: number): string {
   const labels: Record<number, string> = {
-    0: 'Generasi Saat Ini',
-    1: 'Generasi Orang Tua',
-    2: 'Generasi Kakek/Nenek',
-    3: 'Generasi Buyut',
-    4: 'Generasi Canggah',
-    5: 'Generasi Wareng',
+    0: 'Leluhur (Generasi Tertua)',
+    1: 'Generasi ke-2',
+    2: 'Generasi ke-3',
+    3: 'Generasi ke-4',
+    4: 'Generasi ke-5',
+    5: 'Generasi ke-6',
   };
   
-  return labels[generation] || `Generasi ke-${generation}`;
+  return labels[generation] || `Generasi ke-${generation + 1}`;
 }
