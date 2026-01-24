@@ -28,6 +28,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { 
   Edit, 
   Trash2, 
@@ -71,6 +77,28 @@ function getAgeInfo(birthDate?: string | null, deathDate?: string | null): strin
     return `${birth.getFullYear()}, †${age} thn`;
   }
   return `${birth.getFullYear()}, ${age} thn`;
+}
+
+// Helper function to format full date for tooltip
+function formatFullDate(dateString?: string | null): string | null {
+  if (!dateString) return null;
+  return new Date(dateString).toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
+// Helper to get tooltip content
+function getDateTooltip(birthDate?: string | null, deathDate?: string | null): string {
+  const parts: string[] = [];
+  if (birthDate) {
+    parts.push(`Lahir: ${formatFullDate(birthDate)}`);
+  }
+  if (deathDate) {
+    parts.push(`Meninggal: ${formatFullDate(deathDate)}`);
+  }
+  return parts.join('\n');
 }
 
 export function RelationshipInspector({ personId, onPersonClick }: RelationshipInspectorProps) {
@@ -390,33 +418,59 @@ function CombinedParentCard({
             <ArrowRight className="w-3 h-3 text-muted-foreground" />
             
             {parents[0] && (
-              <button
-                onClick={() => onPersonClick?.(parents[0].id)}
-                className="font-medium hover:text-primary transition-colors"
-              >
-                {parents[0].fullName}
+              <span className="inline-flex items-center">
+                <button
+                  onClick={() => onPersonClick?.(parents[0].id)}
+                  className="font-medium hover:text-primary transition-colors"
+                >
+                  {parents[0].fullName}
+                </button>
                 {parents[0].birthDate && (
-                  <span className="text-muted-foreground font-normal ml-1">
-                    ({getAgeInfo(parents[0].birthDate, parents[0].deathDate)})
-                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground font-normal ml-1 cursor-help">
+                          ({getAgeInfo(parents[0].birthDate, parents[0].deathDate)})
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="whitespace-pre-line text-xs">
+                          {getDateTooltip(parents[0].birthDate, parents[0].deathDate)}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
-              </button>
+              </span>
             )}
             
             {parents[1] && (
               <>
                 <span className="text-muted-foreground">&</span>
-                <button
-                  onClick={() => onPersonClick?.(parents[1].id)}
-                  className="font-medium hover:text-primary transition-colors"
-                >
-                  {parents[1].fullName}
+                <span className="inline-flex items-center">
+                  <button
+                    onClick={() => onPersonClick?.(parents[1].id)}
+                    className="font-medium hover:text-primary transition-colors"
+                  >
+                    {parents[1].fullName}
+                  </button>
                   {parents[1].birthDate && (
-                    <span className="text-muted-foreground font-normal ml-1">
-                      ({getAgeInfo(parents[1].birthDate, parents[1].deathDate)})
-                    </span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-muted-foreground font-normal ml-1 cursor-help">
+                            ({getAgeInfo(parents[1].birthDate, parents[1].deathDate)})
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="whitespace-pre-line text-xs">
+                            {getDateTooltip(parents[1].birthDate, parents[1].deathDate)}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
-                </button>
+                </span>
               </>
             )}
           </div>
@@ -516,12 +570,23 @@ function CombinedChildCard({
                   className="font-medium hover:text-primary transition-colors"
                 >
                   {child.fullName}
-                  {child.birthDate && (
-                    <span className="text-muted-foreground font-normal ml-1">
-                      ({getAgeInfo(child.birthDate, child.deathDate)})
-                    </span>
-                  )}
                 </button>
+                {child.birthDate && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground font-normal ml-1 cursor-help">
+                          ({getAgeInfo(child.birthDate, child.deathDate)})
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="whitespace-pre-line text-xs">
+                          {getDateTooltip(child.birthDate, child.deathDate)}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </span>
             ))}
           </div>
