@@ -194,32 +194,32 @@ export default function ChartPage() {
       {/* Main Chart Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center justify-between p-4 border-b bg-card gap-3">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <h1 className="text-xl font-display font-bold shrink-0 hidden sm:block">Silsilah</h1>
+        <div className="flex items-center justify-between p-2 sm:p-4 border-b bg-card gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+            <h1 className="text-lg sm:text-xl font-display font-bold shrink-0 hidden md:block">Silsilah</h1>
             
             {/* Search - Now prominent on the left */}
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div className="relative flex-1 max-w-[200px] sm:max-w-xs">
+              <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Cari nama..."
+                placeholder="Cari..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="pl-9 w-full"
+                className="pl-8 sm:pl-9 w-full h-8 sm:h-9 text-sm"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* View Mode Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-1 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3" title={currentViewOption.description}>
                   <CurrentViewIcon className="w-4 h-4" />
-                  <span className="hidden md:inline">{currentViewOption.label}</span>
-                  <ChevronDown className="w-3 h-3 opacity-50" />
+                  <span className="hidden lg:inline">{currentViewOption.label}</span>
+                  <ChevronDown className="w-3 h-3 opacity-50 hidden sm:block" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-popover w-56">
@@ -244,33 +244,33 @@ export default function ChartPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Pedigree Generation Slider */}
+            {/* Pedigree Generation Slider - Hidden on mobile */}
             {viewMode === 'pedigree' && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50 border">
-                <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">Gen:</span>
+              <div className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md bg-muted/50 border">
+                <span className="text-xs text-muted-foreground whitespace-nowrap hidden md:inline">Gen:</span>
                 <input
                   type="range"
                   min={2}
                   max={6}
                   value={pedigreeGenerations}
                   onChange={(e) => setPedigreeGenerations(Number(e.target.value))}
-                  className="w-16 h-1.5 accent-primary cursor-pointer"
+                  className="w-12 sm:w-16 h-1.5 accent-primary cursor-pointer"
                 />
                 <span className="text-sm font-medium w-4 text-center">{pedigreeGenerations}</span>
               </div>
             )}
 
-            {/* Zoom Controls - Only for zoomable views */}
+            {/* Zoom Controls - Compact on mobile */}
             {(viewMode === 'tree' || viewMode === 'family' || viewMode === 'pedigree') && (
               <div className="flex items-center border rounded-md">
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-r-none" onClick={() => handleZoom('out')} title="Zoom Out">
-                  <ZoomOut className="w-4 h-4" />
+                <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-r-none" onClick={() => handleZoom('out')} title="Zoom Out">
+                  <ZoomOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none border-x" onClick={reset} title="Reset View">
-                  <RotateCcw className="w-3.5 h-3.5" />
+                <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-none border-x hidden sm:flex" onClick={reset} title="Reset View">
+                  <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-l-none" onClick={() => handleZoom('in')} title="Zoom In">
-                  <ZoomIn className="w-4 h-4" />
+                <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-l-none" onClick={() => handleZoom('in')} title="Zoom In">
+                  <ZoomIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
               </div>
             )}
@@ -278,9 +278,9 @@ export default function ChartPage() {
             {/* Actions Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-1 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3" title="Aksi">
                   <MoreHorizontal className="w-4 h-4" />
-                  <span className="hidden sm:inline">Aksi</span>
+                  <span className="hidden md:inline">Aksi</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-popover w-48">
