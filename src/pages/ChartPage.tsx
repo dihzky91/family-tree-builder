@@ -33,7 +33,8 @@ import {
   Link2,
   Download,
   Network,
-  TreePine
+  TreePine,
+  Printer
 } from 'lucide-react';
 import type { Person } from '@/types';
 import { GenerationView } from '@/features/chart/views/GenerationView';
@@ -42,6 +43,7 @@ import { PedigreeView } from '@/features/chart/views/PedigreeView';
 import { RelationshipForm } from '@/features/relationships/RelationshipForm';
 import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
 import { exportTreeAsImage, type ExportFormat } from '@/features/chart/utils/exportTreeAsImage';
+import { PrintDialog } from '@/features/chart/components/PrintDialog';
 
 type ViewMode = 'family' | 'pedigree' | 'tree' | 'timeline' | 'stats';
 
@@ -51,6 +53,7 @@ export default function ChartPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [scale, setScale] = useState(1);
   const [showAddRelationship, setShowAddRelationship] = useState(false);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [addRelationshipContext, setAddRelationshipContext] = useState<{
     personId?: string;
     suggestedType?: 'parent' | 'spouse' | 'child';
@@ -177,10 +180,21 @@ export default function ChartPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Print Button */}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowPrintDialog(true)}
+              disabled={persons.length === 0}
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              Cetak
+            </Button>
+
             {/* Export Button */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled={persons.length === 0}>
                   <Download className="w-4 h-4 mr-2" />
                   Export
                 </Button>
@@ -609,6 +623,14 @@ export default function ChartPage() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Print Dialog */}
+      <PrintDialog
+        open={showPrintDialog}
+        onOpenChange={setShowPrintDialog}
+        elementRef={chartRef}
+        title="Silsilah Keluarga"
+      />
     </div>
   );
 }
