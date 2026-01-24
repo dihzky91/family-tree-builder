@@ -1,4 +1,5 @@
 import { User, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { Person } from '@/types';
 
@@ -9,6 +10,7 @@ interface PersonNodeProps {
   size?: 'small' | 'normal' | 'large';
   showAddButton?: boolean;
   onAdd?: () => void;
+  layoutId?: string;
 }
 
 function truncateName(name: string, maxLength: number): string {
@@ -22,7 +24,8 @@ export function PersonNode({
   onClick, 
   size = 'normal',
   showAddButton,
-  onAdd 
+  onAdd,
+  layoutId
 }: PersonNodeProps) {
   const yearBirth = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
   const yearDeath = person.deathDate ? new Date(person.deathDate).getFullYear() : null;
@@ -57,24 +60,46 @@ export function PersonNode({
   const colors = genderColors[person.gender];
 
   return (
-    <div className="relative group">
-      <button
+    <motion.div 
+      className="relative group"
+      layoutId={layoutId || `person-${person.id}`}
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ 
+        opacity: 1, 
+        scale: 1,
+        transition: { type: "spring", stiffness: 300, damping: 25 }
+      }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+    >
+      <motion.button
         onClick={onClick}
         className={cn(
-          "flex flex-col items-center rounded-lg border-2 transition-all duration-200",
-          "hover:shadow-md hover:scale-105",
+          "flex flex-col items-center rounded-lg border-2",
           config.card,
           colors.border,
           colors.bg,
-          isSelected && "ring-2 ring-offset-2 ring-accent shadow-warm scale-105"
+          isSelected && "ring-2 ring-offset-2 ring-accent shadow-warm"
         )}
+        animate={{
+          scale: isSelected ? 1.05 : 1,
+          boxShadow: isSelected 
+            ? "0 8px 25px -5px rgba(0, 0, 0, 0.2)" 
+            : "0 2px 10px -3px rgba(0, 0, 0, 0.1)"
+        }}
+        transition={{ type: "spring", stiffness: 400, damping: 25 }}
       >
         {/* Avatar */}
-        <div className={cn(
-          "rounded-full flex items-center justify-center mb-1.5",
-          config.avatar,
-          colors.avatar
-        )}>
+        <motion.div 
+          className={cn(
+            "rounded-full flex items-center justify-center mb-1.5",
+            config.avatar,
+            colors.avatar
+          )}
+          animate={{ scale: isSelected ? 1.1 : 1 }}
+          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        >
           {person.photoUrl ? (
             <img 
               src={person.photoUrl} 
@@ -84,7 +109,7 @@ export function PersonNode({
           ) : (
             <User className={size === 'small' ? "w-4 h-4" : size === 'large' ? "w-7 h-7" : "w-5 h-5"} />
           )}
-        </div>
+        </motion.div>
 
         {/* Name */}
         <span 
@@ -100,25 +125,51 @@ export function PersonNode({
         </span>
 
         {/* Verified badge */}
-        {person.tags.includes('verified') && size !== 'small' && (
-          <span className="mt-1 px-1 py-0.5 text-[9px] rounded bg-success/20 text-success font-medium">
-            ✓ Verified
-          </span>
+        <AnimatePresence>
+          {person.tags.includes('verified') && size !== 'small' && (
+            <motion.span 
+              className="mt-1 px-1 py-0.5 text-[9px] rounded bg-success/20 text-success font-medium"
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -5 }}
+            >
+              ✓ Verified
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.button>
+
+      {/* Glow effect for selected */}
+      <AnimatePresence>
+        {isSelected && (
+          <motion.div
+            className="absolute inset-0 rounded-lg bg-accent/20 -z-10"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1.1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          />
         )}
-      </button>
+      </AnimatePresence>
 
       {/* Add button overlay */}
-      {showAddButton && onAdd && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onAdd(); }}
-          className="absolute -right-2 -top-2 w-6 h-6 rounded-full bg-primary text-primary-foreground 
-            flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity 
-            hover:bg-primary/80 shadow-md"
-        >
-          <Plus className="w-3 h-3" />
-        </button>
-      )}
-    </div>
+      <AnimatePresence>
+        {showAddButton && onAdd && (
+          <motion.button
+            onClick={(e) => { e.stopPropagation(); onAdd(); }}
+            className="absolute -right-2 -top-2 w-6 h-6 rounded-full bg-primary text-primary-foreground 
+              flex items-center justify-center hover:bg-primary/80 shadow-md"
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0 }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <Plus className="w-3 h-3" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
 
@@ -136,17 +187,26 @@ export function PlaceholderNode({ label, onClick, size = 'normal' }: Placeholder
   };
 
   return (
-    <button
+    <motion.button
       onClick={onClick}
       className={cn(
         "flex flex-col items-center justify-center rounded-lg border-2 border-dashed",
         "border-muted-foreground/30 bg-muted/30 text-muted-foreground",
-        "hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-200",
         sizeConfig[size]
       )}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      whileHover={{ 
+        scale: 1.05, 
+        borderColor: "hsl(var(--primary))",
+        backgroundColor: "hsl(var(--primary) / 0.05)"
+      }}
+      whileTap={{ scale: 0.95 }}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
     >
       <Plus className="w-5 h-5 mb-1" />
       <span className="text-xs font-medium text-center">{label}</span>
-    </button>
+    </motion.button>
   );
 }
