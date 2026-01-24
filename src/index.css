@@ -1,12 +1,12 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 /* Silsilah Keluarga Design System
    Warm, heritage-inspired palette with earthy tones
    All colors in HSL format */
 
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
   :root {
@@ -74,6 +74,18 @@
     --node-selected: 38 80% 50%;
     --node-highlight: 38 90% 60%;
 
+    /* Chart colors for statistics */
+    --chart-1: 200 70% 50%;
+    /* Blue */
+    --chart-2: 340 75% 55%;
+    /* Pink/Red */
+    --chart-3: 142 60% 45%;
+    /* Green */
+    --chart-4: 38 85% 55%;
+    /* Orange */
+    --chart-5: 280 65% 60%;
+    /* Purple */
+
     /* Gradient definitions */
     --gradient-warm: linear-gradient(135deg, hsl(38 80% 50%) 0%, hsl(25 65% 35%) 100%);
     --gradient-heritage: linear-gradient(180deg, hsl(25 30% 18%) 0%, hsl(25 25% 12%) 100%);
@@ -133,6 +145,13 @@
     --node-unknown: 30 15% 55%;
     --node-selected: 38 80% 55%;
     --node-highlight: 38 85% 65%;
+
+    /* Chart colors for dark mode */
+    --chart-1: 200 65% 60%;
+    --chart-2: 340 70% 65%;
+    --chart-3: 142 55% 55%;
+    --chart-4: 38 80% 65%;
+    --chart-5: 280 60% 70%;
   }
 }
 
@@ -150,7 +169,12 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-display);
     @apply font-semibold tracking-tight;
   }
@@ -254,27 +278,34 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes slideUp {
-    from { 
+    from {
       opacity: 0;
       transform: translateY(10px);
     }
-    to { 
+
+    to {
       opacity: 1;
       transform: translateY(0);
     }
   }
 
   @keyframes scaleIn {
-    from { 
+    from {
       opacity: 0;
       transform: scale(0.95);
     }
-    to { 
+
+    to {
       opacity: 1;
       transform: scale(1);
     }

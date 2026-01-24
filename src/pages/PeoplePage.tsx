@@ -21,28 +21,38 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { 
-  Plus, 
-  Search, 
-  User, 
-  Trash2, 
+import {
+  Plus,
+  Search,
+  User,
+  Trash2,
   Edit,
   Calendar,
   CheckCircle,
   AlertCircle,
   Undo2,
-  Users as UsersIcon
+  Users as UsersIcon,
+  X
 } from 'lucide-react';
 import { PersonForm } from '@/features/people/PersonForm';
-import type { Person } from '@/types';
+import type { Person, FilterConfig } from '@/types';
 import Fuse from 'fuse.js';
+import { FilterPanel } from '@/components/filter/FilterPanel';
+import { applyAllFilters, getGenerationLabel } from '@/lib/filterUtils';
+import { PersonCardSkeletonGrid } from '@/components/skeletons/PersonCardSkeleton';
 
 export default function PeoplePage() {
-  const { persons, deletePerson, undoStack, undo, searchQuery, setSearchQuery } = useFamilyStore();
+  const { persons, deletePerson, undoStack, undo, searchQuery, setSearchQuery, relationships, isLoading } = useFamilyStore();
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Person | null>(null);
+  const [filters, setFilters] = useState<FilterConfig>({
+    generations: [],
+    verificationStatuses: [],
+    ageRange: null,
+    completeness: 'all'
+  });
 
   // Fuzzy search
   const fuse = new Fuse(persons, {
@@ -50,9 +60,35 @@ export default function PeoplePage() {
     threshold: 0.3,
   });
 
-  const filteredPersons = localSearch
+  // Apply search first, then filters
+  const searchResults = localSearch
     ? fuse.search(localSearch).map(result => result.item)
     : persons;
+
+  const filteredPersons = applyAllFilters(searchResults, filters, relationships);
+
+  const activeFilterCount =
+    filters.generations.length +
+    filters.verificationStatuses.length +
+    (filters.ageRange ? 1 : 0) +
+    (filters.completeness !== 'all' ? 1 : 0);
+
+  const removeFilter = (type: 'generation' | 'verification' | 'age' | 'completeness', value?: any) => {
+    switch (type) {
+      case 'generation':
+        setFilters({ ...filters, generations: filters.generations.filter(g => g !== value) });
+        break;
+      case 'verification':
+        setFilters({ ...filters, verificationStatuses: filters.verificationStatuses.filter(v => v !== value) });
+        break;
+      case 'age':
+        setFilters({ ...filters, ageRange: null });
+        break;
+      case 'completeness':
+        setFilters({ ...filters, completeness: 'all' });
+        break;
+    }
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +128,12 @@ export default function PeoplePage() {
               Undo
             </Button>
           )}
+          <FilterPanel
+            filterConfig={filters}
+            onFilterChange={setFilters}
+            persons={persons}
+            relationships={relationships}
+          />
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -109,6 +151,61 @@ export default function PeoplePage() {
         </div>
       </div>
 
+      {/* Active Filters */}
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filter Aktif:</span>
+          {filters.generations.map(gen => (
+            <Badge key={`gen-${gen}`} variant="secondary" className="gap-1">
+              {getGenerationLabel(gen)}
+              <button
+                type="button"
+                onClick={() => removeFilter('generation', gen)}
+                className="ml-1 hover:text-destructive"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          ))}
+          {filters.verificationStatuses.map(status => (
+            <Badge key={`status-${status}`} variant="secondary" className="gap-1">
+              {status}
+              <button
+                type="button"
+                onClick={() => removeFilter('verification', status)}
+                className="ml-1 hover:text-destructive"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          ))}
+          {filters.ageRange && (
+            <Badge variant="secondary" className="gap-1">
+              {filters.ageRange.min} - {filters.ageRange.max}
+              <button
+                type="button"
+                onClick={() => removeFilter('age')}
+                className="ml-1 hover:text-destructive"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+          {filters.completeness !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              {filters.completeness === 'complete' ? 'Lengkap' : filters.completeness === 'partial' ? 'Sebagian' : 'Minimal'}
+              <button
+                type="button"
+                onClick={() => removeFilter('completeness')}
+                className="ml-1 hover:text-destructive"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* Search */}
       <form onSubmit={handleSearch} className="flex gap-2 max-w-md">
         <div className="relative flex-1">
@@ -124,15 +221,24 @@ export default function PeoplePage() {
         <Button type="submit" variant="secondary">Cari</Button>
       </form>
 
+      {/* Result Count */}
+      {(localSearch || activeFilterCount > 0) && (
+        <p className="text-sm text-muted-foreground">
+          Menampilkan <span className="font-semibold">{filteredPersons.length}</span> dari <span className="font-semibold">{persons.length}</span> anggota
+        </p>
+      )}
+
       {/* People Grid */}
-      {filteredPersons.length === 0 ? (
+      {isLoading ? (
+        <PersonCardSkeletonGrid count={6} />
+      ) : filteredPersons.length === 0 ? (
         <div className="empty-state py-20">
           <UsersIcon className="empty-state-icon" />
           <h3 className="text-lg font-medium mb-2">
             {localSearch ? 'Tidak ada hasil' : 'Belum ada anggota'}
           </h3>
           <p className="text-muted-foreground mb-4">
-            {localSearch 
+            {localSearch
               ? 'Coba kata kunci lain atau hapus filter pencarian'
               : 'Mulai dengan menambahkan anggota keluarga pertama'}
           </p>
@@ -149,27 +255,47 @@ export default function PeoplePage() {
             <Card key={person.id} className="p-4 hover:shadow-lg transition-shadow animate-slide-up">
               <div className="flex items-start gap-4">
                 {/* Avatar */}
-                <div className={`
-                  w-14 h-14 rounded-full flex items-center justify-center shrink-0
-                  ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' : 
-                    person.gender === 'female' ? 'bg-node-female/20 text-node-female' : 
-                    'bg-node-unknown/20 text-node-unknown'}
-                `}>
-                  {person.photoUrl ? (
-                    <img 
-                      src={person.photoUrl} 
-                      alt={person.fullName}
-                      className="w-full h-full rounded-full object-cover"
-                    />
-                  ) : (
-                    <User className="w-6 h-6" />
+                <div className="relative shrink-0">
+                  <div className={`
+                    w-14 h-14 rounded-full flex items-center justify-center overflow-hidden
+                    ${person.photoUrl ? 'border-2 border-border shadow-sm' : ''}
+                    ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
+                      person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
+                        'bg-node-unknown/20 text-node-unknown'}
+                  `}>
+                    {person.photoUrl ? (
+                      <img
+                        src={person.photoUrl}
+                        alt={person.fullName}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            const icon = document.createElement('div');
+                            icon.className = 'w-6 h-6';
+                            icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+                            parent.appendChild(icon);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <User className="w-6 h-6" />
+                    )}
+                  </div>
+                  {/* Verified badge on avatar */}
+                  {person.tags.includes('verified') && (
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+                      <CheckCircle className="w-3 h-3 text-white" />
+                    </div>
                   )}
                 </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold truncate">{person.fullName}</h3>
-                  
+
                   {/* Dates */}
                   <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                     <Calendar className="w-3.5 h-3.5" />
@@ -182,13 +308,13 @@ export default function PeoplePage() {
                   {/* Tags */}
                   <div className="flex flex-wrap gap-1 mt-2">
                     {person.tags.map((tag) => (
-                      <Badge 
-                        key={tag} 
+                      <Badge
+                        key={tag}
                         variant="outline"
                         className={
                           tag === 'verified' ? 'badge-verified' :
-                          tag === 'needs review' ? 'badge-review' :
-                          tag === 'draft' ? 'badge-draft' : ''
+                            tag === 'needs review' ? 'badge-review' :
+                              tag === 'draft' ? 'badge-draft' : ''
                         }
                       >
                         {tag === 'verified' && <CheckCircle className="w-3 h-3 mr-1" />}
@@ -203,7 +329,7 @@ export default function PeoplePage() {
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-muted-foreground">Keyakinan:</span>
                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full bg-primary rounded-full"
                           style={{ width: `${person.confidenceScore}%` }}
                         />
@@ -217,9 +343,9 @@ export default function PeoplePage() {
                 <div className="flex flex-col gap-1">
                   <Dialog>
                     <DialogTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-8 w-8"
                         onClick={() => setEditingPerson(person)}
                       >
@@ -233,9 +359,9 @@ export default function PeoplePage() {
                       <PersonForm person={person} onSuccess={() => setEditingPerson(null)} />
                     </DialogContent>
                   </Dialog>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-8 w-8 text-destructive hover:text-destructive"
                     onClick={() => setDeleteConfirm(person)}
                   >
@@ -266,7 +392,7 @@ export default function PeoplePage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

@@ -8,16 +8,15 @@ import { MarriagesTab } from '@/features/stats/tabs/MarriagesTab';
 import { ChildrenTab } from '@/features/stats/tabs/ChildrenTab';
 import { DivorcesTab } from '@/features/stats/tabs/DivorcesTab';
 import { useFamilyStore } from '@/store/familyStore';
-import { useEffect } from 'react';
-import { 
-  BarChart3, 
-  GitBranch, 
-  MapPin, 
-  Clock, 
-  Baby, 
-  Heart, 
-  Users, 
-  HeartCrack 
+import {
+  BarChart3,
+  GitBranch,
+  MapPin,
+  Clock,
+  Baby,
+  Heart,
+  Users,
+  HeartCrack
 } from 'lucide-react';
 
 const tabs = [
@@ -32,11 +31,10 @@ const tabs = [
 ];
 
 export default function StatsPage() {
-  const { loadData, isLoading, persons } = useFamilyStore();
+  const { isLoading, persons } = useFamilyStore();
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // No need to call loadData here - data is already loaded globally
+  // when the app initializes or when other pages load it
 
   if (isLoading) {
     return (

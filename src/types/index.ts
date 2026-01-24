@@ -151,3 +151,125 @@ export interface ExportData {
   relationships: Relationship[];
   evidence: Evidence[];
 }
+
+// ============= FILTER TYPES =============
+export interface FilterConfig {
+  generations: number[]; // 0 = root, 1 = children, -1 = parents, etc.
+  verificationStatuses: string[]; // 'verified', 'needs review', 'draft'
+  ageRange: { min: number; max: number } | null;
+  completeness: 'all' | 'complete' | 'partial' | 'minimal';
+}
+
+export type GenerationLevel = -3 | -2 | -1 | 0 | 1 | 2 | 3;
+
+export interface PersonWithGeneration extends Person {
+  generation?: GenerationLevel;
+}
+
+// ============= BRANCH & SUBMISSION TYPES =============
+
+// Branch represents a family branch with its own submission form
+export const BranchSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string().min(1).max(50), // URL-safe code like "family-budi"
+  name: z.string().min(1), // "Keluarga Budi Santoso"
+  rootPersonId: z.string().uuid(), // Person ID of branch head
+  coordinatorName: z.string(),
+  coordinatorEmail: z.string().email().optional(),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
+  submissionCount: z.number().default(0),
+  approvedCount: z.number().default(0),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type Branch = z.infer<typeof BranchSchema>;
+
+// Form schema for creating branch
+export const BranchFormSchema = z.object({
+  code: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers, and hyphens'),
+  name: z.string().min(1),
+  rootPersonId: z.string().uuid(),
+  coordinatorName: z.string().min(1),
+  coordinatorEmail: z.string().email().optional(),
+  description: z.string().optional(),
+});
+
+export type BranchFormData = z.infer<typeof BranchFormSchema>;
+
+// Enum for relationship to branch
+export const RelationToBranchEnum = z.enum(['child', 'grandchild', 'great-grandchild', 'other']);
+export type RelationToBranch = z.infer<typeof RelationToBranchEnum>;
+
+// Enum for submission status
+export const SubmissionStatusEnum = z.enum(['pending', 'approved', 'rejected']);
+export type SubmissionStatus = z.infer<typeof SubmissionStatusEnum>;
+
+// Submission represents a public form submission
+export const SubmissionSchema = z.object({
+  id: z.string().uuid(),
+  branchId: z.string().uuid(),
+
+  // Submitter info
+  submittedBy: z.string().min(1),
+  submitterEmail: z.string().email().optional(),
+
+  // Person data (to be created when approved)
+  fullName: z.string().min(1),
+  gender: GenderEnum,
+  birthDate: z.string().optional(),
+  birthPlace: z.string().optional(),
+  deathDate: z.string().optional(),
+  deathPlace: z.string().optional(),
+  residence: z.string().optional(),
+  photoUrl: z.string().optional(),
+  notes: z.string().optional(),
+
+  // Relationship info
+  relationToBranch: RelationToBranchEnum,
+  parentName: z.string().optional(), // If grandchild+, who is the parent
+
+  // Review status
+  status: SubmissionStatusEnum.default('pending'),
+  reviewedAt: z.string().optional(),
+  reviewedBy: z.string().uuid().optional(),
+  reviewNotes: z.string().optional(),
+
+  // Link to created person (when approved)
+  createdPersonId: z.string().uuid().optional(),
+
+  // Duplicate detection
+  possibleDuplicateId: z.string().uuid().optional(),
+
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type Submission = z.infer<typeof SubmissionSchema>;
+
+// Form schema for public submission
+export const SubmissionFormSchema = z.object({
+  submittedBy: z.string().min(1, 'Nama Anda diperlukan'),
+  submitterEmail: z.string().email('Email tidak valid').optional().or(z.literal('')),
+  fullName: z.string().min(1, 'Nama lengkap diperlukan'),
+  gender: GenderEnum,
+  birthDate: z.string().optional(),
+  birthPlace: z.string().optional(),
+  deathDate: z.string().optional(),
+  deathPlace: z.string().optional(),
+  residence: z.string().optional(),
+  photoUrl: z.string().optional(),
+  notes: z.string().max(500).optional(),
+  relationToBranch: RelationToBranchEnum,
+  parentName: z.string().optional(),
+});
+
+export type SubmissionFormData = z.infer<typeof SubmissionFormSchema>;
+
+// Approved member info (for public display - names only)
+export interface ApprovedMemberInfo {
+  fullName: string;
+  relationToBranch: RelationToBranch;
+  parentName?: string;
+}

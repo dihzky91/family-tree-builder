@@ -22,6 +22,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert';
+import { PhotoUploader } from '@/components/photo/PhotoUploader';
 
 interface PersonFormProps {
   person?: Person;
@@ -137,7 +138,7 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
 
         <div>
           <Label htmlFor="gender">Jenis Kelamin</Label>
-          <Select 
+          <Select
             defaultValue={person?.gender || 'unknown'}
             onValueChange={(value) => setValue('gender', value as any)}
           >
@@ -152,14 +153,14 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
           </Select>
         </div>
 
-        <div>
-          <Label htmlFor="photoUrl">URL Foto</Label>
-          <Input
-            id="photoUrl"
-            {...register('photoUrl')}
-            placeholder="https://..."
-            className="mt-1"
-          />
+        <div className="md:col-span-2">
+          <Label>Foto Profil</Label>
+          <div className="mt-2">
+            <PhotoUploader
+              currentPhotoUrl={watch('photoUrl')}
+              onPhotoChange={(url) => setValue('photoUrl', url)}
+            />
+          </div>
         </div>
 
         <div>

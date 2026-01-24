@@ -1,9 +1,9 @@
 import { useLocation, Link } from 'react-router-dom';
-import { 
-  Users, 
-  GitBranch, 
-  FileText, 
-  Download, 
+import {
+  Users,
+  GitBranch,
+  FileText,
+  Download,
   Settings,
   Home,
   Search,
@@ -12,7 +12,9 @@ import {
   TreeDeciduous,
   Copy,
   History,
-  BarChart3
+  BarChart3,
+  FileCheck,
+  FolderTree
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,6 +30,8 @@ const navItems = [
   { title: 'Dokumen', url: '/evidence', icon: FileText },
   { title: 'Duplikat', url: '/duplicates', icon: Copy },
   { title: 'Statistik', url: '/stats', icon: BarChart3 },
+  { title: 'Cabang', url: '/branches', icon: FolderTree },
+  { title: 'Submissions', url: '/submissions', icon: FileCheck },
   { title: 'Audit Log', url: '/audit', icon: History },
   { title: 'Import/Export', url: '/data', icon: Download },
   { title: 'Pengaturan', url: '/settings', icon: Settings },
@@ -49,7 +53,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   };
 
   return (
-    <aside 
+    <aside
       className={cn(
         "flex flex-col h-screen bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300",
         collapsed ? "w-16" : "w-64"
@@ -103,8 +107,8 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
                 "hover:bg-sidebar-accent",
-                isActive 
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                isActive
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
                   : "text-sidebar-foreground/80"
               )}
             >

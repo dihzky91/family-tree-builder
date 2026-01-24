@@ -17,6 +17,9 @@ import StatsPage from "./pages/StatsPage";
 import AuthPage from "./pages/AuthPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
+import PublicSubmitPage from "./pages/PublicSubmitPage";
+import BranchManagementPage from "./pages/BranchManagementPage";
+import SubmissionReviewPage from "./pages/SubmissionReviewPage";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +30,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Public routes (no auth) */}
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/submit/:branchCode" element={<PublicSubmitPage />} />
           <Route
             path="/*"
             element={
@@ -41,6 +46,8 @@ const App = () => (
                     <Route path="/duplicates" element={<DuplicatesPage />} />
                     <Route path="/audit" element={<AuditLogPage />} />
                     <Route path="/stats" element={<StatsPage />} />
+                    <Route path="/branches" element={<BranchManagementPage />} />
+                    <Route path="/submissions" element={<SubmissionReviewPage />} />
                     <Route path="/data" element={<DataPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
