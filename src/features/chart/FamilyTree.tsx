@@ -242,10 +242,16 @@ interface PersonCardProps {
   size?: 'normal' | 'small';
 }
 
+function truncateName(name: string, maxLength: number): string {
+  if (name.length <= maxLength) return name;
+  return name.substring(0, maxLength).trim() + '...';
+}
+
 function PersonCard({ person, isSelected, onClick, size = 'normal' }: PersonCardProps) {
   const yearBirth = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
   const yearDeath = person.deathDate ? new Date(person.deathDate).getFullYear() : null;
   const isSmall = size === 'small';
+  const displayName = truncateName(person.fullName, isSmall ? 14 : 18);
 
   const genderColors = {
     male: {
@@ -273,7 +279,7 @@ function PersonCard({ person, isSelected, onClick, size = 'normal' }: PersonCard
       className={cn(
         "flex flex-col items-center rounded-lg border-2 transition-all duration-200",
         "hover:shadow-md hover:scale-105",
-        isSmall ? "p-2 min-w-[100px]" : "p-3 min-w-[130px]",
+        isSmall ? "p-2 w-[100px]" : "p-3 w-[130px]",
         colors.border,
         colors.bg,
         isSelected && "ring-2 ring-offset-2 ring-accent shadow-warm scale-105"
@@ -297,11 +303,14 @@ function PersonCard({ person, isSelected, onClick, size = 'normal' }: PersonCard
       </div>
 
       {/* Name */}
-      <span className={cn(
-        "font-medium text-center leading-tight",
-        isSmall ? "text-[11px]" : "text-sm"
-      )}>
-        {person.fullName}
+      <span 
+        className={cn(
+          "font-medium text-center leading-tight",
+          isSmall ? "text-[11px]" : "text-sm"
+        )}
+        title={person.fullName}
+      >
+        {displayName}
       </span>
 
       {/* Years */}
