@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
+import { toast } from 'sonner';
 import type { Relationship, Person } from '@/types';
 import { getRelationshipDisplayInfo } from '@/lib/relationshipValidation';
 import { Button } from '@/components/ui/button';
@@ -54,7 +55,7 @@ interface GroupedChildRelationship {
 }
 
 export function RelationshipInspector({ personId, onPersonClick }: RelationshipInspectorProps) {
-  const { relationships, persons, evidence, deleteRelationship } = useFamilyStore();
+  const { relationships, persons, evidence, deleteRelationship, undo } = useFamilyStore();
   const [editingRelationship, setEditingRelationship] = useState<Relationship | null>(null);
   const [deletingRelationship, setDeletingRelationship] = useState<Relationship | null>(null);
   const [deletingRelationships, setDeletingRelationships] = useState<Relationship[] | null>(null);
@@ -135,15 +136,39 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
     if (deletingRelationship) {
       await deleteRelationship(deletingRelationship.id);
       setDeletingRelationship(null);
+      
+      toast.success('Relasi berhasil dihapus', {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            await undo();
+            toast.success('Relasi berhasil dikembalikan');
+          },
+        },
+      });
     }
   };
 
   const handleDeleteMultiple = async () => {
     if (deletingRelationships) {
+      const count = deletingRelationships.length;
       for (const rel of deletingRelationships) {
         await deleteRelationship(rel.id);
       }
       setDeletingRelationships(null);
+      
+      toast.success(`${count} relasi berhasil dihapus`, {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            // Undo each deletion in reverse order
+            for (let i = 0; i < count; i++) {
+              await undo();
+            }
+            toast.success(`${count} relasi berhasil dikembalikan`);
+          },
+        },
+      });
     }
   };
 
