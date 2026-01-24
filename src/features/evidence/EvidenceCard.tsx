@@ -100,6 +100,10 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
   const config = statusConfig[evidence.status];
   const StatusIcon = config.icon;
   const isImage = evidence.fileName?.match(/\.(jpg|jpeg|png|webp)$/i);
+  
+  // Support both legacy base64 (fileData) and new storage URLs (fileUrl)
+  const fileSource = evidence.fileUrl || evidence.fileData;
+  const hasFile = !!fileSource;
 
   const handleStatusSelect = (newStatus: VerificationStatus) => {
     if (newStatus === evidence.status) return;
@@ -132,14 +136,14 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
               "w-14 h-14 rounded-lg flex items-center justify-center shrink-0",
               config.bgColor
             )}>
-              {evidence.fileData && isImage ? (
+              {hasFile && isImage ? (
                 <img 
-                  src={evidence.fileData} 
+                  src={fileSource} 
                   alt={evidence.fileName || 'Evidence'} 
                   className="w-full h-full object-cover rounded-lg cursor-pointer"
                   onClick={() => setShowPreview(true)}
                 />
-              ) : evidence.fileData ? (
+              ) : hasFile ? (
                 <FileText className={cn("w-6 h-6", config.color)} />
               ) : (
                 <StatusIcon className={cn("w-6 h-6", config.color)} />
@@ -199,7 +203,7 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
           </div>
 
           <div className="flex items-center gap-1">
-            {evidence.fileData && (
+            {hasFile && (
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -228,20 +232,22 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
             <DialogTitle>{evidence.fileName || 'Preview Dokumen'}</DialogTitle>
           </DialogHeader>
           <div className="mt-4">
-            {evidence.fileData && isImage ? (
+            {hasFile && isImage ? (
               <img 
-                src={evidence.fileData} 
+                src={fileSource} 
                 alt={evidence.fileName || 'Evidence'} 
                 className="w-full max-h-[70vh] object-contain rounded-lg"
               />
-            ) : evidence.fileData ? (
+            ) : hasFile ? (
               <div className="flex flex-col items-center justify-center py-12 bg-muted rounded-lg">
                 <FileText className="w-16 h-16 text-muted-foreground mb-4" />
                 <p className="font-medium">{evidence.fileName}</p>
                 <p className="text-sm text-muted-foreground">File PDF</p>
                 <a 
-                  href={evidence.fileData} 
+                  href={fileSource} 
                   download={evidence.fileName}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="mt-4"
                 >
                   <Button variant="outline">Download</Button>

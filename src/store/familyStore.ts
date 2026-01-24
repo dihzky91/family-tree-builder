@@ -36,7 +36,7 @@ interface FamilyState {
   deleteRelationship: (id: string) => Promise<void>;
   
   // Evidence actions
-  addEvidence: (evidence: Omit<Evidence, 'id' | 'createdAt'>) => Promise<Evidence>;
+  addEvidence: (evidence: Omit<Evidence, 'createdAt'> & { id?: string }) => Promise<Evidence>;
   updateEvidence: (id: string, updates: Partial<Evidence>) => Promise<void>;
   deleteEvidence: (id: string) => Promise<void>;
   
@@ -237,7 +237,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     const now = new Date().toISOString();
     const evidence: Evidence = {
       ...evData,
-      id: uuidv4(),
+      id: evData.id || uuidv4(),
       createdAt: now,
     };
     
