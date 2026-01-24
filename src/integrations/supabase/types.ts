@@ -14,6 +14,126 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          changes: Json | null
+          entity_id: string
+          entity_type: string
+          id: string
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          changes?: Json | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          changes?: Json | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      evidence: {
+        Row: {
+          created_at: string
+          date: string | null
+          description: string | null
+          doc_type: string
+          entity_id: string
+          entity_type: string
+          file_data: string | null
+          file_name: string | null
+          id: string
+          source: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string | null
+          description?: string | null
+          doc_type: string
+          entity_id: string
+          entity_type: string
+          file_data?: string | null
+          file_name?: string | null
+          id?: string
+          source?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string | null
+          description?: string | null
+          doc_type?: string
+          entity_id?: string
+          entity_type?: string
+          file_data?: string | null
+          file_name?: string | null
+          id?: string
+          source?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      persons: {
+        Row: {
+          birth_date: string | null
+          confidence_score: number | null
+          created_at: string
+          death_date: string | null
+          full_name: string
+          gender: string
+          id: string
+          notes: string | null
+          photo_url: string | null
+          tags: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          birth_date?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          death_date?: string | null
+          full_name: string
+          gender: string
+          id?: string
+          notes?: string | null
+          photo_url?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          birth_date?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          death_date?: string | null
+          full_name?: string
+          gender?: string
+          id?: string
+          notes?: string | null
+          photo_url?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -40,6 +160,60 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      relationships: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          from_person_id: string
+          id: string
+          start_date: string | null
+          status: string | null
+          to_person_id: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          from_person_id: string
+          id?: string
+          start_date?: string | null
+          status?: string | null
+          to_person_id: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          from_person_id?: string
+          id?: string
+          start_date?: string | null
+          status?: string | null
+          to_person_id?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relationships_from_person_id_fkey"
+            columns: ["from_person_id"]
+            isOneToOne: false
+            referencedRelation: "persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relationships_to_person_id_fkey"
+            columns: ["to_person_id"]
+            isOneToOne: false
+            referencedRelation: "persons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

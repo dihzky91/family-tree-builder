@@ -1,8 +1,7 @@
-import { indexedDBAdapter } from './indexeddb/IndexedDBAdapter';
+import { supabaseStorage } from './supabase/SupabaseAdapter';
 import type { StorageAdapter } from './StorageAdapter';
 
-// Export the current storage adapter
-// This can be swapped to PostgreSQL/Supabase adapter later
-export const storage: StorageAdapter = indexedDBAdapter;
+// Export the Supabase storage adapter
+export const storage: StorageAdapter = supabaseStorage;
 
 export type { StorageAdapter };
