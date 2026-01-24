@@ -66,8 +66,10 @@ export const EvidenceSchema = z.object({
   id: z.string().uuid(),
   entityType: EntityTypeEnum,
   entityId: z.string().uuid(),
-  fileData: z.string().nullable().optional(), // base64 or URL
+  fileData: z.string().nullable().optional(), // deprecated - kept for backwards compat
   fileName: z.string().nullable().optional(),
+  fileUrl: z.string().nullable().optional(), // URL from Supabase Storage
+  filePath: z.string().nullable().optional(), // path in storage bucket
   docType: DocumentTypeEnum,
   source: z.string().nullable().optional(),
   date: z.string().nullable().optional(),

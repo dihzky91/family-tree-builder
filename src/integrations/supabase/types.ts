@@ -54,6 +54,7 @@ export type Database = {
           entity_type: string
           file_data: string | null
           file_name: string | null
+          file_url: string | null
           id: string
           source: string | null
           status: string
@@ -68,6 +69,7 @@ export type Database = {
           entity_type: string
           file_data?: string | null
           file_name?: string | null
+          file_url?: string | null
           id?: string
           source?: string | null
           status?: string
@@ -82,6 +84,7 @@ export type Database = {
           entity_type?: string
           file_data?: string | null
           file_name?: string | null
+          file_url?: string | null
           id?: string
           source?: string | null
           status?: string
