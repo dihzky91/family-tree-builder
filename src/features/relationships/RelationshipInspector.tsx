@@ -22,6 +22,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { RelationshipForm } from './RelationshipForm';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { 
   Edit, 
   Trash2, 
@@ -52,6 +57,7 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
   const { relationships, persons, evidence, deleteRelationship } = useFamilyStore();
   const [editingRelationship, setEditingRelationship] = useState<Relationship | null>(null);
   const [deletingRelationship, setDeletingRelationship] = useState<Relationship | null>(null);
+  const [deletingRelationships, setDeletingRelationships] = useState<Relationship[] | null>(null);
 
   // Get all relationships for this person
   const personRelationships = relationships.filter(
@@ -132,6 +138,15 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
     }
   };
 
+  const handleDeleteMultiple = async () => {
+    if (deletingRelationships) {
+      for (const rel of deletingRelationships) {
+        await deleteRelationship(rel.id);
+      }
+      setDeletingRelationships(null);
+    }
+  };
+
   const getRelatedEvidence = (relationshipId: string) => {
     return evidence.filter(
       e => e.entityType === 'RELATIONSHIP' && e.entityId === relationshipId
@@ -171,6 +186,8 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
                   relationships={group.relationships}
                   evidence={getGroupedEvidence(group.relationships)}
                   onPersonClick={onPersonClick}
+                  onEditRelationship={(rel) => setEditingRelationship(rel)}
+                  onDeleteRelationships={(rels) => setDeletingRelationships(rels)}
                 />
               ) : (
                 <RelationshipCard
@@ -246,7 +263,7 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* Delete Confirmation - Single */}
       <AlertDialog open={!!deletingRelationship} onOpenChange={() => setDeletingRelationship(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -263,6 +280,24 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Confirmation - Multiple (Combined Parents) */}
+      <AlertDialog open={!!deletingRelationships} onOpenChange={() => setDeletingRelationships(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Kedua Relasi Orang Tua?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kedua relasi orang tua akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteMultiple} className="bg-destructive text-destructive-foreground">
+              Hapus Keduanya
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -273,12 +308,17 @@ interface CombinedParentCardProps {
   relationships: Relationship[];
   evidence: any[];
   onPersonClick?: (personId: string) => void;
+  onEditRelationship?: (relationship: Relationship) => void;
+  onDeleteRelationships?: (relationships: Relationship[]) => void;
 }
 
 function CombinedParentCard({ 
   parents, 
+  relationships,
   evidence, 
-  onPersonClick 
+  onPersonClick,
+  onEditRelationship,
+  onDeleteRelationships
 }: CombinedParentCardProps) {
   return (
     <div className="p-3 bg-muted/50 rounded-lg group hover:bg-muted transition-colors">
@@ -318,6 +358,46 @@ function CombinedParentCard({
               {evidence.length} dokumen terkait
             </div>
           )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Edit - Popover to choose which relationship */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7">
+                <Edit className="w-3.5 h-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-2" align="end">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground mb-2 px-2">
+                  Pilih relasi yang ingin diedit:
+                </p>
+                {relationships.map((rel, idx) => (
+                  <Button
+                    key={rel.id}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-xs h-8"
+                    onClick={() => onEditRelationship?.(rel)}
+                  >
+                    Relasi ke {parents[idx]?.fullName}
+                  </Button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Delete - Delete both relationships */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={() => onDeleteRelationships?.(relationships)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
         </div>
       </div>
     </div>
