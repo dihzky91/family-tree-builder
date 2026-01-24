@@ -50,7 +50,7 @@ interface RelationshipInspectorProps {
   onPersonClick?: (personId: string) => void;
 }
 
-// Component to display person name with deceased indicator
+// Component to display person name with gender color and deceased indicator
 function PersonName({ 
   person, 
   onPersonClick 
@@ -60,13 +60,24 @@ function PersonName({
 }) {
   const isDeceased = !!person.deathDate;
   
+  // Gender-based color classes using design system
+  const getGenderColorClass = () => {
+    if (isDeceased) return 'text-muted-foreground';
+    switch (person.gender) {
+      case 'male':
+        return 'text-[hsl(var(--node-male))]';
+      case 'female':
+        return 'text-[hsl(var(--node-female))]';
+      default:
+        return 'text-foreground';
+    }
+  };
+  
   return (
     <span className="inline-flex items-center gap-1">
       <button
         onClick={() => onPersonClick?.(person.id)}
-        className={`font-medium hover:text-primary transition-colors ${
-          isDeceased ? 'text-muted-foreground' : ''
-        }`}
+        className={`font-medium hover:opacity-80 transition-opacity ${getGenderColorClass()}`}
       >
         {person.fullName}
       </button>
