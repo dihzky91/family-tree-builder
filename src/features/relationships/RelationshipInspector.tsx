@@ -351,6 +351,11 @@ function CombinedParentCard({
                 className="font-medium hover:text-primary transition-colors"
               >
                 {parents[0].fullName}
+                {parents[0].birthDate && (
+                  <span className="text-muted-foreground font-normal ml-1">
+                    ({new Date(parents[0].birthDate).getFullYear()})
+                  </span>
+                )}
               </button>
             )}
             
@@ -362,6 +367,11 @@ function CombinedParentCard({
                   className="font-medium hover:text-primary transition-colors"
                 >
                   {parents[1].fullName}
+                  {parents[1].birthDate && (
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({new Date(parents[1].birthDate).getFullYear()})
+                    </span>
+                  )}
                 </button>
               </>
             )}
