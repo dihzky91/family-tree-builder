@@ -209,6 +209,8 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
                 relationships={groupedAsParent.relationships}
                 evidence={getGroupedEvidence(groupedAsParent.relationships)}
                 onPersonClick={onPersonClick}
+                onEditRelationship={(rel) => setEditingRelationship(rel)}
+                onDeleteRelationships={(rels) => setDeletingRelationships(rels)}
               />
             )}
           </div>
@@ -410,12 +412,17 @@ interface CombinedChildCardProps {
   relationships: Relationship[];
   evidence: any[];
   onPersonClick?: (personId: string) => void;
+  onEditRelationship?: (relationship: Relationship) => void;
+  onDeleteRelationships?: (relationships: Relationship[]) => void;
 }
 
 function CombinedChildCard({ 
-  children: childrenList, 
+  children: childrenList,
+  relationships,
   evidence, 
-  onPersonClick 
+  onPersonClick,
+  onEditRelationship,
+  onDeleteRelationships
 }: CombinedChildCardProps) {
   return (
     <div className="p-3 bg-muted/50 rounded-lg group hover:bg-muted transition-colors">
@@ -453,6 +460,46 @@ function CombinedChildCard({
               {evidence.length} dokumen terkait
             </div>
           )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Edit - Popover to choose which relationship */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7">
+                <Edit className="w-3.5 h-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-2" align="end">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground mb-2 px-2">
+                  Pilih relasi yang ingin diedit:
+                </p>
+                {relationships.map((rel, idx) => (
+                  <Button
+                    key={rel.id}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-xs h-8"
+                    onClick={() => onEditRelationship?.(rel)}
+                  >
+                    Relasi ke {childrenList[idx]?.fullName}
+                  </Button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Delete - Delete all relationships */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={() => onDeleteRelationships?.(relationships)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
         </div>
       </div>
     </div>
