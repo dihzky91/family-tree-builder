@@ -44,6 +44,59 @@ export type Database = {
         }
         Relationships: []
       }
+      branches: {
+        Row: {
+          approved_count: number | null
+          code: string
+          coordinator_email: string | null
+          coordinator_name: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          root_person_id: string
+          submission_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_count?: number | null
+          code: string
+          coordinator_email?: string | null
+          coordinator_name: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          root_person_id: string
+          submission_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_count?: number | null
+          code?: string
+          coordinator_email?: string | null
+          coordinator_name?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          root_person_id?: string
+          submission_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_root_person_id_fkey"
+            columns: ["root_person_id"]
+            isOneToOne: false
+            referencedRelation: "persons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evidence: {
         Row: {
           created_at: string
@@ -224,6 +277,106 @@ export type Database = {
           {
             foreignKeyName: "relationships_to_person_id_fkey"
             columns: ["to_person_id"]
+            isOneToOne: false
+            referencedRelation: "persons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      submissions: {
+        Row: {
+          birth_date: string | null
+          birth_place: string | null
+          branch_id: string
+          created_at: string | null
+          created_person_id: string | null
+          death_date: string | null
+          death_place: string | null
+          full_name: string
+          gender: string
+          id: string
+          notes: string | null
+          parent_name: string | null
+          photo_url: string | null
+          possible_duplicate_id: string | null
+          relation_to_branch: string
+          residence: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_by: string
+          submitter_email: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          birth_date?: string | null
+          birth_place?: string | null
+          branch_id: string
+          created_at?: string | null
+          created_person_id?: string | null
+          death_date?: string | null
+          death_place?: string | null
+          full_name: string
+          gender: string
+          id?: string
+          notes?: string | null
+          parent_name?: string | null
+          photo_url?: string | null
+          possible_duplicate_id?: string | null
+          relation_to_branch: string
+          residence?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_by: string
+          submitter_email?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          birth_date?: string | null
+          birth_place?: string | null
+          branch_id?: string
+          created_at?: string | null
+          created_person_id?: string | null
+          death_date?: string | null
+          death_place?: string | null
+          full_name?: string
+          gender?: string
+          id?: string
+          notes?: string | null
+          parent_name?: string | null
+          photo_url?: string | null
+          possible_duplicate_id?: string | null
+          relation_to_branch?: string
+          residence?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_by?: string
+          submitter_email?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submissions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissions_created_person_id_fkey"
+            columns: ["created_person_id"]
+            isOneToOne: false
+            referencedRelation: "persons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissions_possible_duplicate_id_fkey"
+            columns: ["possible_duplicate_id"]
             isOneToOne: false
             referencedRelation: "persons"
             referencedColumns: ["id"]

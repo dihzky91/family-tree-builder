@@ -1,5 +1,25 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Branch } from '@/types';
+import type { Tables } from '@/integrations/supabase/types';
+
+type DbBranch = Tables<'branches'>;
+
+function mapDbBranchToBranch(db: DbBranch): Branch {
+    return {
+        id: db.id,
+        code: db.code,
+        name: db.name,
+        rootPersonId: db.root_person_id,
+        coordinatorName: db.coordinator_name,
+        coordinatorEmail: db.coordinator_email || undefined,
+        description: db.description || undefined,
+        isActive: db.is_active ?? true,
+        submissionCount: db.submission_count ?? 0,
+        approvedCount: db.approved_count ?? 0,
+        createdAt: db.created_at || new Date().toISOString(),
+        updatedAt: db.updated_at || new Date().toISOString(),
+    };
+}
 
 /**
  * Get all branches
@@ -15,7 +35,7 @@ export async function getAllBranches(): Promise<Branch[]> {
         throw error;
     }
 
-    return data || [];
+    return (data || []).map(mapDbBranchToBranch);
 }
 
 /**
@@ -31,14 +51,13 @@ export async function getBranchByCode(code: string): Promise<Branch | null> {
 
     if (error) {
         if (error.code === 'PGRST116') {
-            // Not found
             return null;
         }
         console.error('Error fetching branch:', error);
         throw error;
     }
 
-    return data;
+    return data ? mapDbBranchToBranch(data) : null;
 }
 
 /**
@@ -59,7 +78,7 @@ export async function getBranchById(id: string): Promise<Branch | null> {
         throw error;
     }
 
-    return data;
+    return data ? mapDbBranchToBranch(data) : null;
 }
 
 /**
@@ -87,7 +106,7 @@ export async function createBranch(
         throw error;
     }
 
-    return data;
+    return mapDbBranchToBranch(data);
 }
 
 /**
@@ -137,19 +156,12 @@ export async function deleteBranch(id: string): Promise<void> {
  * Increment submission count for branch
  */
 export async function incrementBranchSubmissionCount(branchId: string): Promise<void> {
-    const { error } = await supabase.rpc('increment_branch_submission_count', {
-        branch_id: branchId,
-    });
-
-    if (error) {
-        console.error('Error incrementing submission count:', error);
-        // Fallback: manual increment
-        const branch = await getBranchById(branchId);
-        if (branch) {
-            await updateBranch(branchId, {
-                submissionCount: branch.submissionCount + 1,
-            });
-        }
+    // Manual increment since RPC function may not exist
+    const branch = await getBranchById(branchId);
+    if (branch) {
+        await updateBranch(branchId, {
+            submissionCount: branch.submissionCount + 1,
+        });
     }
 }
 
@@ -157,18 +169,11 @@ export async function incrementBranchSubmissionCount(branchId: string): Promise<
  * Increment approved count for branch
  */
 export async function incrementBranchApprovedCount(branchId: string): Promise<void> {
-    const { error } = await supabase.rpc('increment_branch_approved_count', {
-        branch_id: branchId,
-    });
-
-    if (error) {
-        console.error('Error incrementing approved count:', error);
-        // Fallback: manual increment
-        const branch = await getBranchById(branchId);
-        if (branch) {
-            await updateBranch(branchId, {
-                approvedCount: branch.approvedCount + 1,
-            });
-        }
+    // Manual increment since RPC function may not exist
+    const branch = await getBranchById(branchId);
+    if (branch) {
+        await updateBranch(branchId, {
+            approvedCount: branch.approvedCount + 1,
+        });
     }
 }

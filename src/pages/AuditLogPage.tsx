@@ -139,7 +139,7 @@ export default function AuditLogPage() {
   }, [filteredLogs]);
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-display font-bold flex items-center gap-2">
