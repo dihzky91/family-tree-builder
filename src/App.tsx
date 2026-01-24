@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import DashboardPage from "./pages/DashboardPage";
 import PeoplePage from "./pages/PeoplePage";
 import ChartPage from "./pages/ChartPage";
@@ -12,6 +13,7 @@ import DataPage from "./pages/DataPage";
 import SettingsPage from "./pages/SettingsPage";
 import DuplicatesPage from "./pages/DuplicatesPage";
 import AuditLogPage from "./pages/AuditLogPage";
+import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,19 +24,29 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppLayout>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/people" element={<PeoplePage />} />
-            <Route path="/chart" element={<ChartPage />} />
-            <Route path="/evidence" element={<EvidencePage />} />
-            <Route path="/duplicates" element={<DuplicatesPage />} />
-            <Route path="/audit" element={<AuditLogPage />} />
-            <Route path="/data" element={<DataPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AppLayout>
+        <Routes>
+          <Route path="/auth" element={<AuthPage />} />
+          <Route
+            path="/*"
+            element={
+              <AuthGuard>
+                <AppLayout>
+                  <Routes>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/people" element={<PeoplePage />} />
+                    <Route path="/chart" element={<ChartPage />} />
+                    <Route path="/evidence" element={<EvidencePage />} />
+                    <Route path="/duplicates" element={<DuplicatesPage />} />
+                    <Route path="/audit" element={<AuditLogPage />} />
+                    <Route path="/data" element={<DataPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </AppLayout>
+              </AuthGuard>
+            }
+          />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFamilyStore } from '@/store/familyStore';
 import { useState } from 'react';
+import { UserMenu } from '@/components/auth/UserMenu';
 
 const navItems = [
   { title: 'Dashboard', url: '/', icon: Home },
@@ -112,14 +113,23 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         })}
       </nav>
 
-      {/* Footer Stats */}
-      {!collapsed && (
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="text-xs text-sidebar-foreground/60">
-            <p>{persons.length} anggota keluarga</p>
-          </div>
+      {/* Footer with User Menu */}
+      <div className={cn(
+        "border-t border-sidebar-border",
+        collapsed ? "p-2" : "p-4"
+      )}>
+        <div className={cn(
+          "flex items-center",
+          collapsed ? "justify-center" : "justify-between"
+        )}>
+          {!collapsed && (
+            <div className="text-xs text-sidebar-foreground/60">
+              <p>{persons.length} anggota</p>
+            </div>
+          )}
+          <UserMenu />
         </div>
-      )}
+      </div>
     </aside>
   );
 }
