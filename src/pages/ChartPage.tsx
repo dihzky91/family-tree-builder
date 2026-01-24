@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useFamilyStore } from '@/store/familyStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +45,28 @@ import { RelationshipForm } from '@/features/relationships/RelationshipForm';
 import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
 import { exportTreeAsImage, type ExportFormat } from '@/features/chart/utils/exportTreeAsImage';
 import { PrintDialog } from '@/features/chart/components/PrintDialog';
+
+// Animation variants
+const viewTransition = {
+  initial: { opacity: 0, x: 20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -20 },
+  transition: { type: "spring" as const, stiffness: 300, damping: 30 }
+};
+
+const panelVariants = {
+  hidden: { opacity: 0, x: 50 },
+  visible: { 
+    opacity: 1, 
+    x: 0,
+    transition: { type: "spring" as const, stiffness: 300, damping: 30 }
+  },
+  exit: { 
+    opacity: 0, 
+    x: 50,
+    transition: { duration: 0.2 }
+  }
+};
 
 type ViewMode = 'family' | 'pedigree' | 'tree' | 'timeline' | 'stats';
 
@@ -272,13 +295,18 @@ export default function ChartPage() {
         {/* Content Area */}
         <div className="flex-1 overflow-auto bg-muted/30">
           {persons.length === 0 ? (
-            <div className="empty-state h-full">
+            <motion.div 
+              className="empty-state h-full"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
               <GitBranch className="empty-state-icon" />
               <h3 className="text-lg font-medium mb-2">Belum ada data</h3>
               <p className="text-muted-foreground">
                 Tambahkan anggota keluarga untuk melihat silsilah
               </p>
-            </div>
+            </motion.div>
           ) : (
             <div 
               ref={chartRef}
@@ -289,75 +317,108 @@ export default function ChartPage() {
                 minHeight: '100%'
               }}
             >
-              {viewMode === 'family' ? (
-                <FamilyView
-                  persons={persons}
-                  relationships={relationships}
-                  selectedPersonId={selectedPersonId}
-                  onSelectPerson={setSelectedPerson}
-                  onAddRelationship={handleAddRelationship}
-                />
-              ) : viewMode === 'pedigree' ? (
-                <PedigreeView
-                  persons={persons}
-                  relationships={relationships}
-                  selectedPersonId={selectedPersonId}
-                  onSelectPerson={setSelectedPerson}
-                  onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
-                  maxGenerations={pedigreeGenerations}
-                />
-              ) : viewMode === 'tree' ? (
-                <GenerationView
-                  persons={persons}
-                  relationships={relationships}
-                  selectedPersonId={selectedPersonId}
-                  onSelectPerson={setSelectedPerson}
-                />
-              ) : viewMode === 'timeline' ? (
-                <div className="p-6 space-y-6">
-                  {getTimelineData().map(({ generation, people }) => (
-                    <div key={generation} className="animate-slide-up">
-                      <h3 className="font-display font-semibold text-lg mb-3 flex items-center gap-2">
-                        <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm">
-                          {generation}
-                        </span>
-                        Generasi {generation}
-                        <span className="text-sm font-normal text-muted-foreground">
-                          ({people.length} orang)
-                        </span>
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pl-10">
-                        {people.map(person => (
-                          <Card 
-                            key={person.id} 
-                            className="p-3 cursor-pointer hover:shadow-md transition-shadow"
-                            onClick={() => setSelectedPerson(person.id)}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`
-                                w-10 h-10 rounded-full flex items-center justify-center shrink-0
-                                ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' : 
-                                  person.gender === 'female' ? 'bg-node-female/20 text-node-female' : 
-                                  'bg-node-unknown/20 text-node-unknown'}
-                              `}>
-                                <User className="w-5 h-5" />
+              <AnimatePresence mode="wait">
+                {viewMode === 'family' && (
+                  <motion.div
+                    key="family"
+                    {...viewTransition}
+                  >
+                    <FamilyView
+                      persons={persons}
+                      relationships={relationships}
+                      selectedPersonId={selectedPersonId}
+                      onSelectPerson={setSelectedPerson}
+                      onAddRelationship={handleAddRelationship}
+                    />
+                  </motion.div>
+                )}
+                {viewMode === 'pedigree' && (
+                  <motion.div
+                    key="pedigree"
+                    {...viewTransition}
+                  >
+                    <PedigreeView
+                      persons={persons}
+                      relationships={relationships}
+                      selectedPersonId={selectedPersonId}
+                      onSelectPerson={setSelectedPerson}
+                      onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
+                      maxGenerations={pedigreeGenerations}
+                    />
+                  </motion.div>
+                )}
+                {viewMode === 'tree' && (
+                  <motion.div
+                    key="tree"
+                    {...viewTransition}
+                  >
+                    <GenerationView
+                      persons={persons}
+                      relationships={relationships}
+                      selectedPersonId={selectedPersonId}
+                      onSelectPerson={setSelectedPerson}
+                    />
+                  </motion.div>
+                )}
+                {viewMode === 'timeline' && (
+                  <motion.div
+                    key="timeline"
+                    {...viewTransition}
+                    className="p-6 space-y-6"
+                  >
+                    {getTimelineData().map(({ generation, people }, index) => (
+                      <motion.div 
+                        key={generation}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <h3 className="font-display font-semibold text-lg mb-3 flex items-center gap-2">
+                          <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm">
+                            {generation}
+                          </span>
+                          Generasi {generation}
+                          <span className="text-sm font-normal text-muted-foreground">
+                            ({people.length} orang)
+                          </span>
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pl-10">
+                          {people.map(person => (
+                            <Card 
+                              key={person.id} 
+                              className="p-3 cursor-pointer hover:shadow-md transition-shadow"
+                              onClick={() => setSelectedPerson(person.id)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`
+                                  w-10 h-10 rounded-full flex items-center justify-center shrink-0
+                                  ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' : 
+                                    person.gender === 'female' ? 'bg-node-female/20 text-node-female' : 
+                                    'bg-node-unknown/20 text-node-unknown'}
+                                `}>
+                                  <User className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium truncate">{person.fullName}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {person.birthDate ? new Date(person.birthDate).getFullYear() : '?'}
+                                    {person.deathDate && ` - ${new Date(person.deathDate).getFullYear()}`}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <p className="font-medium truncate">{person.fullName}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {person.birthDate ? new Date(person.birthDate).getFullYear() : '?'}
-                                  {person.deathDate && ` - ${new Date(person.deathDate).getFullYear()}`}
-                                </p>
-                              </div>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-6 space-y-6">
+                            </Card>
+                          ))}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+                {viewMode === 'stats' && (
+                  <motion.div
+                    key="stats"
+                    {...viewTransition}
+                    className="p-6 space-y-6"
+                  >
                   {(() => {
                     const stats = getStats();
                     return (
@@ -435,16 +496,24 @@ export default function ChartPage() {
                       </>
                     );
                   })()}
-                </div>
-              )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
       </div>
 
       {/* Detail Panel */}
-      {selectedPerson && (
-        <div className="w-96 border-l bg-card overflow-y-auto animate-slide-up">
+      <AnimatePresence>
+        {selectedPerson && (
+          <motion.div 
+            className="w-96 border-l bg-card overflow-y-auto"
+            variants={panelVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-display font-semibold">Detail Anggota</h2>
             <Button 
@@ -616,8 +685,9 @@ export default function ChartPage() {
               </div>
             )}
           </div>
-        </div>
-      )}
+        </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add Relationship Dialog */}
       <Dialog open={showAddRelationship} onOpenChange={setShowAddRelationship}>
