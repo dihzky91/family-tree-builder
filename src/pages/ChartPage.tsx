@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   ZoomIn, 
   ZoomOut, 
@@ -24,21 +30,32 @@ import {
   Calendar,
   GitBranch,
   Plus,
-  Link2
+  Link2,
+  Download,
+  Network,
+  TreePine
 } from 'lucide-react';
 import type { Person } from '@/types';
-import { FamilyTree } from '@/features/chart/FamilyTree';
+import { GenerationView } from '@/features/chart/views/GenerationView';
+import { FamilyView } from '@/features/chart/views/FamilyView';
+import { PedigreeView } from '@/features/chart/views/PedigreeView';
 import { RelationshipForm } from '@/features/relationships/RelationshipForm';
 import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
+import { exportTreeAsImage, type ExportFormat } from '@/features/chart/utils/exportTreeAsImage';
 
-type ViewMode = 'tree' | 'timeline' | 'stats';
+type ViewMode = 'family' | 'pedigree' | 'tree' | 'timeline' | 'stats';
 
 export default function ChartPage() {
   const { persons, relationships, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
-  const [viewMode, setViewMode] = useState<ViewMode>('tree');
+  const [viewMode, setViewMode] = useState<ViewMode>('family');
   const [searchQuery, setSearchQuery] = useState('');
   const [scale, setScale] = useState(1);
   const [showAddRelationship, setShowAddRelationship] = useState(false);
+  const [addRelationshipContext, setAddRelationshipContext] = useState<{
+    personId?: string;
+    suggestedType?: 'parent' | 'spouse' | 'child';
+  }>({});
+  const chartRef = useRef<HTMLDivElement>(null);
 
   const selectedPerson = persons.find(p => p.id === selectedPersonId);
   const relatives = selectedPersonId ? getPersonRelatives(selectedPersonId) : null;
@@ -61,6 +78,16 @@ export default function ChartPage() {
       const newScale = direction === 'in' ? prev * 1.2 : prev / 1.2;
       return Math.max(0.3, Math.min(2, newScale));
     });
+  };
+
+  const handleExport = async (format: ExportFormat) => {
+    if (!chartRef.current) return;
+    await exportTreeAsImage(chartRef.current, { format, filename: 'silsilah-keluarga' });
+  };
+
+  const handleAddRelationship = (personId: string, type: 'parent' | 'spouse' | 'child') => {
+    setAddRelationshipContext({ personId, suggestedType: type });
+    setShowAddRelationship(true);
   };
 
   // Calculate timeline data
@@ -111,6 +138,14 @@ export default function ChartPage() {
     };
   };
 
+  const viewModeOptions = [
+    { value: 'family', label: 'Family', icon: Users, description: 'Fokus pada satu orang' },
+    { value: 'pedigree', label: 'Pedigree', icon: TreePine, description: 'Silsilah leluhur' },
+    { value: 'tree', label: 'Tree', icon: Network, description: 'Semua per generasi' },
+    { value: 'timeline', label: 'Timeline', icon: Calendar, description: 'Urutan waktu' },
+    { value: 'stats', label: 'Stats', icon: GitBranch, description: 'Statistik keluarga' },
+  ];
+
   return (
     <div className="flex h-[calc(100vh-0px)] animate-fade-in">
       {/* Main Chart Area */}
@@ -122,42 +157,52 @@ export default function ChartPage() {
             
             {/* View Mode Toggle */}
             <div className="flex border rounded-lg overflow-hidden">
-              <Button
-                variant={viewMode === 'tree' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('tree')}
-                className="rounded-none"
-              >
-                <GitBranch className="w-4 h-4 mr-2" />
-                Tree
-              </Button>
-              <Button
-                variant={viewMode === 'timeline' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('timeline')}
-                className="rounded-none"
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Timeline
-              </Button>
-              <Button
-                variant={viewMode === 'stats' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('stats')}
-                className="rounded-none"
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Stats
-              </Button>
+              {viewModeOptions.map(opt => {
+                const Icon = opt.icon;
+                return (
+                  <Button
+                    key={opt.value}
+                    variant={viewMode === opt.value ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode(opt.value as ViewMode)}
+                    className="rounded-none"
+                    title={opt.description}
+                  >
+                    <Icon className="w-4 h-4 mr-2" />
+                    {opt.label}
+                  </Button>
+                );
+              })}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Export Button */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-popover">
+                <DropdownMenuItem onClick={() => handleExport('png')}>
+                  Export as PNG
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('svg')}>
+                  Export as SVG
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Add Relationship Button */}
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setShowAddRelationship(true)}
+              onClick={() => {
+                setAddRelationshipContext({});
+                setShowAddRelationship(true);
+              }}
               disabled={persons.length < 2}
             >
               <Link2 className="w-4 h-4 mr-2" />
@@ -177,7 +222,7 @@ export default function ChartPage() {
               />
             </div>
 
-            {viewMode === 'tree' && (
+            {(viewMode === 'tree' || viewMode === 'family' || viewMode === 'pedigree') && (
               <>
                 <Button variant="outline" size="icon" onClick={() => handleZoom('in')}>
                   <ZoomIn className="w-4 h-4" />
@@ -203,140 +248,163 @@ export default function ChartPage() {
                 Tambahkan anggota keluarga untuk melihat silsilah
               </p>
             </div>
-          ) : viewMode === 'tree' ? (
-            <div 
-              className="w-full h-full overflow-auto"
-              style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
-            >
-              <FamilyTree
-                persons={persons}
-                relationships={relationships}
-                selectedPersonId={selectedPersonId}
-                onSelectPerson={setSelectedPerson}
-              />
-            </div>
-          ) : viewMode === 'timeline' ? (
-            <div className="p-6 space-y-6">
-              {getTimelineData().map(({ generation, people }) => (
-                <div key={generation} className="animate-slide-up">
-                  <h3 className="font-display font-semibold text-lg mb-3 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm">
-                      {generation}
-                    </span>
-                    Generasi {generation}
-                    <span className="text-sm font-normal text-muted-foreground">
-                      ({people.length} orang)
-                    </span>
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pl-10">
-                    {people.map(person => (
-                      <Card 
-                        key={person.id} 
-                        className="p-3 cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => setSelectedPerson(person.id)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`
-                            w-10 h-10 rounded-full flex items-center justify-center shrink-0
-                            ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' : 
-                              person.gender === 'female' ? 'bg-node-female/20 text-node-female' : 
-                              'bg-node-unknown/20 text-node-unknown'}
-                          `}>
-                            <User className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">{person.fullName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {person.birthDate ? new Date(person.birthDate).getFullYear() : '?'}
-                              {person.deathDate && ` - ${new Date(person.deathDate).getFullYear()}`}
-                            </p>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
           ) : (
-            <div className="p-6 space-y-6">
-              {(() => {
-                const stats = getStats();
-                return (
-                  <>
-                    {/* Overview Stats */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <Card className="stat-card">
-                        <p className="text-3xl font-bold">{stats.total}</p>
-                        <p className="text-sm text-muted-foreground">Total Anggota</p>
-                      </Card>
-                      <Card className="stat-card">
-                        <p className="text-3xl font-bold">{stats.generations}</p>
-                        <p className="text-sm text-muted-foreground">Generasi</p>
-                      </Card>
-                      <Card className="stat-card">
-                        <p className="text-3xl font-bold text-success">{stats.living}</p>
-                        <p className="text-sm text-muted-foreground">Masih Hidup</p>
-                      </Card>
-                      <Card className="stat-card">
-                        <p className="text-3xl font-bold text-info">{stats.verified}</p>
-                        <p className="text-sm text-muted-foreground">Terverifikasi</p>
-                      </Card>
-                    </div>
-
-                    {/* Gender Distribution */}
-                    <Card className="p-6">
-                      <h3 className="font-display font-semibold text-lg mb-4">Distribusi Gender</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>Laki-laki</span>
-                            <span className="font-medium">{stats.byGender.male}</span>
-                          </div>
-                          <div className="h-3 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-node-male rounded-full"
-                              style={{ width: `${(stats.byGender.male / stats.total) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>Perempuan</span>
-                            <span className="font-medium">{stats.byGender.female}</span>
-                          </div>
-                          <div className="h-3 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-node-female rounded-full"
-                              style={{ width: `${(stats.byGender.female / stats.total) * 100}%` }}
-                            />
-                          </div>
-                        </div>
+            <div 
+              ref={chartRef}
+              className="w-full h-full overflow-auto"
+              style={{ 
+                transform: `scale(${scale})`, 
+                transformOrigin: 'top center',
+                minHeight: '100%'
+              }}
+            >
+              {viewMode === 'family' ? (
+                <FamilyView
+                  persons={persons}
+                  relationships={relationships}
+                  selectedPersonId={selectedPersonId}
+                  onSelectPerson={setSelectedPerson}
+                  onAddRelationship={handleAddRelationship}
+                />
+              ) : viewMode === 'pedigree' ? (
+                <PedigreeView
+                  persons={persons}
+                  relationships={relationships}
+                  selectedPersonId={selectedPersonId}
+                  onSelectPerson={setSelectedPerson}
+                  onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
+                />
+              ) : viewMode === 'tree' ? (
+                <GenerationView
+                  persons={persons}
+                  relationships={relationships}
+                  selectedPersonId={selectedPersonId}
+                  onSelectPerson={setSelectedPerson}
+                />
+              ) : viewMode === 'timeline' ? (
+                <div className="p-6 space-y-6">
+                  {getTimelineData().map(({ generation, people }) => (
+                    <div key={generation} className="animate-slide-up">
+                      <h3 className="font-display font-semibold text-lg mb-3 flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm">
+                          {generation}
+                        </span>
+                        Generasi {generation}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          ({people.length} orang)
+                        </span>
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pl-10">
+                        {people.map(person => (
+                          <Card 
+                            key={person.id} 
+                            className="p-3 cursor-pointer hover:shadow-md transition-shadow"
+                            onClick={() => setSelectedPerson(person.id)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`
+                                w-10 h-10 rounded-full flex items-center justify-center shrink-0
+                                ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' : 
+                                  person.gender === 'female' ? 'bg-node-female/20 text-node-female' : 
+                                  'bg-node-unknown/20 text-node-unknown'}
+                              `}>
+                                <User className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">{person.fullName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {person.birthDate ? new Date(person.birthDate).getFullYear() : '?'}
+                                  {person.deathDate && ` - ${new Date(person.deathDate).getFullYear()}`}
+                                </p>
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
                       </div>
-                    </Card>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 space-y-6">
+                  {(() => {
+                    const stats = getStats();
+                    return (
+                      <>
+                        {/* Overview Stats */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <Card className="stat-card">
+                            <p className="text-3xl font-bold">{stats.total}</p>
+                            <p className="text-sm text-muted-foreground">Total Anggota</p>
+                          </Card>
+                          <Card className="stat-card">
+                            <p className="text-3xl font-bold">{stats.generations}</p>
+                            <p className="text-sm text-muted-foreground">Generasi</p>
+                          </Card>
+                          <Card className="stat-card">
+                            <p className="text-3xl font-bold text-success">{stats.living}</p>
+                            <p className="text-sm text-muted-foreground">Masih Hidup</p>
+                          </Card>
+                          <Card className="stat-card">
+                            <p className="text-3xl font-bold text-info">{stats.verified}</p>
+                            <p className="text-sm text-muted-foreground">Terverifikasi</p>
+                          </Card>
+                        </div>
 
-                    {/* Per Generation */}
-                    <Card className="p-6">
-                      <h3 className="font-display font-semibold text-lg mb-4">Per Generasi</h3>
-                      <div className="space-y-2">
-                        {stats.generationData.map(({ generation, people }) => (
-                          <div key={generation} className="flex items-center gap-3">
-                            <span className="w-20 text-sm text-muted-foreground">Gen {generation}</span>
-                            <div className="flex-1 h-6 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-gradient-to-r from-primary to-accent rounded-full flex items-center justify-end pr-2"
-                                style={{ width: `${Math.max((people.length / Math.max(...stats.generationData.map(g => g.people.length))) * 100, 20)}%` }}
-                              >
-                                <span className="text-xs font-medium text-primary-foreground">{people.length}</span>
+                        {/* Gender Distribution */}
+                        <Card className="p-6">
+                          <h3 className="font-display font-semibold text-lg mb-4">Distribusi Gender</h3>
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex justify-between text-sm mb-1">
+                                <span>Laki-laki</span>
+                                <span className="font-medium">{stats.byGender.male}</span>
+                              </div>
+                              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-node-male rounded-full"
+                                  style={{ width: `${(stats.byGender.male / stats.total) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-sm mb-1">
+                                <span>Perempuan</span>
+                                <span className="font-medium">{stats.byGender.female}</span>
+                              </div>
+                              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-node-female rounded-full"
+                                  style={{ width: `${(stats.byGender.female / stats.total) * 100}%` }}
+                                />
                               </div>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </Card>
-                  </>
-                );
-              })()}
+                        </Card>
+
+                        {/* Per Generation */}
+                        <Card className="p-6">
+                          <h3 className="font-display font-semibold text-lg mb-4">Per Generasi</h3>
+                          <div className="space-y-2">
+                            {stats.generationData.map(({ generation, people }) => (
+                              <div key={generation} className="flex items-center gap-3">
+                                <span className="w-20 text-sm text-muted-foreground">Gen {generation}</span>
+                                <div className="flex-1 h-6 bg-muted rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-primary to-accent rounded-full flex items-center justify-end pr-2"
+                                    style={{ width: `${Math.max((people.length / Math.max(...stats.generationData.map(g => g.people.length))) * 100, 20)}%` }}
+                                  >
+                                    <span className="text-xs font-medium text-primary-foreground">{people.length}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -418,7 +486,10 @@ export default function ChartPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowAddRelationship(true)}
+                  onClick={() => {
+                    setAddRelationshipContext({ personId: selectedPerson.id });
+                    setShowAddRelationship(true);
+                  }}
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Tambah
@@ -526,9 +597,15 @@ export default function ChartPage() {
             </DialogDescription>
           </DialogHeader>
           <RelationshipForm
-            preselectedPersonId={selectedPersonId || undefined}
-            onSuccess={() => setShowAddRelationship(false)}
-            onCancel={() => setShowAddRelationship(false)}
+            preselectedPersonId={addRelationshipContext.personId || selectedPersonId || undefined}
+            onSuccess={() => {
+              setShowAddRelationship(false);
+              setAddRelationshipContext({});
+            }}
+            onCancel={() => {
+              setShowAddRelationship(false);
+              setAddRelationshipContext({});
+            }}
           />
         </DialogContent>
       </Dialog>
