@@ -98,42 +98,51 @@ export type Database = {
       persons: {
         Row: {
           birth_date: string | null
+          birth_place: string | null
           confidence_score: number | null
           created_at: string
           death_date: string | null
+          death_place: string | null
           full_name: string
           gender: string
           id: string
           notes: string | null
           photo_url: string | null
+          residence: string | null
           tags: string[] | null
           updated_at: string
           user_id: string
         }
         Insert: {
           birth_date?: string | null
+          birth_place?: string | null
           confidence_score?: number | null
           created_at?: string
           death_date?: string | null
+          death_place?: string | null
           full_name: string
           gender: string
           id?: string
           notes?: string | null
           photo_url?: string | null
+          residence?: string | null
           tags?: string[] | null
           updated_at?: string
           user_id: string
         }
         Update: {
           birth_date?: string | null
+          birth_place?: string | null
           confidence_score?: number | null
           created_at?: string
           death_date?: string | null
+          death_place?: string | null
           full_name?: string
           gender?: string
           id?: string
           notes?: string | null
           photo_url?: string | null
+          residence?: string | null
           tags?: string[] | null
           updated_at?: string
           user_id?: string

@@ -13,6 +13,7 @@ import DataPage from "./pages/DataPage";
 import SettingsPage from "./pages/SettingsPage";
 import DuplicatesPage from "./pages/DuplicatesPage";
 import AuditLogPage from "./pages/AuditLogPage";
+import StatsPage from "./pages/StatsPage";
 import AuthPage from "./pages/AuthPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
@@ -39,6 +40,7 @@ const App = () => (
                     <Route path="/evidence" element={<EvidencePage />} />
                     <Route path="/duplicates" element={<DuplicatesPage />} />
                     <Route path="/audit" element={<AuditLogPage />} />
+                    <Route path="/stats" element={<StatsPage />} />
                     <Route path="/data" element={<DataPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
