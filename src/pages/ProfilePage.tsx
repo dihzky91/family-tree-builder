@@ -133,7 +133,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container max-w-2xl py-8">
+    <div className="p-6 lg:p-8 space-y-8 animate-fade-in max-w-2xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Profil Saya</h1>
         <p className="text-muted-foreground mt-2">

@@ -1,5 +1,36 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Submission, ApprovedMemberInfo } from '@/types';
+import type { Tables } from '@/integrations/supabase/types';
+
+type DbSubmission = Tables<'submissions'>;
+
+function mapDbSubmissionToSubmission(db: DbSubmission): Submission {
+    return {
+        id: db.id,
+        branchId: db.branch_id,
+        submittedBy: db.submitted_by,
+        submitterEmail: db.submitter_email || undefined,
+        fullName: db.full_name,
+        gender: db.gender as 'male' | 'female' | 'unknown',
+        birthDate: db.birth_date || undefined,
+        birthPlace: db.birth_place || undefined,
+        deathDate: db.death_date || undefined,
+        deathPlace: db.death_place || undefined,
+        residence: db.residence || undefined,
+        photoUrl: db.photo_url || undefined,
+        notes: db.notes || undefined,
+        relationToBranch: db.relation_to_branch as 'child' | 'grandchild' | 'great-grandchild' | 'other',
+        parentName: db.parent_name || undefined,
+        possibleDuplicateId: db.possible_duplicate_id || undefined,
+        status: db.status as 'pending' | 'approved' | 'rejected',
+        reviewedAt: db.reviewed_at || undefined,
+        reviewedBy: db.reviewed_by || undefined,
+        reviewNotes: db.review_notes || undefined,
+        createdPersonId: db.created_person_id || undefined,
+        createdAt: db.created_at || new Date().toISOString(),
+        updatedAt: db.updated_at || new Date().toISOString(),
+    };
+}
 
 /**
  * Get all submissions (optionally filter by branch)
@@ -21,7 +52,7 @@ export async function getAllSubmissions(branchId?: string): Promise<Submission[]
         throw error;
     }
 
-    return data || [];
+    return (data || []).map(mapDbSubmissionToSubmission);
 }
 
 /**
@@ -48,7 +79,7 @@ export async function getSubmissionsByStatus(
         throw error;
     }
 
-    return data || [];
+    return (data || []).map(mapDbSubmissionToSubmission);
 }
 
 /**
@@ -69,7 +100,7 @@ export async function getSubmissionById(id: string): Promise<Submission | null> 
         throw error;
     }
 
-    return data;
+    return data ? mapDbSubmissionToSubmission(data) : null;
 }
 
 /**
@@ -106,7 +137,7 @@ export async function createSubmission(
         throw error;
     }
 
-    return data;
+    return mapDbSubmissionToSubmission(data);
 }
 
 /**
@@ -202,7 +233,7 @@ export async function getApprovedMembersByBranch(branchId: string): Promise<Appr
 
     return (data || []).map(item => ({
         fullName: item.full_name,
-        relationToBranch: item.relation_to_branch as any,
+        relationToBranch: item.relation_to_branch as 'child' | 'grandchild' | 'great-grandchild' | 'other',
         parentName: item.parent_name || undefined,
     }));
 }

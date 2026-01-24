@@ -156,7 +156,7 @@ export default function SubmissionReviewPage() {
     const rejectedCount = submissions.filter(s => s.status === 'rejected').length;
 
     return (
-        <div className="space-y-6">
+        <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-display font-bold">Review Submissions</h1>

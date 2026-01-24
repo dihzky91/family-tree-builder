@@ -136,7 +136,7 @@ export default function BranchManagementPage() {
     };
 
     return (
-        <div className="container max-w-6xl mx-auto p-6 space-y-8">
+        <div className="p-6 lg:p-8 space-y-8 animate-fade-in max-w-6xl">
             {/* Header */}
             <div className="flex justify-between items-start gap-4">
                 <div>
