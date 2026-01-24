@@ -226,7 +226,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_registered_user: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,7 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [hasExistingUser, setHasExistingUser] = useState<boolean | null>(null);
   
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
@@ -30,6 +32,17 @@ export default function AuthPage() {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerName, setRegisterName] = useState('');
+
+  // Check if user already exists (Single User Mode)
+  useEffect(() => {
+    const checkExistingUser = async () => {
+      const { data, error } = await supabase.rpc('has_registered_user');
+      if (!error) {
+        setHasExistingUser(data as boolean);
+      }
+    };
+    checkExistingUser();
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -130,10 +143,12 @@ export default function AuthPage() {
 
         <Card className="border-border/50 shadow-xl">
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Masuk</TabsTrigger>
-              <TabsTrigger value="register">Daftar</TabsTrigger>
-            </TabsList>
+            {!hasExistingUser && (
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Masuk</TabsTrigger>
+                <TabsTrigger value="register">Daftar</TabsTrigger>
+              </TabsList>
+            )}
 
             {/* Login Tab */}
             <TabsContent value="login">
@@ -198,90 +213,92 @@ export default function AuthPage() {
               </form>
             </TabsContent>
 
-            {/* Register Tab */}
-            <TabsContent value="register">
-              <form onSubmit={handleRegister}>
-                <CardHeader>
-                  <CardTitle>Buat Akun</CardTitle>
-                  <CardDescription>
-                    Daftar untuk mulai membuat silsilah keluarga
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {error && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  {success && (
-                    <Alert className="border-primary/50 bg-primary/5">
-                      <AlertDescription className="text-primary">
-                        {success}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="register-name">Nama Lengkap</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="register-name"
-                        type="text"
-                        placeholder="John Doe"
-                        value={registerName}
-                        onChange={(e) => setRegisterName(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="register-email"
-                        type="email"
-                        placeholder="nama@email.com"
-                        value={registerEmail}
-                        onChange={(e) => setRegisterEmail(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="register-password"
-                        type="password"
-                        placeholder="Minimal 6 karakter"
-                        value={registerPassword}
-                        onChange={(e) => setRegisterPassword(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Memproses...
-                      </>
-                    ) : (
-                      'Daftar'
+            {/* Register Tab - Hidden in Single User Mode */}
+            {!hasExistingUser && (
+              <TabsContent value="register">
+                <form onSubmit={handleRegister}>
+                  <CardHeader>
+                    <CardTitle>Buat Akun</CardTitle>
+                    <CardDescription>
+                      Daftar untuk mulai membuat silsilah keluarga
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {error && (
+                      <Alert variant="destructive">
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
                     )}
-                  </Button>
-                </CardFooter>
-              </form>
-            </TabsContent>
+                    {success && (
+                      <Alert className="border-primary/50 bg-primary/5">
+                        <AlertDescription className="text-primary">
+                          {success}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="register-name">Nama Lengkap</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="register-name"
+                          type="text"
+                          placeholder="John Doe"
+                          value={registerName}
+                          onChange={(e) => setRegisterName(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="register-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="register-email"
+                          type="email"
+                          placeholder="nama@email.com"
+                          value={registerEmail}
+                          onChange={(e) => setRegisterEmail(e.target.value)}
+                          className="pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="register-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="register-password"
+                          type="password"
+                          placeholder="Minimal 6 karakter"
+                          value={registerPassword}
+                          onChange={(e) => setRegisterPassword(e.target.value)}
+                          className="pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Memproses...
+                        </>
+                      ) : (
+                        'Daftar'
+                      )}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </TabsContent>
+            )}
           </Tabs>
         </Card>
 
