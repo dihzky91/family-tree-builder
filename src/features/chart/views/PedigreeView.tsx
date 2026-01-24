@@ -38,7 +38,6 @@ export function PedigreeView({
         return { person, father: null, mother: null };
       }
 
-      // Find parents
       const parentRels = relationships.filter(
         r => r.type === 'PARENT_CHILD' && r.toPersonId === personId
       );
@@ -54,7 +53,6 @@ export function PedigreeView({
           } else if (parent.gender === 'female') {
             mother = buildAncestorTree(parent.id, depth + 1);
           } else {
-            // Unknown gender - assign to first empty slot
             if (!father) {
               father = buildAncestorTree(parent.id, depth + 1);
             } else if (!mother) {
@@ -83,21 +81,19 @@ export function PedigreeView({
 
   return (
     <div className="flex items-center p-8 overflow-auto min-h-full">
-      <div className="flex items-center gap-2">
-        <AncestorColumn 
-          node={ancestorTree} 
-          generation={0}
-          selectedPersonId={selectedPersonId}
-          onSelectPerson={onSelectPerson}
-          onAddParent={onAddRelationship}
-          maxGenerations={maxGenerations}
-        />
-      </div>
+      <PedigreeColumn 
+        node={ancestorTree} 
+        generation={0}
+        selectedPersonId={selectedPersonId}
+        onSelectPerson={onSelectPerson}
+        onAddParent={onAddRelationship}
+        maxGenerations={maxGenerations}
+      />
     </div>
   );
 }
 
-interface AncestorColumnProps {
+interface PedigreeColumnProps {
   node: AncestorNode;
   generation: number;
   selectedPersonId: string | null;
@@ -106,24 +102,28 @@ interface AncestorColumnProps {
   maxGenerations: number;
 }
 
-function AncestorColumn({ 
+function PedigreeColumn({ 
   node, 
   generation, 
   selectedPersonId,
   onSelectPerson,
   onAddParent,
   maxGenerations
-}: AncestorColumnProps) {
+}: PedigreeColumnProps) {
   const showParents = generation < maxGenerations - 1;
   const hasAnyParent = node.father || node.mother;
   
-  // Calculate the size based on generation (smaller for older generations)
+  // Size decreases with each generation
   const size = generation === 0 ? 'large' : generation === 1 ? 'normal' : 'small';
+  
+  // Heights for SVG connectors
+  const rowHeight = generation === 0 ? 140 : generation === 1 ? 110 : 80;
+  const connectorWidth = generation === 0 ? 48 : generation === 1 ? 40 : 32;
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Current person */}
-      <div className="flex flex-col items-center justify-center">
+    <div className="flex items-center">
+      {/* Current person column */}
+      <div className="flex flex-col items-center justify-center" style={{ minHeight: `${rowHeight * 2}px` }}>
         {node.person ? (
           <PersonNode
             person={node.person}
@@ -139,28 +139,114 @@ function AncestorColumn({
           />
         )}
         
-        {/* Generation label for first column */}
         {generation === 0 && (
-          <div className="text-xs text-primary font-semibold mt-2">★ Anda</div>
+          <div className="text-xs text-primary font-semibold mt-2 flex items-center gap-1">
+            <span className="text-accent">★</span> Anda
+          </div>
         )}
       </div>
 
-      {/* Connector line */}
-      {showParents && (node.father || node.mother || node.person) && (
-        <div className="flex items-center">
-          <div className="w-4 h-px bg-border" />
-          <div className="w-px bg-border" style={{ height: generation < 2 ? '120px' : '80px' }} />
-        </div>
+      {/* SVG Connector to parents */}
+      {showParents && node.person && (
+        <svg 
+          className="shrink-0" 
+          width={connectorWidth} 
+          height={rowHeight * 2}
+          viewBox={`0 0 ${connectorWidth} ${rowHeight * 2}`}
+        >
+          <defs>
+            <linearGradient id={`pedigreeGrad${generation}`} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="hsl(var(--border))" />
+              <stop offset="100%" stopColor="hsl(var(--border))" stopOpacity="0.6" />
+            </linearGradient>
+          </defs>
+          
+          {/* Main horizontal line from person */}
+          <path
+            d={`M 0 ${rowHeight} L ${connectorWidth * 0.3} ${rowHeight}`}
+            stroke={`url(#pedigreeGrad${generation})`}
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            className="transition-all duration-300"
+          />
+          
+          {/* Vertical bracket */}
+          {(node.father || node.mother) && (
+            <path
+              d={`M ${connectorWidth * 0.3} ${rowHeight * 0.5} 
+                  L ${connectorWidth * 0.3} ${rowHeight * 1.5}`}
+              stroke="hsl(var(--border))"
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              className="transition-all duration-300"
+            />
+          )}
+          
+          {/* Curved branch to father (top) */}
+          {(node.father || node.person) && (
+            <path
+              d={`M ${connectorWidth * 0.3} ${rowHeight * 0.5} 
+                  Q ${connectorWidth * 0.5} ${rowHeight * 0.5}, 
+                    ${connectorWidth * 0.7} ${rowHeight * 0.5}
+                  L ${connectorWidth} ${rowHeight * 0.5}`}
+              stroke={node.father ? "hsl(var(--node-male))" : "hsl(var(--border))"}
+              strokeWidth="2"
+              strokeDasharray={node.father ? "none" : "4 3"}
+              fill="none"
+              strokeLinecap="round"
+              opacity={node.father ? 1 : 0.4}
+              className="transition-all duration-300"
+            />
+          )}
+          
+          {/* Curved branch to mother (bottom) */}
+          {(node.mother || node.person) && (
+            <path
+              d={`M ${connectorWidth * 0.3} ${rowHeight * 1.5} 
+                  Q ${connectorWidth * 0.5} ${rowHeight * 1.5}, 
+                    ${connectorWidth * 0.7} ${rowHeight * 1.5}
+                  L ${connectorWidth} ${rowHeight * 1.5}`}
+              stroke={node.mother ? "hsl(var(--node-female))" : "hsl(var(--border))"}
+              strokeWidth="2"
+              strokeDasharray={node.mother ? "none" : "4 3"}
+              fill="none"
+              strokeLinecap="round"
+              opacity={node.mother ? 1 : 0.4}
+              className="transition-all duration-300"
+            />
+          )}
+          
+          {/* Connection dots */}
+          {node.father && (
+            <circle 
+              cx={connectorWidth * 0.3} 
+              cy={rowHeight * 0.5} 
+              r="3" 
+              fill="hsl(var(--node-male))"
+              className="animate-scale-in"
+            />
+          )}
+          {node.mother && (
+            <circle 
+              cx={connectorWidth * 0.3} 
+              cy={rowHeight * 1.5} 
+              r="3" 
+              fill="hsl(var(--node-female))"
+              className="animate-scale-in"
+            />
+          )}
+        </svg>
       )}
 
       {/* Parents column */}
       {showParents && (
-        <div className="flex flex-col gap-2 justify-center" style={{ minHeight: generation < 2 ? '120px' : '80px' }}>
+        <div className="flex flex-col justify-center" style={{ gap: `${rowHeight * 0.2}px` }}>
           {/* Father branch */}
-          <div className="flex items-center">
-            <div className="w-4 h-px bg-border" />
+          <div className="flex items-center" style={{ height: `${rowHeight}px` }}>
             {node.father ? (
-              <AncestorColumn
+              <PedigreeColumn
                 node={node.father}
                 generation={generation + 1}
                 selectedPersonId={selectedPersonId}
@@ -178,10 +264,9 @@ function AncestorColumn({
           </div>
 
           {/* Mother branch */}
-          <div className="flex items-center">
-            <div className="w-4 h-px bg-border" />
+          <div className="flex items-center" style={{ height: `${rowHeight}px` }}>
             {node.mother ? (
-              <AncestorColumn
+              <PedigreeColumn
                 node={node.mother}
                 generation={generation + 1}
                 selectedPersonId={selectedPersonId}
