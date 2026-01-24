@@ -90,9 +90,18 @@ function PersonName({
   return (
     <span className="inline-flex items-center gap-1">
       {genderIcon && (
-        <span className={`text-xs ${getGenderColorClass()}`} aria-label={person.gender === 'male' ? 'Laki-laki' : 'Perempuan'}>
-          {genderIcon}
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={`text-xs cursor-help ${getGenderColorClass()}`}>
+                {genderIcon}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-xs">{person.gender === 'male' ? 'Laki-laki' : 'Perempuan'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
       <button
         onClick={() => onPersonClick?.(person.id)}
