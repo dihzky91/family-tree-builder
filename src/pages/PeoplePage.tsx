@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FamilyUnitsView } from '@/features/people/components/FamilyUnitsView';
+import { GenerationView } from '@/features/people/components/GenerationView';
 import { calculateNuclearFamilies } from '@/lib/familyUnits';
 import { PersonForm } from '@/features/people/PersonForm';
 import type { Person, FilterConfig } from '@/types';
@@ -265,13 +266,11 @@ export default function PeoplePage() {
           onEditPerson={(person) => setEditingPerson(person)}
         />
       ) : viewMode === 'generation' ? (
-        <div className="empty-state py-20">
-          <ListTree className="empty-state-icon" />
-          <h3 className="text-lg font-medium mb-2">Generation View</h3>
-          <p className="text-muted-foreground">
-            Tampilan berdasarkan generasi akan segera hadir.
-          </p>
-        </div>
+        <GenerationView
+          persons={filteredPersons}
+          relationships={relationships}
+          onEditPerson={(person) => setEditingPerson(person)}
+        />
       ) : (
         /* All List - Original People Grid */
         <>
