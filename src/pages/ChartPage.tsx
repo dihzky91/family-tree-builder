@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { 
   ZoomIn, 
   ZoomOut, 
@@ -15,10 +22,14 @@ import {
   Baby,
   X,
   Calendar,
-  GitBranch
+  GitBranch,
+  Plus,
+  Link2
 } from 'lucide-react';
 import type { Person } from '@/types';
 import { FamilyTree } from '@/features/chart/FamilyTree';
+import { RelationshipForm } from '@/features/relationships/RelationshipForm';
+import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
 
 type ViewMode = 'tree' | 'timeline' | 'stats';
 
@@ -27,6 +38,7 @@ export default function ChartPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [searchQuery, setSearchQuery] = useState('');
   const [scale, setScale] = useState(1);
+  const [showAddRelationship, setShowAddRelationship] = useState(false);
 
   const selectedPerson = persons.find(p => p.id === selectedPersonId);
   const relatives = selectedPersonId ? getPersonRelatives(selectedPersonId) : null;
@@ -141,6 +153,17 @@ export default function ChartPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Add Relationship Button */}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowAddRelationship(true)}
+              disabled={persons.length < 2}
+            >
+              <Link2 className="w-4 h-4 mr-2" />
+              Tambah Relasi
+            </Button>
+
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -321,7 +344,7 @@ export default function ChartPage() {
 
       {/* Detail Panel */}
       {selectedPerson && (
-        <div className="w-80 border-l bg-card overflow-y-auto animate-slide-up">
+        <div className="w-96 border-l bg-card overflow-y-auto animate-slide-up">
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-display font-semibold">Detail Anggota</h2>
             <Button 
@@ -385,9 +408,33 @@ export default function ChartPage() {
               </div>
             )}
 
-            {/* Relatives */}
+            {/* Relationship Inspector */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Link2 className="w-4 h-4" />
+                  Relasi
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAddRelationship(true)}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Tambah
+                </Button>
+              </div>
+              <RelationshipInspector 
+                personId={selectedPerson.id}
+                onPersonClick={setSelectedPerson}
+              />
+            </div>
+
+            {/* Quick Navigate */}
             {relatives && (
               <div className="space-y-4 pt-4 border-t">
+                <h4 className="font-medium text-sm text-muted-foreground">Navigasi Cepat</h4>
+                
                 {relatives.parents.length > 0 && (
                   <div>
                     <p className="text-sm font-medium mb-2 flex items-center gap-2">
@@ -468,6 +515,23 @@ export default function ChartPage() {
           </div>
         </div>
       )}
+
+      {/* Add Relationship Dialog */}
+      <Dialog open={showAddRelationship} onOpenChange={setShowAddRelationship}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tambah Relasi Baru</DialogTitle>
+            <DialogDescription>
+              Buat relasi keluarga baru antara dua anggota
+            </DialogDescription>
+          </DialogHeader>
+          <RelationshipForm
+            preselectedPersonId={selectedPersonId || undefined}
+            onSuccess={() => setShowAddRelationship(false)}
+            onCancel={() => setShowAddRelationship(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
