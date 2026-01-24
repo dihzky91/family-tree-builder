@@ -18,10 +18,22 @@ function truncateName(name: string, maxLength: number): string {
   return name.substring(0, maxLength).trim() + '...';
 }
 
-export function PersonNode({ 
-  person, 
-  isSelected, 
-  onClick, 
+/**
+ * Extract initials from full name (max 2 characters)
+ * Examples: "John Doe" -> "JD", "Mary Jane Watson" -> "MW", "Prince" -> "P"
+ */
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  // Take first and last name initials
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+export function PersonNode({
+  person,
+  isSelected,
+  onClick,
   size = 'normal',
   showAddButton,
   onAdd,
@@ -29,7 +41,7 @@ export function PersonNode({
 }: PersonNodeProps) {
   const yearBirth = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
   const yearDeath = person.deathDate ? new Date(person.deathDate).getFullYear() : null;
-  
+
   const sizeConfig = {
     small: { card: 'p-2 w-[100px]', avatar: 'w-8 h-8', nameSize: 'text-[11px]', yearSize: 'text-[9px]', maxChars: 14 },
     normal: { card: 'p-3 w-[130px]', avatar: 'w-11 h-11', nameSize: 'text-sm', yearSize: 'text-xs', maxChars: 18 },
@@ -60,12 +72,12 @@ export function PersonNode({
   const colors = genderColors[person.gender];
 
   return (
-    <motion.div 
+    <motion.div
       className="relative group"
       layoutId={layoutId || `person-${person.id}`}
       initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ 
-        opacity: 1, 
+      animate={{
+        opacity: 1,
         scale: 1,
         transition: { type: "spring", stiffness: 300, damping: 25 }
       }}
@@ -84,14 +96,14 @@ export function PersonNode({
         )}
         animate={{
           scale: isSelected ? 1.05 : 1,
-          boxShadow: isSelected 
-            ? "0 8px 25px -5px rgba(0, 0, 0, 0.2)" 
+          boxShadow: isSelected
+            ? "0 8px 25px -5px rgba(0, 0, 0, 0.2)"
             : "0 2px 10px -3px rgba(0, 0, 0, 0.1)"
         }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
       >
         {/* Avatar */}
-        <motion.div 
+        <motion.div
           className={cn(
             "rounded-full flex items-center justify-center mb-1.5",
             config.avatar,
@@ -101,18 +113,36 @@ export function PersonNode({
           transition={{ type: "spring", stiffness: 400, damping: 25 }}
         >
           {person.photoUrl ? (
-            <img 
-              src={person.photoUrl} 
+            <img
+              src={person.photoUrl}
               alt={person.fullName}
               className="w-full h-full rounded-full object-cover"
+              onError={(e) => {
+                // Fallback if image fails to load
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.innerHTML = getInitials(person.fullName);
+                  parent.className = cn(
+                    parent.className,
+                    "font-semibold",
+                    size === 'small' ? 'text-xs' : size === 'large' ? 'text-xl' : 'text-base'
+                  );
+                }
+              }}
             />
           ) : (
-            <User className={size === 'small' ? "w-4 h-4" : size === 'large' ? "w-7 h-7" : "w-5 h-5"} />
+            <span className={cn(
+              "font-semibold",
+              size === 'small' ? 'text-xs' : size === 'large' ? 'text-xl' : 'text-base'
+            )}>
+              {getInitials(person.fullName)}
+            </span>
           )}
         </motion.div>
 
         {/* Name */}
-        <span 
+        <span
           className={cn("font-medium text-center leading-tight", config.nameSize)}
           title={person.fullName}
         >
@@ -127,7 +157,7 @@ export function PersonNode({
         {/* Verified badge */}
         <AnimatePresence>
           {person.tags.includes('verified') && size !== 'small' && (
-            <motion.span 
+            <motion.span
               className="mt-1 px-1 py-0.5 text-[9px] rounded bg-success/20 text-success font-medium"
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
@@ -197,8 +227,8 @@ export function PlaceholderNode({ label, onClick, size = 'normal' }: Placeholder
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      whileHover={{ 
-        scale: 1.05, 
+      whileHover={{
+        scale: 1.05,
         borderColor: "hsl(var(--primary))",
         backgroundColor: "hsl(var(--primary) / 0.05)"
       }}

@@ -42,7 +42,7 @@ export function FamilyView({
     const parentIds = relationships
       .filter(r => r.type === 'PARENT_CHILD' && r.toPersonId === selectedPerson.id)
       .map(r => r.fromPersonId);
-    
+
     parentIds.forEach(id => {
       const person = persons.find(p => p.id === id);
       if (person) parents.push(person);
@@ -62,7 +62,7 @@ export function FamilyView({
     const childIds = relationships
       .filter(r => r.type === 'PARENT_CHILD' && r.fromPersonId === selectedPerson.id)
       .map(r => r.toPersonId);
-    
+
     spouses.forEach(spouse => {
       relationships
         .filter(r => r.type === 'PARENT_CHILD' && r.fromPersonId === spouse.id)
@@ -128,48 +128,81 @@ export function FamilyView({
   return (
     <div ref={containerRef} className="relative flex flex-col items-center p-8 min-h-full">
       {/* SVG Layer for connector lines */}
-      <svg 
-        className="absolute inset-0 pointer-events-none z-0" 
-        width="100%" 
+      <svg
+        className="absolute inset-0 pointer-events-none z-0"
+        width="100%"
         height="100%"
         style={{ minHeight: '600px' }}
       >
         <defs>
+          {/* Gradient for lines */}
           <linearGradient id="familyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="hsl(var(--border))" stopOpacity="0.5" />
-            <stop offset="50%" stopColor="hsl(var(--border))" stopOpacity="1" />
-            <stop offset="100%" stopColor="hsl(var(--border))" stopOpacity="0.5" />
+            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
+            <stop offset="50%" stopColor="hsl(var(--primary))" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
           </linearGradient>
+
+          {/* Arrow marker for directed relationships */}
+          <marker
+            id="arrowhead"
+            markerWidth="10"
+            markerHeight="10"
+            refX="9"
+            refY="3"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M0,0 L0,6 L9,3 z" fill="hsl(var(--primary))" opacity="0.7" />
+          </marker>
+
+          {/* Glow effect */}
           <filter id="glow">
-            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
             <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          {/* Drop shadow for depth */}
+          <filter id="lineShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1" />
+            <feOffset dx="0" dy="1" result="offsetblur" />
+            <feComponentTransfer>
+              <feFuncA type="linear" slope="0.2" />
+            </feComponentTransfer>
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
-        
+
         {/* Grandparents to Parents connector */}
         {familyData.grandparents.length > 0 && familyData.parents.length > 0 && (
           <g className="animate-fade-in">
             <path
               d={`M ${dimensions.width / 2} 95 
                   Q ${dimensions.width / 2} 120, ${dimensions.width / 2} 145`}
-              stroke="hsl(var(--border))"
-              strokeWidth="2"
+              stroke="hsl(var(--primary))"
+              strokeWidth="3"
               fill="none"
               strokeLinecap="round"
               className="transition-all duration-300"
+              opacity="0.6"
+              filter="url(#lineShadow)"
+              markerEnd="url(#arrowhead)"
             />
-            <circle 
-              cx={dimensions.width / 2} 
-              cy="145" 
-              r="3" 
-              fill="hsl(var(--border))"
+            <circle
+              cx={dimensions.width / 2}
+              cy="95"
+              r="4"
+              fill="hsl(var(--primary))"
+              opacity="0.8"
             />
           </g>
         )}
-        
+
         {/* Parents to Selected Person connector */}
         {familyData.parents.length > 0 && (
           <g className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
@@ -178,22 +211,25 @@ export function FamilyView({
                   C ${dimensions.width / 2} ${familyData.grandparents.length > 0 ? 245 : 145},
                     ${dimensions.width / 2} ${familyData.grandparents.length > 0 ? 275 : 175},
                     ${dimensions.width / 2} ${familyData.grandparents.length > 0 ? 295 : 195}`}
-              stroke="hsl(var(--border))"
-              strokeWidth="2"
+              stroke="hsl(var(--primary))"
+              strokeWidth="3"
               fill="none"
               strokeLinecap="round"
               className="transition-all duration-300"
+              opacity="0.7"
+              filter="url(#lineShadow)"
+              markerEnd="url(#arrowhead)"
             />
-            <circle 
-              cx={dimensions.width / 2} 
-              cy={familyData.grandparents.length > 0 ? 295 : 195} 
-              r="4" 
+            <circle
+              cx={dimensions.width / 2}
+              cy={familyData.grandparents.length > 0 ? 215 : 115}
+              r="4"
               fill="hsl(var(--primary))"
-              filter="url(#glow)"
+              opacity="0.8"
             />
           </g>
         )}
-        
+
         {/* Selected Person to Children connector */}
         {familyData.children.length > 0 && (
           <g className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
@@ -201,42 +237,49 @@ export function FamilyView({
             <path
               d={`M ${dimensions.width / 2} ${familyData.grandparents.length > 0 ? 420 : familyData.parents.length > 0 ? 320 : 220}
                   L ${dimensions.width / 2} ${familyData.grandparents.length > 0 ? 460 : familyData.parents.length > 0 ? 360 : 260}`}
-              stroke="hsl(var(--border))"
-              strokeWidth="2"
+              stroke="hsl(var(--primary))"
+              strokeWidth="3"
               fill="none"
               strokeLinecap="round"
+              opacity="0.6"
+              filter="url(#lineShadow)"
             />
-            
+
             {/* Horizontal branch line if multiple children */}
             {familyData.children.length > 1 && (
               <path
                 d={`M ${dimensions.width / 2 - (familyData.children.length - 1) * 75} ${familyData.grandparents.length > 0 ? 460 : familyData.parents.length > 0 ? 360 : 260}
                     L ${dimensions.width / 2 + (familyData.children.length - 1) * 75} ${familyData.grandparents.length > 0 ? 460 : familyData.parents.length > 0 ? 360 : 260}`}
-                stroke="hsl(var(--border))"
-                strokeWidth="2"
+                stroke="hsl(var(--primary))"
+                strokeWidth="3"
                 fill="none"
                 strokeLinecap="round"
+                opacity="0.6"
+                filter="url(#lineShadow)"
               />
             )}
-            
+
             {/* Individual lines to each child */}
             {familyData.children.map((_, i) => {
-              const childX = familyData.children.length === 1 
+              const childX = familyData.children.length === 1
                 ? dimensions.width / 2
                 : dimensions.width / 2 - ((familyData.children.length - 1) * 75) + (i * 150);
               const baseY = familyData.grandparents.length > 0 ? 460 : familyData.parents.length > 0 ? 360 : 260;
-              
+
               return (
                 <g key={i}>
                   <path
                     d={`M ${childX} ${baseY} 
                         C ${childX} ${baseY + 15}, ${childX} ${baseY + 25}, ${childX} ${baseY + 40}`}
-                    stroke="hsl(var(--border))"
-                    strokeWidth="2"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth="3"
                     fill="none"
                     strokeLinecap="round"
+                    opacity="0.6"
+                    filter="url(#lineShadow)"
+                    markerEnd="url(#arrowhead)"
                   />
-                  <circle cx={childX} cy={baseY + 40} r="3" fill="hsl(var(--border))" />
+                  <circle cx={childX} cy={baseY} r="4" fill="hsl(var(--primary))" opacity="0.7" />
                 </g>
               );
             })}
@@ -281,13 +324,13 @@ export function FamilyView({
               ))
             ) : (
               <div className="flex items-center gap-3">
-                <PlaceholderNode 
-                  label="Tambah Ayah" 
-                  onClick={() => onAddRelationship?.(selectedPerson.id, 'parent')} 
+                <PlaceholderNode
+                  label="Tambah Ayah"
+                  onClick={() => onAddRelationship?.(selectedPerson.id, 'parent')}
                 />
-                <PlaceholderNode 
-                  label="Tambah Ibu" 
-                  onClick={() => onAddRelationship?.(selectedPerson.id, 'parent')} 
+                <PlaceholderNode
+                  label="Tambah Ibu"
+                  onClick={() => onAddRelationship?.(selectedPerson.id, 'parent')}
                 />
               </div>
             )}
@@ -319,10 +362,11 @@ export function FamilyView({
             <svg className="w-12 h-2" viewBox="0 0 48 8">
               <path
                 d="M0 4 Q12 4, 24 4 T48 4"
-                stroke="hsl(var(--border))"
+                stroke="hsl(var(--muted-foreground))"
                 strokeWidth="2"
-                strokeDasharray="4 2"
+                strokeDasharray="6 3"
                 fill="none"
+                opacity="0.5"
               />
             </svg>
           )}
@@ -336,10 +380,10 @@ export function FamilyView({
               <PersonNode
                 person={selectedPerson}
                 isSelected={true}
-                onClick={() => {}}
+                onClick={() => { }}
                 size="large"
               />
-              
+
               {/* Spouse(s) */}
               {familyData.spouses.length > 0 ? (
                 familyData.spouses.map(spouse => (
@@ -358,8 +402,8 @@ export function FamilyView({
                   <svg className="w-8 h-2 mx-1" viewBox="0 0 32 8">
                     <path d="M0 4 L32 4" stroke="hsl(var(--muted-foreground))" strokeWidth="1" strokeDasharray="4 2" opacity="0.3" />
                   </svg>
-                  <PlaceholderNode 
-                    label="Tambah Pasangan" 
+                  <PlaceholderNode
+                    label="Tambah Pasangan"
                     onClick={() => onAddRelationship?.(selectedPerson.id, 'spouse')}
                     size="large"
                   />
@@ -383,9 +427,9 @@ export function FamilyView({
                 />
               ))
             ) : (
-              <PlaceholderNode 
-                label="Tambah Anak" 
-                onClick={() => onAddRelationship?.(selectedPerson.id, 'child')} 
+              <PlaceholderNode
+                label="Tambah Anak"
+                onClick={() => onAddRelationship?.(selectedPerson.id, 'child')}
               />
             )}
           </div>

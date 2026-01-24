@@ -53,24 +53,31 @@ export function validateRelationship(
       errors.push('Relasi parent-child ini sudah ada');
     }
 
-    // Check for max 2 parents (warning, not error)
+    // Check for max 2 parents (BLOCKING - biological limit)
     const existingParents = existingRelationships.filter(
       r => r.type === 'PARENT_CHILD' && r.toPersonId === toPersonId
     );
     if (existingParents.length >= 2) {
-      warnings.push('Anak ini sudah memiliki 2 orang tua. Menambahkan lebih dari 2 mungkin tidak umum.');
+      errors.push('Anak ini sudah memiliki 2 orang tua. Menambahkan lebih dari 2 mungkin tidak umum.');
     }
 
-    // Age gap warning (not blocking)
+    // Age gap validation (BLOCKING for impossible cases)
     if (fromPerson.birthDate && toPerson.birthDate) {
       const parentYear = new Date(fromPerson.birthDate).getFullYear();
       const childYear = new Date(toPerson.birthDate).getFullYear();
       const ageGap = childYear - parentYear;
 
+      // BLOCKING: Child cannot be born before parent
       if (ageGap < 0) {
-        warnings.push(`Peringatan: Anak lahir ${Math.abs(ageGap)} tahun sebelum orang tua`);
-      } else if (ageGap < 12) {
-        warnings.push(`Peringatan: Selisih usia hanya ${ageGap} tahun`);
+        errors.push(`Tidak valid: Anak lahir ${Math.abs(ageGap)} tahun sebelum orang tua`);
+      }
+      // BLOCKING: Minimum biological age gap (e.g., 12 years)
+      else if (ageGap < 12) {
+        errors.push(`Tidak valid: Selisih usia hanya ${ageGap} tahun. Minimal 12 tahun untuk relasi orang tua-anak`);
+      }
+      // WARNING: Unusually large age gap (e.g., > 80 years) - still allowed
+      else if (ageGap > 80) {
+        warnings.push(`Peringatan: Selisih usia sangat besar (${ageGap} tahun). Pastikan data sudah benar.`);
       }
     }
   }
@@ -78,9 +85,9 @@ export function validateRelationship(
   if (type === 'SPOUSE') {
     // Check if spouse relationship already exists (in either direction)
     const exists = existingRelationships.some(
-      r => r.type === 'SPOUSE' && 
-           ((r.fromPersonId === fromPersonId && r.toPersonId === toPersonId) ||
-            (r.fromPersonId === toPersonId && r.toPersonId === fromPersonId))
+      r => r.type === 'SPOUSE' &&
+        ((r.fromPersonId === fromPersonId && r.toPersonId === toPersonId) ||
+          (r.fromPersonId === toPersonId && r.toPersonId === fromPersonId))
     );
     if (exists) {
       errors.push('Relasi pasangan ini sudah ada');
@@ -88,9 +95,9 @@ export function validateRelationship(
 
     // Check for parent-child relationship (can't be both spouse and parent-child)
     const isParentChild = existingRelationships.some(
-      r => r.type === 'PARENT_CHILD' && 
-           ((r.fromPersonId === fromPersonId && r.toPersonId === toPersonId) ||
-            (r.fromPersonId === toPersonId && r.toPersonId === fromPersonId))
+      r => r.type === 'PARENT_CHILD' &&
+        ((r.fromPersonId === fromPersonId && r.toPersonId === toPersonId) ||
+          (r.fromPersonId === toPersonId && r.toPersonId === fromPersonId))
     );
     if (isParentChild) {
       errors.push('Tidak bisa menjadi pasangan dari orang tua/anak');
@@ -144,8 +151,8 @@ export function getRelationshipDisplayInfo(
   currentPersonId: string,
   persons: Person[]
 ): { label: string; icon: string; person: Person | undefined } {
-  const otherPersonId = relationship.fromPersonId === currentPersonId 
-    ? relationship.toPersonId 
+  const otherPersonId = relationship.fromPersonId === currentPersonId
+    ? relationship.toPersonId
     : relationship.fromPersonId;
   const otherPerson = persons.find(p => p.id === otherPersonId);
 
