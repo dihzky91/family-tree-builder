@@ -14,6 +14,7 @@ import SettingsPage from "./pages/SettingsPage";
 import DuplicatesPage from "./pages/DuplicatesPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import AuthPage from "./pages/AuthPage";
+import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
                     <Route path="/audit" element={<AuditLogPage />} />
                     <Route path="/data" element={<DataPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </AppLayout>
