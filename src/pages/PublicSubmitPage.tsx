@@ -108,9 +108,11 @@ export default function PublicSubmitPage() {
 
             setSubmitSuccess(true);
             form.reset();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error submitting:', err);
-            setError('Gagal mengirim data. Silakan coba lagi.');
+            console.error('Error details:', JSON.stringify(err, null, 2));
+            const errorMessage = err?.message || err?.code || 'Unknown error';
+            setError(`Gagal mengirim data: ${errorMessage}`);
         } finally {
             setIsSubmitting(false);
         }
