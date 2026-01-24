@@ -118,25 +118,25 @@ function PersonName({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="inline-flex items-center gap-1 cursor-help">
+          <span className="inline-flex items-center gap-1 cursor-help group/person transition-transform duration-200 hover:scale-105">
             {genderIcon && (
-              <span className={`text-xs ${getGenderColorClass()}`}>
+              <span className={`text-xs transition-transform duration-200 group-hover/person:scale-110 ${getGenderColorClass()}`}>
                 {genderIcon}
               </span>
             )}
             <button
               onClick={() => onPersonClick?.(person.id)}
-              className={`font-medium hover:opacity-80 transition-opacity ${getGenderColorClass()}`}
+              className={`font-medium transition-all duration-200 hover:brightness-110 group-hover/person:underline underline-offset-2 ${getGenderColorClass()}`}
             >
               {person.fullName}
             </button>
             {isDeceased && (
-              <span className="text-muted-foreground/70">
+              <span className="text-muted-foreground/70 transition-transform duration-200 group-hover/person:scale-110">
                 <Cross className="w-3 h-3" />
               </span>
             )}
             {person.birthDate && (
-              <span className="text-muted-foreground font-normal">
+              <span className="text-muted-foreground font-normal transition-opacity duration-200 group-hover/person:opacity-80">
                 ({getAgeInfo(person.birthDate, person.deathDate)})
               </span>
             )}
