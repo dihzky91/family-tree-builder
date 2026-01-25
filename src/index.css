@@ -277,8 +277,10 @@
   .fc-card {
     @apply rounded-xl border-2 bg-card shadow-md transition-all duration-200;
     @apply hover:shadow-lg cursor-pointer;
-    min-width: 160px;
+    width: 200px;
+    height: 72px;
     padding: 12px;
+    box-sizing: border-box;
   }
 
   .fc-card-inner {
