@@ -1,4 +1,4 @@
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
   Users,
   GitBranch,
@@ -14,28 +14,38 @@ import {
   History,
   BarChart3,
   FileCheck,
-  FolderTree
+  FolderTree,
+  CalendarHeart,
+  Network,
+  Image,
+  Stethoscope,
+  BookOpen,
+  Plus,
+  Upload
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { useFamilyStore } from '@/store/familyStore';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { UserMenu } from '@/components/auth/UserMenu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PersonForm } from '@/features/people/PersonForm';
+import { checkDataQuality } from '@/lib/dataQuality';
+import { findAllDuplicates } from '@/lib/duplicateDetection';
 
-const navItems = [
-  { title: 'Dashboard', url: '/', icon: Home },
-  { title: 'Anggota', url: '/people', icon: Users },
-  { title: 'Silsilah', url: '/chart', icon: GitBranch },
-  { title: 'Dokumen', url: '/evidence', icon: FileText },
-  { title: 'Duplikat', url: '/duplicates', icon: Copy },
-  { title: 'Statistik', url: '/stats', icon: BarChart3 },
-  { title: 'Cabang', url: '/branches', icon: FolderTree },
-  { title: 'Submissions', url: '/submissions', icon: FileCheck },
-  { title: 'Audit Log', url: '/audit', icon: History },
-  { title: 'Import/Export', url: '/data', icon: Download },
-  { title: 'Pengaturan', url: '/settings', icon: Settings },
-];
+interface NavItem {
+  title: string;
+  url: string;
+  icon: any;
+  badge?: () => number | null;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
 
 interface AppSidebarProps {
   collapsed: boolean;
@@ -44,12 +54,100 @@ interface AppSidebarProps {
 
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const location = useLocation();
-  const { searchQuery, setSearchQuery, persons } = useFamilyStore();
+  const navigate = useNavigate();
+  const { searchQuery, setSearchQuery, persons, relationships } = useFamilyStore();
   const [localSearch, setLocalSearch] = useState(searchQuery);
+  const [showAddPersonDialog, setShowAddPersonDialog] = useState(false);
+
+  // Calculate badge counts
+  const duplicateCount = useMemo(() => {
+    return findAllDuplicates(persons).length;
+  }, [persons]);
+
+  const submissionCount = useMemo(() => {
+    // TODO: Add submissions to store when implementing submission feature
+    return 0;
+  }, []);
+
+  const issueCount = useMemo(() => {
+    const issues = checkDataQuality(persons, relationships);
+    return issues.filter(i => i.type === 'error' || i.type === 'warning').length;
+  }, [persons, relationships]);
+
+  const todayAuditCount = useMemo(() => {
+    // For demo purposes, return 0 - would need actual audit log data
+    return 0;
+  }, []);
+
+  const navGroups: NavGroup[] = [
+    {
+      label: 'Overview',
+      items: [
+        { title: 'Hari Ini', url: '/on-this-day', icon: CalendarHeart },
+      ]
+    },
+    {
+      label: 'Data',
+      items: [
+        { title: 'Anggota', url: '/people', icon: Users },
+        { title: 'Silsilah', url: '/chart', icon: GitBranch },
+        { title: 'Kisah Keluarga', url: '/stories', icon: BookOpen },
+        { title: 'Dokumen', url: '/evidence', icon: FileText },
+        { title: 'Galeri', url: '/gallery', icon: Image },
+      ]
+    },
+    {
+      label: 'Tools',
+      items: [
+        { title: 'Cek Hubungan', url: '/relationship-check', icon: Network },
+        {
+          title: 'Duplikat',
+          url: '/duplicates',
+          icon: Copy,
+          badge: () => duplicateCount > 0 ? duplicateCount : null
+        },
+        {
+          title: 'Kesehatan Data',
+          url: '/data-quality',
+          icon: Stethoscope,
+          badge: () => issueCount > 0 ? issueCount : null
+        },
+      ]
+    },
+    {
+      label: 'Insights',
+      items: [
+        { title: 'Statistik', url: '/stats', icon: BarChart3 },
+      ]
+    },
+    {
+      label: 'Management',
+      items: [
+        { title: 'Cabang', url: '/branches', icon: FolderTree },
+        {
+          title: 'Submissions',
+          url: '/submissions',
+          icon: FileCheck,
+          badge: () => submissionCount > 0 ? submissionCount : null
+        },
+        {
+          title: 'Audit Log',
+          url: '/audit',
+          icon: History,
+          badge: () => todayAuditCount > 0 ? todayAuditCount : null
+        },
+        { title: 'Import/Export', url: '/data', icon: Download },
+        { title: 'Pengaturan', url: '/settings', icon: Settings },
+      ]
+    },
+  ];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearchQuery(localSearch);
+    if (location.pathname !== '/people') {
+      navigate('/people');
+    }
   };
 
   return (
@@ -96,27 +194,86 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         </form>
       )}
 
+      {/* Quick Actions */}
+      {!collapsed && (
+        <div className="px-3 pb-3 space-y-2">
+          <Button
+            className="w-full justify-start gap-2 bg-sidebar-primary hover:bg-sidebar-primary/90 text-sidebar-primary-foreground"
+            onClick={() => setShowAddPersonDialog(true)}
+          >
+            <Plus className="w-4 h-4" />
+            Tambah Anggota
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2 border-sidebar-border hover:bg-sidebar-accent"
+            onClick={() => navigate('/data')}
+          >
+            <Upload className="w-4 h-4" />
+            Import Data
+          </Button>
+        </div>
+      )}
+
       {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.url;
-          return (
-            <Link
-              key={item.url}
-              to={item.url}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
-                "hover:bg-sidebar-accent",
-                isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/80"
-              )}
-            >
-              <item.icon className={cn("w-5 h-5 shrink-0", collapsed && "mx-auto")} />
-              {!collapsed && <span className="font-medium">{item.title}</span>}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 p-2 space-y-4 overflow-y-auto">
+        {navGroups.map((group, groupIndex) => (
+          <div key={group.label} className="space-y-1">
+            {/* Group Label */}
+            {!collapsed && (
+              <div className="px-3 py-1.5">
+                <span className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+                  {group.label}
+                </span>
+              </div>
+            )}
+
+            {/* Group Items */}
+            {group.items.map((item) => {
+              const isActive = location.pathname === item.url;
+              const badgeCount = item.badge ? item.badge() : null;
+
+              return (
+                <Link
+                  key={item.url}
+                  to={item.url}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative",
+                    "hover:bg-sidebar-accent",
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground/80"
+                  )}
+                  title={collapsed ? item.title : undefined}
+                >
+                  <item.icon className={cn("w-5 h-5 shrink-0", collapsed && "mx-auto")} />
+                  {!collapsed && (
+                    <>
+                      <span className="font-medium flex-1">{item.title}</span>
+                      {badgeCount !== null && badgeCount > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "h-5 min-w-5 px-1.5 text-xs font-semibold",
+                            isActive
+                              ? "bg-sidebar-primary-foreground/20 text-sidebar-primary-foreground"
+                              : "bg-destructive/10 text-destructive"
+                          )}
+                        >
+                          {badgeCount}
+                        </Badge>
+                      )}
+                    </>
+                  )}
+                  {/* Badge indicator for collapsed mode */}
+                  {collapsed && badgeCount !== null && badgeCount > 0 && (
+                    <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Footer with User Menu */}
@@ -136,6 +293,18 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           <UserMenu />
         </div>
       </div>
+
+      {/* Add Person Dialog */}
+      <Dialog open={showAddPersonDialog} onOpenChange={setShowAddPersonDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display">Tambah Anggota Keluarga</DialogTitle>
+          </DialogHeader>
+          <PersonForm
+            onSuccess={() => setShowAddPersonDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }

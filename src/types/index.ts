@@ -95,6 +95,20 @@ export const AuditLogSchema = z.object({
 
 export type AuditLog = z.infer<typeof AuditLogSchema>;
 
+export const StorySchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1, 'Title is required'),
+  content: z.string(), // can be HTML or simple text
+  authorId: z.string().uuid().optional().nullable(),
+  personIds: z.array(z.string().uuid()).default([]), // people mentioned
+  date: z.string().optional().nullable(), // date of the event in the story
+  tags: z.array(z.string()).default([]),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type Story = z.infer<typeof StorySchema>;
+
 // ============= FORM SCHEMAS =============
 export const PersonFormSchema = z.object({
   fullName: z.string().min(1, 'Name is required').max(100),

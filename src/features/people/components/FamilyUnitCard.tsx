@@ -25,7 +25,7 @@ export function FamilyUnitCard({ person, role, onEdit }: FamilyUnitCardProps) {
   return (
     <div
       className={`
-        flex items-center gap-3 p-3 rounded-lg border bg-card
+        flex items-center gap-2 p-2 rounded-lg border bg-card
         hover:bg-accent/50 transition-colors cursor-pointer
         ${role === 'parent' ? 'border-primary/30' : 'border-border'}
       `}
@@ -34,7 +34,7 @@ export function FamilyUnitCard({ person, role, onEdit }: FamilyUnitCardProps) {
       {/* Avatar */}
       <div className="relative shrink-0">
         <div className={`
-          w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+          w-8 h-8 rounded-full flex items-center justify-center overflow-hidden
           ${person.photoUrl ? 'border-2 border-border shadow-sm' : ''}
           ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
             person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
@@ -48,12 +48,12 @@ export function FamilyUnitCard({ person, role, onEdit }: FamilyUnitCardProps) {
               loading="lazy"
             />
           ) : (
-            <User className="w-5 h-5" />
+            <User className="w-4 h-4" />
           )}
         </div>
         {person.tags.includes('verified') && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
-            <CheckCircle className="w-2.5 h-2.5 text-white" />
+          <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+            <CheckCircle className="w-2 h-2 text-white" />
           </div>
         )}
       </div>
@@ -61,15 +61,15 @@ export function FamilyUnitCard({ person, role, onEdit }: FamilyUnitCardProps) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium truncate">{person.fullName}</span>
+          <span className="font-medium text-sm truncate">{person.fullName}</span>
           {role === 'parent' && (
-            <Badge variant="outline" className="text-xs shrink-0">
+            <Badge variant="outline" className="text-[10px] px-1.5 h-5 shrink-0">
               Orang Tua
             </Badge>
           )}
         </div>
         {person.birthDate && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
             <Calendar className="w-3 h-3" />
             <span>{formatDate(person.birthDate)}</span>
             {person.deathDate && <span> - {formatDate(person.deathDate)}</span>}
@@ -80,7 +80,7 @@ export function FamilyUnitCard({ person, role, onEdit }: FamilyUnitCardProps) {
       {/* Tags indicator */}
       <div className="flex gap-1 shrink-0">
         {person.tags.includes('needs review') && (
-          <AlertCircle className="w-4 h-4 text-yellow-500" />
+          <AlertCircle className="w-3.5 h-3.5 text-yellow-500" />
         )}
       </div>
     </div>

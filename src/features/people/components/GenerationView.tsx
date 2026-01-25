@@ -30,7 +30,7 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
   const generationGroups = useMemo(() => {
     // Step 1: Calculate relationship-based generations
     const personGenMap = new Map<string, { gen: number; hasParents: boolean }>();
-    
+
     persons.forEach(person => {
       const gen = calculateGeneration(person.id, relationships);
       const hasParents = relationships.some(
@@ -41,17 +41,17 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
 
     // Step 2: Find reference points from persons WITH parent relationships
     const personsWithParents = persons.filter(p => personGenMap.get(p.id)?.hasParents);
-    
+
     // Build year ranges for each known generation
     const genYearRanges = new Map<number, { min: number; max: number }>();
-    
+
     personsWithParents.forEach(person => {
       const genInfo = personGenMap.get(person.id);
       if (!genInfo || !person.birthDate) return;
-      
+
       const year = new Date(person.birthDate).getFullYear();
       const existing = genYearRanges.get(genInfo.gen);
-      
+
       if (existing) {
         existing.min = Math.min(existing.min, year);
         existing.max = Math.max(existing.max, year);
@@ -62,16 +62,16 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
 
     // Step 3: Estimate generation for persons WITHOUT parent relationships
     const personsWithoutParents = persons.filter(p => !personGenMap.get(p.id)?.hasParents);
-    
+
     personsWithoutParents.forEach(person => {
       if (!person.birthDate) return; // Can't estimate without birth date
-      
+
       const birthYear = new Date(person.birthDate).getFullYear();
-      
+
       // Find the best matching generation based on year ranges
       let bestGen = 0;
       let bestMatch = false;
-      
+
       genYearRanges.forEach((range, gen) => {
         // Check if birth year falls within or near this generation's range
         const buffer = GENERATION_GAP_YEARS / 2; // Allow some flexibility
@@ -80,39 +80,39 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
           bestMatch = true;
         }
       });
-      
+
       // If no direct match, estimate based on year difference from known generations
       if (!bestMatch && genYearRanges.size > 0) {
         // Find the generation with closest year range
         let closestGen = 0;
         let closestDiff = Infinity;
-        
+
         genYearRanges.forEach((range, gen) => {
           const midYear = (range.min + range.max) / 2;
           const diff = Math.abs(birthYear - midYear);
-          
+
           if (diff < closestDiff) {
             closestDiff = diff;
             closestGen = gen;
           }
         });
-        
+
         // Adjust generation based on year difference
         const closestRange = genYearRanges.get(closestGen)!;
         const midYear = (closestRange.min + closestRange.max) / 2;
         const yearDiff = birthYear - midYear;
         const genOffset = Math.round(yearDiff / GENERATION_GAP_YEARS);
-        
+
         bestGen = closestGen + genOffset;
       }
-      
+
       // Update the person's generation
       personGenMap.set(person.id, { gen: bestGen, hasParents: false });
     });
 
     // Step 4: Group persons by their (possibly estimated) generation
     const personsByGen: Record<number, Person[]> = {};
-    
+
     persons.forEach(person => {
       const genInfo = personGenMap.get(person.id);
       const gen = genInfo?.gen ?? 0;
@@ -124,12 +124,12 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
     const groups: GenerationGroup[] = Object.entries(personsByGen)
       .map(([gen, people]) => {
         const genNum = parseInt(gen);
-        
+
         // Calculate year range for this generation
         const years = people
           .map(p => p.birthDate ? new Date(p.birthDate).getFullYear() : null)
           .filter((y): y is number => y !== null);
-        
+
         const minYear = years.length > 0 ? Math.min(...years) : null;
         const maxYear = years.length > 0 ? Math.max(...years) : null;
 
@@ -179,7 +179,7 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
       {/* Timeline line */}
       <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary via-primary/50 to-primary/20 hidden md:block" />
 
-      <div className="space-y-8">
+      <div className="space-y-6">
         {generationGroups.map((group, groupIndex) => (
           <div key={group.generation} className="relative animate-fade-in" style={{ animationDelay: `${groupIndex * 100}ms` }}>
             {/* Timeline node */}
@@ -188,17 +188,17 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
             </div>
 
             {/* Generation header */}
-            <div className="md:ml-14 mb-4">
-              <div className="flex items-center gap-3 flex-wrap">
-                <Badge variant="default" className="text-sm px-3 py-1">
+            <div className="md:ml-14 mb-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="default" className="text-xs px-2 py-0.5">
                   {group.label}
                 </Badge>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {group.persons.length} anggota
                 </span>
                 {group.yearRange.min && (
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                    {group.yearRange.min === group.yearRange.max 
+                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full border">
+                    {group.yearRange.min === group.yearRange.max
                       ? `${group.yearRange.min}`
                       : `${group.yearRange.min} - ${group.yearRange.max}`
                     }
@@ -208,62 +208,58 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
             </div>
 
             {/* Persons in this generation */}
-            <div className="md:ml-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div className="md:ml-14 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
               {group.persons.map((person) => (
                 <Card
                   key={person.id}
-                  className="p-3 hover:shadow-md hover:bg-accent/50 transition-all cursor-pointer animate-scale-in"
+                  className="p-2 hover:shadow-md hover:bg-accent/50 transition-all cursor-pointer animate-scale-in flex items-center gap-2"
                   onClick={() => onEditPerson?.(person)}
+                  title={person.fullName}
                 >
-                  <div className="flex items-center gap-3">
-                    {/* Avatar */}
-                    <div className="relative shrink-0">
-                      <div className={`
-                        w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
-                        ${person.photoUrl ? 'border-2 border-border shadow-sm' : ''}
-                        ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
-                          person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
-                            'bg-node-unknown/20 text-node-unknown'}
-                      `}>
-                        {person.photoUrl ? (
-                          <img
-                            src={person.photoUrl}
-                            alt={person.fullName}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <User className="w-5 h-5" />
-                        )}
+                  {/* Avatar */}
+                  <div className="relative shrink-0">
+                    <div className={`
+                      w-8 h-8 rounded-full flex items-center justify-center overflow-hidden
+                      ${person.photoUrl ? 'border shadow-sm' : ''}
+                      ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
+                        person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
+                          'bg-node-unknown/20 text-node-unknown'}
+                    `}>
+                      {person.photoUrl ? (
+                        <img
+                          src={person.photoUrl}
+                          alt={person.fullName}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <User className="w-4 h-4" />
+                      )}
+                    </div>
+                    {person.tags.includes('verified') && (
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+                        <CheckCircle className="w-2 h-2 text-white" />
                       </div>
-                      {person.tags.includes('verified') && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
-                          <CheckCircle className="w-2.5 h-2.5 text-white" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{person.fullName}</p>
-                      {person.birthDate && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                          <Calendar className="w-3 h-3" />
-                          <span>
-                            {formatDate(person.birthDate)}
-                            {person.deathDate && (
-                              <span className="text-muted-foreground/70"> - {formatDate(person.deathDate)}</span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status indicator */}
-                    {person.tags.includes('needs review') && (
-                      <AlertCircle className="w-4 h-4 text-yellow-500 shrink-0" />
                     )}
                   </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-xs truncate leading-tight">{person.fullName}</p>
+                    {person.birthDate && (
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5 leading-none">
+                        <Calendar className="w-2.5 h-2.5" />
+                        <span>
+                          {new Date(person.birthDate).getFullYear()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status indicator */}
+                  {person.tags.includes('needs review') && (
+                    <AlertCircle className="w-3.5 h-3.5 text-yellow-500 shrink-0" />
+                  )}
                 </Card>
               ))}
             </div>
@@ -287,7 +283,7 @@ function getGenerationLabel(generation: number, hasEstimated?: boolean): string 
     4: 'Generasi ke-5',
     5: 'Generasi ke-6',
   };
-  
+
   const label = labels[generation] || `Generasi ke-${generation + 1}`;
   return hasEstimated ? `${label} *` : label;
 }

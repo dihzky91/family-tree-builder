@@ -45,8 +45,8 @@ export function getZodiacSign(birthDate: string | null | undefined): string | nu
 
 // Get month name
 export function getMonthName(monthIndex: number): string {
-  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-                  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   return months[monthIndex] || '';
 }
 
@@ -73,10 +73,14 @@ export function calculateOverviewStats(persons: Person[], relationships: Relatio
   const marriedPersonIds = new Set<string>();
   const divorcedPersonIds = new Set<string>();
   relationships.filter(r => r.type === 'SPOUSE').forEach(r => {
-    if (r.meta?.status === 'divorced') {
+    // Default to 'married' if status is not set (undefined, null, or empty)
+    const status = r.meta?.status || 'married';
+
+    if (status === 'divorced') {
       divorcedPersonIds.add(r.fromPersonId);
       divorcedPersonIds.add(r.toPersonId);
-    } else if (r.meta?.status === 'married') {
+    } else {
+      // married, partner, unknown, or undefined all considered as married
       marriedPersonIds.add(r.fromPersonId);
       marriedPersonIds.add(r.toPersonId);
     }
@@ -84,7 +88,7 @@ export function calculateOverviewStats(persons: Person[], relationships: Relatio
 
   // Find widowed (spouse deceased)
   const widowedPersonIds = new Set<string>();
-  relationships.filter(r => r.type === 'SPOUSE' && r.meta?.status === 'married').forEach(r => {
+  relationships.filter(r => r.type === 'SPOUSE' && (r.meta?.status || 'married') !== 'divorced').forEach(r => {
     const person1 = persons.find(p => p.id === r.fromPersonId);
     const person2 = persons.find(p => p.id === r.toPersonId);
     if (person1 && person2) {
@@ -199,7 +203,7 @@ export function calculateAgeStats(persons: Person[]) {
     .filter(p => p.gender === 'male' && p.birthDate && p.deathDate)
     .map(p => calculateAge(p.birthDate, p.deathDate))
     .filter((age): age is number => age !== null);
-  
+
   const femaleAges = deceased
     .filter(p => p.gender === 'female' && p.birthDate && p.deathDate)
     .map(p => calculateAge(p.birthDate, p.deathDate))
@@ -233,7 +237,7 @@ export function calculateBirthStats(persons: Person[]) {
     if (p.birthDate) {
       const date = new Date(p.birthDate);
       monthDistribution[date.getMonth()]++;
-      
+
       const zodiac = getZodiacSign(p.birthDate);
       if (zodiac) {
         zodiacDistribution[zodiac] = (zodiacDistribution[zodiac] || 0) + 1;
@@ -296,7 +300,7 @@ export function calculatePlaceStats(persons: Person[]) {
 // Marriage statistics
 export function calculateMarriageStats(persons: Person[], relationships: Relationship[]) {
   const marriages = relationships.filter(r => r.type === 'SPOUSE' && r.meta?.status !== 'partner');
-  
+
   const marriagesByDecade: Record<string, number> = {};
   const marriageDurations: { persons: Person[]; duration: number; startDate: string }[] = [];
 
@@ -309,14 +313,14 @@ export function calculateMarriageStats(persons: Person[], relationships: Relatio
       // Calculate duration
       const endDate = r.meta?.endDate ? new Date(r.meta.endDate) : new Date();
       const duration = Math.floor((endDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24 * 365));
-      
+
       const person1 = persons.find(p => p.id === r.fromPersonId);
       const person2 = persons.find(p => p.id === r.toPersonId);
       if (person1 && person2) {
-        marriageDurations.push({ 
-          persons: [person1, person2], 
-          duration, 
-          startDate: r.meta.startDate 
+        marriageDurations.push({
+          persons: [person1, person2],
+          duration,
+          startDate: r.meta.startDate
         });
       }
     }
@@ -326,7 +330,7 @@ export function calculateMarriageStats(persons: Person[], relationships: Relatio
     .sort((a, b) => b.duration - a.duration)
     .slice(0, 5);
 
-  const avgDuration = marriageDurations.length 
+  const avgDuration = marriageDurations.length
     ? Math.round(marriageDurations.reduce((a, b) => a + b.duration, 0) / marriageDurations.length)
     : 0;
 
@@ -343,20 +347,20 @@ export function calculateMarriageStats(persons: Person[], relationships: Relatio
 // Children statistics
 export function calculateChildrenStats(persons: Person[], relationships: Relationship[]) {
   const parentChildRels = relationships.filter(r => r.type === 'PARENT_CHILD');
-  
+
   // Group children by parent pairs
   const familyChildren: Record<string, Set<string>> = {};
-  
+
   parentChildRels.forEach(r => {
     // Find all parents of this child
     const childId = r.toPersonId;
     const parentId = r.fromPersonId;
-    
+
     // Get all other parents of the same child
     const otherParents = parentChildRels
       .filter(rel => rel.toPersonId === childId && rel.fromPersonId !== parentId)
       .map(rel => rel.fromPersonId);
-    
+
     if (otherParents.length > 0) {
       // Create a family key (sorted parent IDs)
       const familyKey = [parentId, ...otherParents].sort().join('-');
@@ -375,14 +379,14 @@ export function calculateChildrenStats(persons: Person[], relationships: Relatio
 
   const childrenCounts = Object.values(familyChildren).map(children => children.size);
   const distribution: Record<string, number> = { '0': 0, '1': 0, '2': 0, '3': 0, '4': 0, '5+': 0 };
-  
+
   childrenCounts.forEach(count => {
     if (count >= 5) distribution['5+']++;
     else distribution[count.toString()]++;
   });
 
   const totalChildren = parentChildRels.length;
-  const avgChildren = childrenCounts.length 
+  const avgChildren = childrenCounts.length
     ? (childrenCounts.reduce((a, b) => a + b, 0) / childrenCounts.length).toFixed(1)
     : '0';
 
@@ -430,7 +434,7 @@ export function calculateDivorceStats(persons: Person[], relationships: Relation
     ? Math.round(durationBeforeDivorce.reduce((a, b) => a + b, 0) / durationBeforeDivorce.length)
     : 0;
 
-  const divorceRate = marriages.length 
+  const divorceRate = marriages.length
     ? ((divorces.length / marriages.length) * 100).toFixed(1)
     : '0';
 
@@ -446,8 +450,8 @@ export function calculateDivorceStats(persons: Person[], relationships: Relation
 
 // Relationship steps calculation (BFS)
 export function calculateRelationshipSteps(
-  persons: Person[], 
-  relationships: Relationship[], 
+  persons: Person[],
+  relationships: Relationship[],
   focusPersonId: string
 ): Map<string, number> {
   const steps = new Map<string, number>();

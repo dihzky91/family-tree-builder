@@ -7,13 +7,36 @@ import {
   CheckCircle,
   AlertCircle,
   Plus,
-  TrendingUp
+  TrendingUp,
+  Sun,
+  Moon,
+  CloudSun,
+  Sparkles
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { StatsCardSkeletonGrid, LargeStatsCardSkeleton } from '@/components/skeletons/StatsCardSkeleton';
+import { useMemo } from 'react';
 
 export default function DashboardPage() {
   const { persons, relationships, evidence, isLoading } = useFamilyStore();
+
+  // Greeting Logic
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 11) return { text: 'Selamat Pagi', icon: CloudSun };
+    if (hour < 15) return { text: 'Selamat Siang', icon: Sun };
+    if (hour < 18) return { text: 'Selamat Sore', icon: Sun };
+    return { text: 'Selamat Malam', icon: Moon };
+  };
+  const { text: greetingText, icon: GreetingIcon } = getGreeting();
+
+  // Random Memory (Person with Photo)
+  const randomMemory = useMemo(() => {
+    const withPhotos = persons.filter(p => p.photoUrl);
+    if (withPhotos.length === 0) return null;
+    const random = withPhotos[Math.floor(Math.random() * withPhotos.length)];
+    return random;
+  }, [persons]);
 
   // Calculate stats
   const verifiedCount = persons.filter(p => p.tags.includes('verified')).length;
@@ -82,23 +105,79 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">
-            Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Ringkasan data silsilah keluarga Anda
-          </p>
+    <div className="p-6 lg:p-8 space-y-8 animate-fade-in pb-20">
+
+      {/* HERO SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Welcome Card */}
+        <div className="lg:col-span-2 relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/90 to-primary/70 text-primary-foreground p-8 shadow-lg flex flex-col justify-center min-h-[200px]">
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-2 opacity-90">
+              <GreetingIcon className="w-6 h-6" />
+              <span className="font-medium text-lg">{greetingText}</span>
+            </div>
+            <h1 className="text-4xl font-display font-bold mb-4">
+              Selamat Datang Kembali
+            </h1>
+            <p className="text-primary-foreground/80 max-w-lg">
+              Lanjutkan perjalanan menelusuri jejak leluhur dan merangkai kisah keluarga Anda.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <Link to="/people">
+                <Button variant="secondary" className="gap-2">
+                  <Users className="w-4 h-4" />
+                  Kelola Anggota
+                </Button>
+              </Link>
+              <Link to="/chart">
+                <Button variant="outline" className="gap-2 bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10 text-primary-foreground">
+                  <GitBranch className="w-4 h-4" />
+                  Lihat Silsilah
+                </Button>
+              </Link>
+            </div>
+          </div>
+          {/* Decorative Pattern */}
+          <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-10 pointer-events-none">
+            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" className="w-full h-full text-white fill-current">
+              <path d="M44.7,-76.4C58.9,-69.2,71.8,-59.1,79.6,-46.3C87.4,-33.5,90.1,-18,88.7,-3.3C87.4,11.4,81.9,25.3,73.4,37.6C64.9,50,53.3,60.8,40.6,68.2C27.9,75.6,14,79.6,0.3,79.1C-13.4,78.6,-26.8,73.6,-38.7,66C-50.6,58.3,-61,48,-69.2,36.1C-77.4,24.2,-83.4,10.7,-81.8,-1.9C-80.1,-14.5,-70.9,-26.2,-61.6,-36.8C-52.3,-47.4,-42.9,-56.9,-32.1,-65.7C-21.3,-74.5,-9.1,-82.6,3.8,-88.7L16.7,-94.8" transform="translate(100 100)" />
+            </svg>
+          </div>
         </div>
-        <Link to="/people">
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            Tambah Anggota
-          </Button>
-        </Link>
+
+        {/* Random Memory Card */}
+        <div className="relative rounded-xl overflow-hidden bg-card border shadow-sm group min-h-[200px] flex flex-col">
+          {randomMemory ? (
+            <>
+              <div className="absolute inset-0">
+                <img
+                  src={randomMemory.photoUrl || ''}
+                  alt={randomMemory.fullName}
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+              </div>
+              <div className="relative z-10 p-6 mt-auto text-white">
+                <div className="flex items-center gap-2 mb-2 text-white/80">
+                  <Sparkles className="w-4 h-4 text-yellow-300" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Kenangan</span>
+                </div>
+                <h3 className="font-semibold text-lg line-clamp-1">{randomMemory.fullName}</h3>
+                <p className="text-xs text-white/70 line-clamp-1">
+                  {randomMemory.birthDate ? `Lahir: ${new Date(randomMemory.birthDate).getFullYear()}` : 'Anggota Keluarga'}
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full p-6 text-center text-muted-foreground">
+              <Sparkles className="w-8 h-8 mb-2 opacity-50" />
+              <p className="text-sm">Belum ada foto kenangan.</p>
+              <Button variant="link" size="sm" asChild>
+                <Link to="/people">Upload foto sekarang</Link>
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -107,13 +186,13 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((stat) => (
-            <Card key={stat.title} className="stat-card">
+            <Card key={stat.title} className="stat-card border-none shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">{stat.title}</p>
-                  <p className="text-3xl font-bold mt-1">{stat.value}</p>
+                  <p className="text-3xl font-bold mt-1 text-foreground/90">{stat.value}</p>
                 </div>
-                <div className={`p-2.5 rounded-lg ${stat.bgColor}`}>
+                <div className={`p-2.5 rounded-xl ${stat.bgColor}`}>
                   <stat.icon className={`w-5 h-5 ${stat.color}`} />
                 </div>
               </div>
@@ -131,7 +210,7 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Completeness Card */}
-          <Card className="p-6">
+          <Card className="p-6 border-none shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-primary" />
               <h2 className="font-display font-semibold text-lg">Kelengkapan Data</h2>
@@ -139,12 +218,12 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Kelengkapan keseluruhan</span>
+                  <span className="text-muted-foreground">Skor database</span>
                   <span className="font-medium">{completeness}%</span>
                 </div>
                 <div className="h-3 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-1000 ease-out"
                     style={{ width: `${completeness}%` }}
                   />
                 </div>
@@ -163,7 +242,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Demographics Card */}
-          <Card className="p-6">
+          <Card className="p-6 border-none shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <Users className="w-5 h-5 text-primary" />
               <h2 className="font-display font-semibold text-lg">Demografi</h2>
@@ -209,31 +288,6 @@ export default function DashboardPage() {
           </Card>
         </div>
       )}
-
-      {/* Quick Actions */}
-      <Card className="p-6">
-        <h2 className="font-display font-semibold text-lg mb-4">Aksi Cepat</h2>
-        <div className="flex flex-wrap gap-3">
-          <Link to="/people">
-            <Button variant="outline" className="gap-2">
-              <Users className="w-4 h-4" />
-              Kelola Anggota
-            </Button>
-          </Link>
-          <Link to="/chart">
-            <Button variant="outline" className="gap-2">
-              <GitBranch className="w-4 h-4" />
-              Lihat Silsilah
-            </Button>
-          </Link>
-          <Link to="/data">
-            <Button variant="outline" className="gap-2">
-              <Plus className="w-4 h-4" />
-              Import Data
-            </Button>
-          </Link>
-        </div>
-      </Card>
     </div>
   );
 }

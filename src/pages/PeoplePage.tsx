@@ -42,10 +42,10 @@ import { GenerationView } from '@/features/people/components/GenerationView';
 import { calculateNuclearFamilies } from '@/lib/familyUnits';
 import { PersonForm } from '@/features/people/PersonForm';
 import type { Person, FilterConfig } from '@/types';
-import Fuse from 'fuse.js';
 import { FilterPanel } from '@/components/filter/FilterPanel';
 import { applyAllFilters, getGenerationLabel } from '@/lib/filterUtils';
 import { PersonCardSkeletonGrid } from '@/components/skeletons/PersonCardSkeleton';
+import { smartSearch } from '@/lib/smartSearchUtils';
 
 export default function PeoplePage() {
   const { persons, deletePerson, undoStack, undo, searchQuery, setSearchQuery, relationships, isLoading } = useFamilyStore();
@@ -61,16 +61,11 @@ export default function PeoplePage() {
     completeness: 'all'
   });
 
-  // Fuzzy search
-  const fuse = new Fuse(persons, {
-    keys: ['fullName', 'notes', 'tags'],
-    threshold: 0.3,
-  });
-
-  // Apply search first, then filters
-  const searchResults = localSearch
-    ? fuse.search(localSearch).map(result => result.item)
-    : persons;
+  // Smart Search
+  const searchResults = useMemo(() => {
+    if (!localSearch) return persons;
+    return smartSearch(localSearch, persons, relationships).map(r => r.person);
+  }, [localSearch, persons, relationships]);
 
   const filteredPersons = applyAllFilters(searchResults, filters, relationships);
 
@@ -79,6 +74,19 @@ export default function PeoplePage() {
     () => calculateNuclearFamilies(persons, relationships),
     [persons, relationships]
   );
+
+  // Filter families based on search results
+  const filteredFamilies = useMemo(() => {
+    // If no filter active (based on count matching total), return all
+    if (filteredPersons.length === persons.length) return nuclearFamilies;
+
+    const includedIds = new Set(filteredPersons.map(p => p.id));
+
+    return nuclearFamilies.filter(family =>
+      family.parents.some(p => includedIds.has(p.id)) ||
+      family.children.some(p => includedIds.has(p.id))
+    );
+  }, [nuclearFamilies, filteredPersons, persons.length]);
 
   const activeFilterCount =
     filters.generations.length +
@@ -262,7 +270,7 @@ export default function PeoplePage() {
       {/* Content based on view mode */}
       {viewMode === 'nuclear' ? (
         <FamilyUnitsView
-          families={nuclearFamilies}
+          families={filteredFamilies}
           onEditPerson={(person) => setEditingPerson(person)}
         />
       ) : viewMode === 'generation' ? (
@@ -295,15 +303,15 @@ export default function PeoplePage() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {filteredPersons.map((person) => (
-                <Card key={person.id} className="p-4 hover:shadow-lg transition-shadow animate-slide-up">
-                  <div className="flex items-start gap-4">
+                <Card key={person.id} className="p-2.5 hover:shadow-md hover:bg-accent/50 transition-all cursor-pointer animate-slide-up flex flex-col gap-2">
+                  <div className="flex items-start gap-2.5">
                     {/* Avatar */}
                     <div className="relative shrink-0">
                       <div className={`
-                        w-14 h-14 rounded-full flex items-center justify-center overflow-hidden
-                        ${person.photoUrl ? 'border-2 border-border shadow-sm' : ''}
+                        w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                        ${person.photoUrl ? 'border shadow-sm' : ''}
                         ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
                           person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
                             'bg-node-unknown/20 text-node-unknown'}
@@ -319,108 +327,98 @@ export default function PeoplePage() {
                               const parent = e.currentTarget.parentElement;
                               if (parent) {
                                 const icon = document.createElement('div');
-                                icon.className = 'w-6 h-6';
+                                icon.className = 'w-5 h-5';
                                 icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
                                 parent.appendChild(icon);
                               }
                             }}
                           />
                         ) : (
-                          <User className="w-6 h-6" />
+                          <User className="w-5 h-5" />
                         )}
                       </div>
                       {/* Verified badge on avatar */}
                       {person.tags.includes('verified') && (
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
-                          <CheckCircle className="w-3 h-3 text-white" />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+                          <CheckCircle className="w-2.5 h-2.5 text-white" />
                         </div>
                       )}
                     </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate">{person.fullName}</h3>
+                      <div className="flex items-start justify-between gap-1">
+                        <h3 className="font-semibold text-sm truncate leading-tight" title={person.fullName}>{person.fullName}</h3>
 
-                      {/* Dates */}
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>
-                          {formatDate(person.birthDate) || '?'}
-                          {person.deathDate && ` - ${formatDate(person.deathDate)}`}
-                        </span>
-                      </div>
-
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {person.tags.map((tag) => (
-                          <Badge
-                            key={tag}
-                            variant="outline"
-                            className={
-                              tag === 'verified' ? 'badge-verified' :
-                                tag === 'needs review' ? 'badge-review' :
-                                  tag === 'draft' ? 'badge-draft' : ''
-                            }
-                          >
-                            {tag === 'verified' && <CheckCircle className="w-3 h-3 mr-1" />}
-                            {tag === 'needs review' && <AlertCircle className="w-3 h-3 mr-1" />}
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-
-                      {/* Confidence */}
-                      <div className="mt-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-muted-foreground">Keyakinan:</span>
-                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-primary rounded-full"
-                              style={{ width: `${person.confidenceScore}%` }}
-                            />
-                          </div>
-                          <span className="font-medium">{person.confidenceScore}%</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-col gap-1">
-                      <Dialog>
-                        <DialogTrigger asChild>
+                        {/* Actions (Compact) */}
+                        <div className="flex gap-0.5 shrink-0 -mt-1 -mr-1">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setEditingPerson(person)}
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingPerson(person);
+                            }}
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-3 h-3" />
                           </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle className="font-display">Edit Anggota</DialogTitle>
-                          </DialogHeader>
-                          <PersonForm person={person} onSuccess={() => setEditingPerson(null)} />
-                        </DialogContent>
-                      </Dialog>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteConfirm(person)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirm(person);
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Dates */}
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
+                        <Calendar className="w-3 h-3" />
+                        <span className="truncate">
+                          {person.birthDate ? new Date(person.birthDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short' }) : '?'}
+                          {person.deathDate && ` - ${new Date(person.deathDate).getFullYear()}`}
+                        </span>
+                      </div>
+
+                      {/* Tags (Compact) */}
+                      {person.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {person.tags.slice(0, 2).map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="secondary"
+                              className={`
+                                text-[10px] px-1 h-4 font-normal
+                                ${tag === 'verified' ? 'hidden' : ''} 
+                                ${tag === 'needs review' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : ''}
+                              `}
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                          {person.tags.filter(t => t !== 'verified').length > 2 && (
+                            <span className="text-[10px] text-muted-foreground self-center">+{person.tags.filter(t => t !== 'verified').length - 2}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Notes preview */}
-                  {person.notes && (
-                    <p className="text-sm text-muted-foreground mt-3 line-clamp-2 border-t pt-3">
-                      {person.notes}
-                    </p>
-                  )}
+                  {/* Keyakinan Bar (Slim) */}
+                  <div className="mt-1 flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
+                    <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary/70 rounded-full"
+                        style={{ width: `${person.confidenceScore}%` }}
+                      />
+                    </div>
+                  </div>
                 </Card>
               ))}
             </div>
@@ -428,7 +426,18 @@ export default function PeoplePage() {
         </>
       )}
 
-      {/* Delete Confirmation */}
+      {/* Edit Dialog */}
+      <Dialog open={!!editingPerson} onOpenChange={(open) => !open && setEditingPerson(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display">Edit Anggota</DialogTitle>
+          </DialogHeader>
+          <PersonForm
+            person={editingPerson || undefined}
+            onSuccess={() => setEditingPerson(null)}
+          />
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
