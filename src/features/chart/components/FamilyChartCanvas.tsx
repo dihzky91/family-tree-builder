@@ -41,14 +41,24 @@ export function FamilyChartCanvas({
         // Create chart with data (type assertion needed due to library types)
         chartRef.current = createChart(containerRef.current, chartData as any);
 
-        // Configure chart settings
-        chartRef.current.setCardXSpacing(30);
-        chartRef.current.setCardYSpacing(100);
+        // Configure spacing (increased for better layout)
+        chartRef.current.setCardXSpacing(60);
+        chartRef.current.setCardYSpacing(120);
         chartRef.current.setOrientationVertical();
         chartRef.current.setTransitionTime(300);
 
         // Set custom HTML card template
         const cardHtml = chartRef.current.setCardHtml();
+        
+        // Set card dimensions on the cardHtml instance (must match CSS .fc-card)
+        cardHtml.setCardDim({
+          w: 200,
+          h: 72,
+          img_w: 48,
+          img_h: 48,
+          img_x: 12,
+          img_y: 12,
+        });
         
         // Configure card display
         cardHtml
