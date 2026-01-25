@@ -53,24 +53,24 @@ export function FamilyChartCanvas({
         // Configure card display
         cardHtml
           .setCardDisplay([
-            (d: any) => `${d.data['first name'] || ''} ${d.data['last name'] || ''}`.trim() || 'Unknown',
-            (d: any) => d.data.birthday ? new Date(d.data.birthday).getFullYear().toString() : '',
+            (d: any) => `${d.data.data['first name'] || ''} ${d.data.data['last name'] || ''}`.trim() || 'Unknown',
+            (d: any) => d.data.data.birthday ? new Date(d.data.data.birthday).getFullYear().toString() : '',
           ])
           .setStyle('imageCircleRect')
           .setMiniTree(true)
           .setCardImageField('avatar')
           .setOnCardClick((e: any, d: any) => {
-            onSelectPerson(d.id);
+            onSelectPerson(d.data.id);
           })
           .setCardInnerHtmlCreator((d: any) => {
-            const data = d.data;
-            const firstName = data['first name'] || '';
-            const lastName = data['last name'] || '';
+            const personData = d.data.data;
+            const firstName = personData['first name'] || '';
+            const lastName = personData['last name'] || '';
             const fullName = `${firstName} ${lastName}`.trim();
-            const gender = data.gender === 'M' ? 'male' : 'female';
-            const birthday = data.birthday || '';
-            const avatar = data.avatar;
-            const isMain = d.id === mainId;
+            const gender = personData.gender === 'M' ? 'male' : 'female';
+            const birthday = personData.birthday || '';
+            const avatar = personData.avatar;
+            const isMain = d.data.id === mainId;
 
             let yearDisplay = '';
             if (birthday) {
@@ -79,7 +79,7 @@ export function FamilyChartCanvas({
             }
 
             return `
-              <div class="fc-card fc-card-${gender} ${isMain ? 'fc-card-main' : ''}" data-person-id="${d.id}">
+              <div class="fc-card fc-card-${gender} ${isMain ? 'fc-card-main' : ''}" data-person-id="${d.data.id}">
                 <div class="fc-card-inner">
                   ${avatar 
                     ? `<img class="fc-card-avatar" src="${avatar}" alt="${fullName}" />`
