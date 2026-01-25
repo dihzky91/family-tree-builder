@@ -206,7 +206,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           </Button>
           <Button
             variant="outline"
-            className="w-full justify-start gap-2 border-sidebar-border hover:bg-sidebar-accent"
+            className="w-full justify-start gap-2 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent"
             onClick={() => navigate('/data')}
           >
             <Upload className="w-4 h-4" />
