@@ -44,9 +44,7 @@ import {
   Check,
 } from 'lucide-react';
 import type { Person } from '@/types';
-import { GenerationView } from '@/features/chart/views/GenerationView';
-import { FamilyView } from '@/features/chart/views/FamilyView';
-import { PedigreeView } from '@/features/chart/views/PedigreeView';
+import { FamilyChartCanvas } from '@/features/chart/components/FamilyChartCanvas';
 import { RelationshipForm } from '@/features/relationships/RelationshipForm';
 import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
 import { MiniMap } from '@/features/chart/components/MiniMap';
@@ -353,41 +351,13 @@ export default function ChartPage() {
                 }}
               >
               <AnimatePresence mode="wait">
-                {viewMode === 'family' && (
+                {(viewMode === 'family' || viewMode === 'pedigree' || viewMode === 'tree') && (
                   <motion.div
-                    key="family"
+                    key="chart"
                     {...viewTransition}
+                    className="w-full h-full min-h-[600px]"
                   >
-                    <FamilyView
-                      persons={persons}
-                      relationships={relationships}
-                      selectedPersonId={selectedPersonId}
-                      onSelectPerson={setSelectedPerson}
-                      onAddRelationship={handleAddRelationship}
-                    />
-                  </motion.div>
-                )}
-                {viewMode === 'pedigree' && (
-                  <motion.div
-                    key="pedigree"
-                    {...viewTransition}
-                  >
-                    <PedigreeView
-                      persons={persons}
-                      relationships={relationships}
-                      selectedPersonId={selectedPersonId}
-                      onSelectPerson={setSelectedPerson}
-                      onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
-                      maxGenerations={pedigreeGenerations}
-                    />
-                  </motion.div>
-                )}
-                {viewMode === 'tree' && (
-                  <motion.div
-                    key="tree"
-                    {...viewTransition}
-                  >
-                    <GenerationView
+                    <FamilyChartCanvas
                       persons={persons}
                       relationships={relationships}
                       selectedPersonId={selectedPersonId}

@@ -257,6 +257,135 @@
   .search-highlight {
     @apply bg-accent/30 rounded px-0.5;
   }
+
+  /* Family Chart Library Styles */
+  .family-chart-container {
+    @apply w-full h-full relative overflow-hidden;
+    min-height: 600px;
+  }
+
+  .family-chart-container svg {
+    @apply w-full h-full;
+    cursor: grab;
+  }
+
+  .family-chart-container svg:active {
+    cursor: grabbing;
+  }
+
+  /* Custom card styles for family-chart */
+  .fc-card {
+    @apply rounded-xl border-2 bg-card shadow-md transition-all duration-200;
+    @apply hover:shadow-lg cursor-pointer;
+    min-width: 160px;
+    padding: 12px;
+  }
+
+  .fc-card-inner {
+    @apply flex items-center gap-3;
+  }
+
+  .fc-card-male {
+    border-color: hsl(var(--node-male));
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--node-male) / 0.08) 100%);
+  }
+
+  .fc-card-female {
+    border-color: hsl(var(--node-female));
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--node-female) / 0.08) 100%);
+  }
+
+  .fc-card-main {
+    @apply ring-2 ring-offset-2;
+    ring-color: hsl(var(--node-selected));
+    box-shadow: 0 0 20px hsl(var(--node-selected) / 0.3);
+  }
+
+  .fc-card-avatar {
+    @apply w-12 h-12 rounded-full object-cover flex-shrink-0;
+  }
+
+  .fc-card-avatar-placeholder {
+    @apply flex items-center justify-center text-lg font-bold text-white;
+  }
+
+  .fc-card-avatar-male {
+    background: linear-gradient(135deg, hsl(var(--node-male)) 0%, hsl(var(--node-male) / 0.8) 100%);
+  }
+
+  .fc-card-avatar-female {
+    background: linear-gradient(135deg, hsl(var(--node-female)) 0%, hsl(var(--node-female) / 0.8) 100%);
+  }
+
+  .fc-card-content {
+    @apply flex flex-col min-w-0;
+  }
+
+  .fc-card-name {
+    @apply font-semibold text-sm text-foreground truncate;
+    max-width: 120px;
+    font-family: var(--font-display);
+  }
+
+  .fc-card-year {
+    @apply text-xs text-muted-foreground;
+  }
+
+  /* Override library default styles */
+  .family-chart-container .card-male {
+    fill: hsl(var(--node-male) / 0.15) !important;
+    stroke: hsl(var(--node-male)) !important;
+  }
+
+  .family-chart-container .card-female {
+    fill: hsl(var(--node-female) / 0.15) !important;
+    stroke: hsl(var(--node-female)) !important;
+  }
+
+  .family-chart-container .card {
+    @apply cursor-pointer;
+  }
+
+  .family-chart-container .card:hover {
+    filter: brightness(1.05);
+  }
+
+  .family-chart-container .link {
+    stroke: hsl(var(--border)) !important;
+    stroke-width: 2px !important;
+  }
+
+  .family-chart-container .link-spouse {
+    stroke: hsl(var(--accent)) !important;
+    stroke-dasharray: 5, 5;
+  }
+
+  /* Text styling in SVG cards */
+  .family-chart-container text {
+    font-family: var(--font-body);
+    fill: hsl(var(--foreground));
+  }
+
+  .family-chart-container .card-text-0 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .family-chart-container .card-text-1 {
+    font-size: 12px;
+    fill: hsl(var(--muted-foreground));
+  }
+
+  /* Mini tree indicator */
+  .family-chart-container .mini-tree-icon {
+    fill: hsl(var(--muted-foreground));
+    @apply cursor-pointer;
+  }
+
+  .family-chart-container .mini-tree-icon:hover {
+    fill: hsl(var(--primary));
+  }
 }
 
 @layer utilities {
