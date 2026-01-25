@@ -20,7 +20,7 @@ import {
   Stethoscope,
   BookOpen,
   Plus,
-  Upload,
+
   X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -221,14 +221,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             <Plus className="w-4 h-4" />
             Tambah Anggota
           </Button>
-          <Button
-            variant="sidebarOutline"
-            className="w-full justify-start gap-2"
-            onClick={() => navigate('/data')}
-          >
-            <Upload className="w-4 h-4" />
-            Import Data
-          </Button>
+
         </div>
       )}
 

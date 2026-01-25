@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -14,7 +15,8 @@ import { getBranchByCode } from '@/storage/supabase/branchQueries';
 import { getApprovedMembersByBranch, createSubmission } from '@/storage/supabase/submissionQueries';
 import { useFamilyStore } from '@/store/familyStore';
 import { SubmissionFormSchema, type SubmissionFormData, type Branch, type ApprovedMemberInfo } from '@/types';
-import { CheckCircle, AlertCircle, Loader2, Users } from 'lucide-react';
+import { Combobox } from '@/components/ui/combobox';
+import { CheckCircle, AlertCircle, Loader2, Users, Share2 } from 'lucide-react';
 
 export default function PublicSubmitPage() {
     const { branchCode } = useParams<{ branchCode: string }>();
@@ -40,11 +42,18 @@ export default function PublicSubmitPage() {
             notes: '',
             relationToBranch: 'child',
             parentName: '',
+            otherRelationDetail: '',
         },
     });
 
     const watchRelation = form.watch('relationToBranch');
     const needsParent = watchRelation === 'grandchild' || watchRelation === 'great-grandchild';
+    const needsSpouse = watchRelation === 'in-law';
+    const isOther = watchRelation === 'other';
+    // Both define a "link person" (parent or spouse) which we store in parentName
+    const needsLinkPerson = needsParent || needsSpouse;
+
+    const [isAlive, setIsAlive] = useState(true);
 
     useEffect(() => {
         async function loadData() {
@@ -88,6 +97,10 @@ export default function PublicSubmitPage() {
             const possibleDuplicateId = duplicates.length > 0 ? duplicates[0].id : undefined;
 
             // Create submission
+            const noteContent = data.relationToBranch === 'other' && data.otherRelationDetail
+                ? `Hubungan: ${data.otherRelationDetail}\n\n${data.notes || ''}`
+                : data.notes;
+
             await createSubmission({
                 branchId: branch.id,
                 submittedBy: data.submittedBy,
@@ -100,9 +113,9 @@ export default function PublicSubmitPage() {
                 deathPlace: data.deathPlace || undefined,
                 residence: data.residence || undefined,
                 photoUrl: data.photoUrl || undefined,
-                notes: data.notes || undefined,
+                notes: noteContent || undefined,
                 relationToBranch: data.relationToBranch,
-                parentName: needsParent ? data.parentName : undefined,
+                parentName: needsLinkPerson ? data.parentName : undefined,
                 possibleDuplicateId,
             });
 
@@ -154,10 +167,20 @@ export default function PublicSubmitPage() {
                         Terima kasih telah mengisi data. Data Anda akan direview oleh admin dan akan ditambahkan ke silsilah keluarga.
                     </p>
                     <div className="flex flex-col gap-2">
-                        <Button onClick={() => setSubmitSuccess(false)}>
+                        <Button
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => {
+                                const text = `Halo, saya sudah mengisi data silsilah keluarga ${branch?.name}. Yuk isi data kamu juga di sini: ${window.location.href}`;
+                                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                            }}
+                        >
+                            <Share2 className="w-4 h-4 mr-2" />
+                            Bagikan ke WhatsApp
+                        </Button>
+                        <Button variant="outline" onClick={() => setSubmitSuccess(false)}>
                             Tambah Anggota Lain
                         </Button>
-                        <Button variant="outline" onClick={() => window.location.reload()}>
+                        <Button variant="ghost" onClick={() => window.location.reload()}>
                             Muat Ulang Halaman
                         </Button>
                     </div>
@@ -288,6 +311,43 @@ export default function PublicSubmitPage() {
                                 </div>
                             </div>
 
+                            <div className="space-y-4">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="isAlive"
+                                        checked={isAlive}
+                                        onCheckedChange={(checked) => setIsAlive(checked as boolean)}
+                                    />
+                                    <label
+                                        htmlFor="isAlive"
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                    >
+                                        Masih Hidup
+                                    </label>
+                                </div>
+
+                                {!isAlive && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <Label htmlFor="deathDate">Tanggal Meninggal</Label>
+                                            <Input
+                                                id="deathDate"
+                                                type="date"
+                                                {...form.register('deathDate')}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="deathPlace">Tempat Meninggal</Label>
+                                            <Input
+                                                id="deathPlace"
+                                                {...form.register('deathPlace')}
+                                                placeholder="Kota/Kabupaten"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div>
                                 <Label htmlFor="notes">Catatan (Opsional)</Label>
                                 <Textarea
@@ -299,6 +359,7 @@ export default function PublicSubmitPage() {
                                 />
                                 <p className="text-xs text-muted-foreground mt-1">Maksimal 500 karakter</p>
                             </div>
+
                         </div>
 
                         {/* Relationship */}
@@ -325,24 +386,48 @@ export default function PublicSubmitPage() {
                                         <Label htmlFor="great-grandchild" className="cursor-pointer">Cicit</Label>
                                     </div>
                                     <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="in-law" id="in-law" />
+                                        <Label htmlFor="in-law" className="cursor-pointer">Menantu</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="other" id="other" />
                                         <Label htmlFor="other" className="cursor-pointer">Lainnya</Label>
                                     </div>
                                 </RadioGroup>
                             </div>
 
-                            {needsParent && (
+                            {isOther && (
                                 <div>
-                                    <Label htmlFor="parentName">Nama Orang Tua</Label>
+                                    <Label htmlFor="otherRelationDetail">Sebutkan Hubungan</Label>
                                     <Input
-                                        id="parentName"
-                                        {...form.register('parentName')}
-                                        placeholder="Nama ayah atau ibu"
+                                        id="otherRelationDetail"
+                                        {...form.register('otherRelationDetail')}
+                                        placeholder="Contoh: Sepupu, Keponakan, dll."
                                     />
                                     <p className="text-xs text-muted-foreground mt-1">
-                                        Untuk {watchRelation === 'grandchild' ? 'cucu' : 'cicit'}, mohon isi siapa orang tuanya
+                                        Jelaskan hubungan Anda dengan keluarga {branch?.name}
                                     </p>
                                 </div>
+                            )}
+
+                            {needsLinkPerson && (
+                                <div>
+                                    <Label htmlFor="parentName">
+                                        {needsSpouse ? 'Nama Pasangan' : 'Nama Orang Tua'}
+                                    </Label>
+                                    <Combobox
+                                        options={approvedMembers.map(m => ({ value: m.fullName, label: m.fullName }))}
+                                        value={form.watch('parentName')}
+                                        onChange={(value) => form.setValue('parentName', value)}
+                                        placeholder={needsSpouse ? "Pilih atau ketik nama pasangan..." : "Pilih atau ketik nama orang tua..."}
+                                        emptyText="Tidak ditemukan. Ketik untuk membuat baru."
+                                        creatable
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        {needsSpouse
+                                            ? 'Masukkan nama anggota keluarga yang merupakan pasangan Anda'
+                                            : `Untuk ${watchRelation === 'grandchild' ? 'cucu' : 'cicit'}, mohon isi siapa orang tuanya`}
+                                    </p>    </div>
                             )}
                         </div>
 
@@ -365,7 +450,10 @@ export default function PublicSubmitPage() {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => form.reset()}
+                                onClick={() => {
+                                    form.reset();
+                                    setIsAlive(true);
+                                }}
                                 disabled={isSubmitting}
                             >
                                 Reset

@@ -213,7 +213,7 @@ export const BranchFormSchema = z.object({
 export type BranchFormData = z.infer<typeof BranchFormSchema>;
 
 // Enum for relationship to branch
-export const RelationToBranchEnum = z.enum(['child', 'grandchild', 'great-grandchild', 'other']);
+export const RelationToBranchEnum = z.enum(['child', 'grandchild', 'great-grandchild', 'in-law', 'other']);
 export type RelationToBranch = z.infer<typeof RelationToBranchEnum>;
 
 // Enum for submission status
@@ -277,6 +277,7 @@ export const SubmissionFormSchema = z.object({
   notes: z.string().max(500).optional(),
   relationToBranch: RelationToBranchEnum,
   parentName: z.string().optional(),
+  otherRelationDetail: z.string().optional(),
 });
 
 export type SubmissionFormData = z.infer<typeof SubmissionFormSchema>;

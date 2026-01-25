@@ -173,11 +173,11 @@ function PedigreeColumn({
             className="transition-all duration-300"
           />
 
-          {/* Vertical bracket */}
+          {/* Vertical bracket (Orthogonal) */}
           {(node.father || node.mother) && (
             <path
               d={`M ${connectorWidth * 0.3} ${rowHeight * 0.5} 
-                  L ${connectorWidth * 0.3} ${rowHeight * 1.5}`}
+                  V ${rowHeight * 1.5}`}
               stroke="hsl(var(--border))"
               strokeWidth="2"
               fill="none"
@@ -186,13 +186,11 @@ function PedigreeColumn({
             />
           )}
 
-          {/* Curved branch to father (top) */}
+          {/* Orthogonal branch to father (top) */}
           {(node.father || node.person) && (
             <path
               d={`M ${connectorWidth * 0.3} ${rowHeight * 0.5} 
-                  Q ${connectorWidth * 0.5} ${rowHeight * 0.5}, 
-                    ${connectorWidth * 0.7} ${rowHeight * 0.5}
-                  L ${connectorWidth} ${rowHeight * 0.5}`}
+                  H ${connectorWidth}`}
               stroke={node.father ? "hsl(var(--node-male))" : "hsl(var(--border))"}
               strokeWidth="2"
               strokeDasharray={node.father ? "none" : "4 3"}
@@ -203,13 +201,11 @@ function PedigreeColumn({
             />
           )}
 
-          {/* Curved branch to mother (bottom) */}
+          {/* Orthogonal branch to mother (bottom) */}
           {(node.mother || node.person) && (
             <path
               d={`M ${connectorWidth * 0.3} ${rowHeight * 1.5} 
-                  Q ${connectorWidth * 0.5} ${rowHeight * 1.5}, 
-                    ${connectorWidth * 0.7} ${rowHeight * 1.5}
-                  L ${connectorWidth} ${rowHeight * 1.5}`}
+                  H ${connectorWidth}`}
               stroke={node.mother ? "hsl(var(--node-female))" : "hsl(var(--border))"}
               strokeWidth="2"
               strokeDasharray={node.mother ? "none" : "4 3"}
