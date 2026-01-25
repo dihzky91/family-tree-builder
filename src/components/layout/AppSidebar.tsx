@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useFamilyStore } from '@/store/familyStore';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PersonForm } from '@/features/people/PersonForm';
@@ -58,6 +58,11 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const { searchQuery, setSearchQuery, persons, relationships } = useFamilyStore();
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [showAddPersonDialog, setShowAddPersonDialog] = useState(false);
+
+  // Sync localSearch with global searchQuery
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
 
   // Calculate badge counts
   const duplicateCount = useMemo(() => {
