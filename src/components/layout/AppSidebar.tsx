@@ -222,8 +222,8 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             Tambah Anggota
           </Button>
           <Button
-            variant="ghost"
-            className="w-full justify-start gap-2 border border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            variant="sidebarOutline"
+            className="w-full justify-start gap-2"
             onClick={() => navigate('/data')}
           >
             <Upload className="w-4 h-4" />
