@@ -5,7 +5,6 @@ import {
   FileText,
   Download,
   Settings,
-  Home,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -21,7 +20,8 @@ import {
   Stethoscope,
   BookOpen,
   Plus,
-  Upload
+  Upload,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -193,8 +193,20 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               placeholder="Cari nama, tag..."
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
-              className="pl-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-foreground/50"
+              className="pl-9 pr-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground placeholder:text-sidebar-foreground/50"
             />
+            {localSearch && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLocalSearch('');
+                  setSearchQuery('');
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </form>
       )}
