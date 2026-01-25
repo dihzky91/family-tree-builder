@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { X, Plus, AlertTriangle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import {
@@ -38,7 +37,6 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
   const [newTag, setNewTag] = useState('');
   const [duplicates, setDuplicates] = useState<Person[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isAlive, setIsAlive] = useState(!person?.deathDate);
 
   const {
     register,
@@ -176,6 +174,16 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
         </div>
 
         <div>
+          <Label htmlFor="deathDate">Tanggal Wafat</Label>
+          <Input
+            id="deathDate"
+            type="date"
+            {...register('deathDate')}
+            className="mt-1"
+          />
+        </div>
+
+        <div>
           <Label htmlFor="birthPlace">Tempat Lahir</Label>
           <Input
             id="birthPlace"
@@ -185,50 +193,14 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
           />
         </div>
 
-        <div className="md:col-span-2 space-y-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="isAlive"
-              checked={isAlive}
-              onCheckedChange={(checked) => {
-                setIsAlive(checked as boolean);
-                if (checked) {
-                  setValue('deathDate', '');
-                  setValue('deathPlace', '');
-                }
-              }}
-            />
-            <label
-              htmlFor="isAlive"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Masih Hidup
-            </label>
-          </div>
-
-          {!isAlive && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="deathDate">Tanggal Wafat</Label>
-                <Input
-                  id="deathDate"
-                  type="date"
-                  {...register('deathDate')}
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="deathPlace">Tempat Wafat</Label>
-                <Input
-                  id="deathPlace"
-                  {...register('deathPlace')}
-                  placeholder="Kota/kabupaten..."
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          )}
+        <div>
+          <Label htmlFor="deathPlace">Tempat Wafat</Label>
+          <Input
+            id="deathPlace"
+            {...register('deathPlace')}
+            placeholder="Kota/kabupaten..."
+            className="mt-1"
+          />
         </div>
 
         <div className="md:col-span-2">
@@ -328,6 +300,6 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
           {isSubmitting ? 'Menyimpan...' : person ? 'Simpan Perubahan' : 'Tambah Anggota'}
         </Button>
       </div>
-    </form >
+    </form>
   );
 }

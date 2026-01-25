@@ -10,9 +10,6 @@ interface PersonNodeProps {
   size?: 'small' | 'normal' | 'large';
   showAddButton?: boolean;
   onAdd?: () => void;
-  showTopHandle?: boolean;
-  onTopHandleClick?: () => void;
-  onBottomHandleClick?: () => void; // New handle for children
   layoutId?: string;
 }
 
@@ -40,40 +37,15 @@ export function PersonNode({
   size = 'normal',
   showAddButton,
   onAdd,
-  showTopHandle,
-  onTopHandleClick,
-  onBottomHandleClick,
   layoutId
 }: PersonNodeProps) {
   const yearBirth = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
   const yearDeath = person.deathDate ? new Date(person.deathDate).getFullYear() : null;
 
-  // New Horizontal (Landscape) sizes
   const sizeConfig = {
-    small: {
-      card: 'w-[160px] h-[60px] p-2',
-      avatar: 'w-10 h-10',
-      content: 'space-y-0.5',
-      nameSize: 'text-xs',
-      yearSize: 'text-[10px]',
-      maxChars: 18
-    },
-    normal: {
-      card: 'w-[200px] h-[72px] p-3',
-      avatar: 'w-12 h-12',
-      content: 'space-y-1',
-      nameSize: 'text-sm',
-      yearSize: 'text-xs',
-      maxChars: 22
-    },
-    large: {
-      card: 'w-[240px] h-[88px] p-3.5',
-      avatar: 'w-14 h-14',
-      content: 'space-y-1',
-      nameSize: 'text-base',
-      yearSize: 'text-sm',
-      maxChars: 26
-    },
+    small: { card: 'p-2 w-[100px]', avatar: 'w-8 h-8', nameSize: 'text-[11px]', yearSize: 'text-[9px]', maxChars: 14 },
+    normal: { card: 'p-3 w-[130px]', avatar: 'w-11 h-11', nameSize: 'text-sm', yearSize: 'text-xs', maxChars: 18 },
+    large: { card: 'p-4 w-[160px]', avatar: 'w-14 h-14', nameSize: 'text-base', yearSize: 'text-sm', maxChars: 22 },
   };
 
   const config = sizeConfig[size];
@@ -82,21 +54,18 @@ export function PersonNode({
   const genderColors = {
     male: {
       border: 'border-node-male',
-      bg: 'bg-white', // MyHeritage style is cleaner/white
-      avatar: 'bg-node-male/10 text-node-male',
-      indicator: 'bg-node-male'
+      bg: 'bg-node-male/15',
+      avatar: 'bg-node-male/25 text-node-male'
     },
     female: {
       border: 'border-node-female',
-      bg: 'bg-white',
-      avatar: 'bg-node-female/10 text-node-female',
-      indicator: 'bg-node-female'
+      bg: 'bg-node-female/15',
+      avatar: 'bg-node-female/25 text-node-female'
     },
     unknown: {
       border: 'border-node-unknown',
-      bg: 'bg-white',
-      avatar: 'bg-node-unknown/10 text-node-unknown',
-      indicator: 'bg-node-unknown'
+      bg: 'bg-node-unknown/15',
+      avatar: 'bg-node-unknown/25 text-node-unknown'
     }
   };
 
@@ -104,123 +73,132 @@ export function PersonNode({
 
   return (
     <motion.div
-      className="relative group z-10"
+      className="relative group"
       layoutId={layoutId || `person-${person.id}`}
-      initial={{ opacity: 0, scale: 0.9 }}
+      initial={{ opacity: 0, scale: 0.8 }}
       animate={{
         opacity: 1,
         scale: 1,
         transition: { type: "spring", stiffness: 300, damping: 25 }
       }}
+      exit={{ opacity: 0, scale: 0.8 }}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
       <motion.button
         onClick={onClick}
         className={cn(
-          "flex items-center text-left rounded-lg border shadow-sm transition-shadow",
-          "hover:shadow-md",
+          "flex flex-col items-center rounded-lg border-2",
           config.card,
+          colors.border,
           colors.bg,
-          colors.border, // keep border color subtle or colored based on gender
-          isSelected && "ring-2 ring-offset-2 ring-accent shadow-md !border-accent"
+          isSelected && "ring-2 ring-offset-2 ring-accent shadow-warm"
         )}
+        animate={{
+          scale: isSelected ? 1.05 : 1,
+          boxShadow: isSelected
+            ? "0 8px 25px -5px rgba(0, 0, 0, 0.2)"
+            : "0 2px 10px -3px rgba(0, 0, 0, 0.1)"
+        }}
+        transition={{ type: "spring", stiffness: 400, damping: 25 }}
       >
-        {/* Color Strip Indicator (Left) */}
-        <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 rounded-l-lg", colors.indicator)} />
+        {/* Avatar */}
+        <motion.div
+          className={cn(
+            "rounded-full flex items-center justify-center mb-1.5",
+            config.avatar,
+            colors.avatar
+          )}
+          animate={{ scale: isSelected ? 1.1 : 1 }}
+          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        >
+          {person.photoUrl ? (
+            <img
+              src={person.photoUrl}
+              alt={person.fullName}
+              className="w-full h-full rounded-full object-cover"
+              onError={(e) => {
+                // Fallback if image fails to load
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.innerHTML = getInitials(person.fullName);
+                  parent.className = cn(
+                    parent.className,
+                    "font-semibold",
+                    size === 'small' ? 'text-xs' : size === 'large' ? 'text-xl' : 'text-base'
+                  );
+                }
+              }}
+            />
+          ) : (
+            <span className={cn(
+              "font-semibold",
+              size === 'small' ? 'text-xs' : size === 'large' ? 'text-xl' : 'text-base'
+            )}>
+              {getInitials(person.fullName)}
+            </span>
+          )}
+        </motion.div>
 
-        <div className="flex items-center gap-3 pl-2 w-full">
-          {/* Avatar */}
-          <motion.div
-            className={cn(
-              "rounded-full flex items-center justify-center shrink-0 border border-muted",
-              config.avatar,
-              colors.avatar
-            )}
-          >
-            {person.photoUrl ? (
-              <img
-                src={person.photoUrl}
-                alt={person.fullName}
-                className="w-full h-full rounded-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  const parent = e.currentTarget.parentElement;
-                  if (parent) {
-                    parent.innerHTML = getInitials(person.fullName);
-                    parent.className = cn(parent.className, "font-bold font-mono");
-                  }
-                }}
-              />
-            ) : (
-              <span className="font-bold font-mono">
-                {getInitials(person.fullName)}
-              </span>
-            )}
-          </motion.div>
+        {/* Name */}
+        <span
+          className={cn("font-medium text-center leading-tight", config.nameSize)}
+          title={person.fullName}
+        >
+          {displayName}
+        </span>
 
-          {/* Text Content */}
-          <div className={cn("min-w-0 flex-1", config.content)}>
-            <div
-              className={cn("font-semibold text-foreground truncate", config.nameSize)}
-              title={person.fullName}
+        {/* Years */}
+        <span className={cn("text-muted-foreground", config.yearSize)}>
+          {yearBirth || '?'}{yearDeath ? ` - ${yearDeath}` : ''}
+        </span>
+
+        {/* Verified badge */}
+        <AnimatePresence>
+          {person.tags.includes('verified') && size !== 'small' && (
+            <motion.span
+              className="mt-1 px-1 py-0.5 text-[9px] rounded bg-success/20 text-success font-medium"
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -5 }}
             >
-              {displayName}
-            </div>
-
-            <div className={cn("text-muted-foreground", config.yearSize)}>
-              {yearBirth || '?'}{yearDeath ? ` - ${yearDeath}` : ''}
-            </div>
-
-            {/* Verified badge */}
-            {person.tags.includes('verified') && size !== 'small' && (
-              <div className="flex">
-                <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-success/10 text-success font-medium flex items-center gap-0.5">
-                  ✓ Verified
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
+              ✓ Verified
+            </motion.span>
+          )}
+        </AnimatePresence>
       </motion.button>
 
-      {/* Top Handle (Add Parent) */}
+      {/* Glow effect for selected */}
       <AnimatePresence>
-        {showTopHandle && onTopHandleClick && (
+        {isSelected && (
+          <motion.div
+            className="absolute inset-0 rounded-lg bg-accent/20 -z-10"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1.1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Add button overlay */}
+      <AnimatePresence>
+        {showAddButton && onAdd && (
           <motion.button
-            onClick={(e) => { e.stopPropagation(); onTopHandleClick(); }}
-            className="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-background border shadow-sm 
-              flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors z-20 
-              opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100"
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 0, y: 5 }} // Hidden by default, driven by group-hover logic mostly or CSS
+            onClick={(e) => { e.stopPropagation(); onAdd(); }}
+            className="absolute -right-2 -top-2 w-6 h-6 rounded-full bg-primary text-primary-foreground 
+              flex items-center justify-center hover:bg-primary/80 shadow-md"
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0 }}
             whileHover={{ scale: 1.1 }}
-            title="Tambah Orang Tua"
+            whileTap={{ scale: 0.9 }}
           >
             <Plus className="w-3 h-3" />
           </motion.button>
         )}
       </AnimatePresence>
-
-      {/* Bottom Handle (Add Child) */}
-      <AnimatePresence>
-        {onBottomHandleClick && (
-          <motion.button
-            onClick={(e) => { e.stopPropagation(); onBottomHandleClick(); }}
-            className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-background border shadow-sm 
-              flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors z-20
-              opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100"
-            initial={{ opacity: 0, y: -5 }}
-            whileHover={{ scale: 1.1 }}
-            title="Tambah Anak"
-          >
-            <Plus className="w-3 h-3" />
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {/* Side Handle (generic add or partner) - Optional? for now keeping top/bottom */}
-
     </motion.div>
   );
 }
@@ -233,9 +211,9 @@ interface PlaceholderNodeProps {
 
 export function PlaceholderNode({ label, onClick, size = 'normal' }: PlaceholderNodeProps) {
   const sizeConfig = {
-    small: 'w-[160px] h-[60px]',
-    normal: 'w-[200px] h-[72px]',
-    large: 'w-[240px] h-[88px]',
+    small: 'p-2 w-[100px] h-[70px]',
+    normal: 'p-3 w-[130px] h-[90px]',
+    large: 'p-4 w-[160px] h-[110px]',
   };
 
   return (

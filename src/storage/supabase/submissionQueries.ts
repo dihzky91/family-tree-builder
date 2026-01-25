@@ -19,7 +19,7 @@ function mapDbSubmissionToSubmission(db: DbSubmission): Submission {
         residence: db.residence || undefined,
         photoUrl: db.photo_url || undefined,
         notes: db.notes || undefined,
-        relationToBranch: db.relation_to_branch as 'child' | 'grandchild' | 'great-grandchild' | 'in-law' | 'other',
+        relationToBranch: db.relation_to_branch as 'child' | 'grandchild' | 'great-grandchild' | 'other',
         parentName: db.parent_name || undefined,
         possibleDuplicateId: db.possible_duplicate_id || undefined,
         status: db.status as 'pending' | 'approved' | 'rejected',
@@ -233,7 +233,7 @@ export async function getApprovedMembersByBranch(branchId: string): Promise<Appr
 
     return (data || []).map(item => ({
         fullName: item.full_name,
-        relationToBranch: item.relation_to_branch as 'child' | 'grandchild' | 'great-grandchild' | 'in-law' | 'other',
+        relationToBranch: item.relation_to_branch as 'child' | 'grandchild' | 'great-grandchild' | 'other',
         parentName: item.parent_name || undefined,
     }));
 }
