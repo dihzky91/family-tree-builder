@@ -243,7 +243,7 @@
 
   .person-node-selected {
     @apply ring-2 ring-offset-2;
-    ring-color: hsl(var(--node-selected));
+    --tw-ring-color: hsl(var(--node-selected));
   }
 
   .empty-state {
