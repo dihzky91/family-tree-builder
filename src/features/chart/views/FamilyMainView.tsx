@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as f3 from 'family-chart'
+import { format, parseISO } from 'date-fns'
+import { id } from 'date-fns/locale'
 import type { FamilyChartDatum } from '../utils/familyChartMapper'
 import 'family-chart/styles/family-chart.css'
 import './family-chart.css'
@@ -11,8 +13,14 @@ interface FamilyMainViewProps {
     onAddRelationship: (id: string) => void
 }
 
-const getYear = (dateStr?: string) =>
-    dateStr ? dateStr.slice(0, 4) : null
+const formatDate = (dateStr?: string) => {
+    if (!dateStr) return null
+    try {
+        return format(parseISO(dateStr), 'd MMM yyyy', { locale: id })
+    } catch {
+        return dateStr.slice(0, 4) // fallback ke tahun saja
+    }
+}
 
 export function FamilyMainView({
     data,
@@ -38,15 +46,15 @@ export function FamilyMainView({
             const fullName =
                 `${d.data['first name']} ${d.data['last name']}`.trim()
 
-            const birthYear = getYear(d.data.birthday)
-            const deathYear = getYear(d.data.deathday)
+            const birthDate = formatDate(d.data.birthday)
+            const deathDate = formatDate(d.data.deathday)
 
             let dateHtml = ''
-            if (birthYear) {
-                dateHtml += `<span>* ${birthYear}</span>`
+            if (birthDate) {
+                dateHtml += `<span>* ${birthDate}</span>`
             }
-            if (deathYear) {
-                dateHtml += ` <span class="deceased">† ${deathYear}</span>`
+            if (deathDate) {
+                dateHtml += ` <span class="deceased">† ${deathDate}</span>`
             }
 
             const hasParents =
