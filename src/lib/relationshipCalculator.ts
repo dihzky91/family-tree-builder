@@ -127,9 +127,46 @@ function determineRelationshipTerm(path: RelationshipPath[]): string {
         return 'Sepupu';
     }
 
-    // In-laws
-    if (types[types.length - 1] === 'spouse') {
-        return 'Ipar / Menantu / Besan (Melalui Pernikahan)';
+    // In-laws & Step-family
+
+    // Mertua: Spouse -> Parent
+    if (types.length === 2 && types[0] === 'spouse' && types[1] === 'parent') {
+        return targetGender === 'male' ? 'Ayah Mertua' : targetGender === 'female' ? 'Ibu Mertua' : 'Mertua';
+    }
+
+    // Menantu: Child -> Spouse
+    if (types.length === 2 && types[0] === 'child' && types[1] === 'spouse') {
+        return targetGender === 'male' ? 'Menantu Laki-laki' : targetGender === 'female' ? 'Menantu Perempuan' : 'Menantu';
+    }
+
+    // Orang Tua Tiri: Parent -> Spouse
+    if (types.length === 2 && types[0] === 'parent' && types[1] === 'spouse') {
+        return targetGender === 'male' ? 'Ayah Sambung (Tiri)' : targetGender === 'female' ? 'Ibu Sambung (Tiri)' : 'Orang Tua Sambung';
+    }
+
+    // Anak Tiri: Spouse -> Child
+    if (types.length === 2 && types[0] === 'spouse' && types[1] === 'child') {
+        return targetGender === 'male' ? 'Anak Tiri Laki-laki' : targetGender === 'female' ? 'Anak Tiri Perempuan' : 'Anak Tiri';
+    }
+
+    // Ipar (Sibling-in-law)
+    // Case 1: Spouse -> Parent -> Child (Spouse's Sibling)
+    if (types.length === 3 && types[0] === 'spouse' && types[1] === 'parent' && types[2] === 'child') {
+        return targetGender === 'male' ? 'Kakak/Adik Ipar Laki-laki' : targetGender === 'female' ? 'Kakak/Adik Ipar Perempuan' : 'Ipar';
+    }
+    // Case 2: Parent -> Child -> Spouse (Sibling's Spouse)
+    if (types.length === 3 && types[0] === 'parent' && types[1] === 'child' && types[2] === 'spouse') {
+        return targetGender === 'male' ? 'Kakak/Adik Ipar Laki-laki' : targetGender === 'female' ? 'Kakak/Adik Ipar Perempuan' : 'Ipar';
+    }
+
+    // Besan: Child -> Spouse -> Parent
+    if (types.length === 3 && types[0] === 'child' && types[1] === 'spouse' && types[2] === 'parent') {
+        return 'Besan';
+    }
+
+    // Generic In-law fallback (if not caught above)
+    if (types[types.length - 1] === 'spouse' || types[0] === 'spouse') {
+        return 'Kerabat Jauh (Melalui Pernikahan)';
     }
 
     // Generic fallback based on up/down moves

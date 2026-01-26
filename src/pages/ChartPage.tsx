@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Fuse from 'fuse.js';
 import { useFamilyStore } from '@/store/familyStore';
 import { usePanZoom } from '@/hooks/usePanZoom';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,10 @@ import {
   ChevronDown,
   MoreHorizontal,
   Check,
+  Share2,
+  Map,
+  PieChart,
+  Dna,
 } from 'lucide-react';
 import type { Person } from '@/types';
 import { GenerationView } from '@/features/chart/views/GenerationView';
@@ -54,6 +59,11 @@ import { exportTreeAsImage, type ExportFormat } from '@/features/chart/utils/exp
 import { PrintDialog } from '@/features/chart/components/PrintDialog';
 import { FamilyMainView } from '@/features/chart/views/FamilyMainView';
 import { transformToFamilyChartData } from '@/features/chart/utils/familyChartMapper';
+import { TimelineView } from '@/features/chart/views/TimelineView';
+import { NetworkGraphView } from '@/features/chart/views/NetworkGraphView';
+import { GeoMapView } from '@/features/chart/views/GeoMapView';
+import { SunburstView } from '@/features/chart/views/SunburstView';
+import { InheritanceTreeView } from '@/features/chart/views/InheritanceTreeView';
 
 
 // Animation variants
@@ -78,7 +88,7 @@ const panelVariants = {
   }
 };
 
-type ViewMode = 'family' | 'pedigree' | 'tree' | 'timeline' | 'stats' | 'main-chart';
+type ViewMode = 'family' | 'pedigree' | 'tree' | 'timeline' | 'stats' | 'main-chart' | 'network' | 'map' | 'sunburst' | 'dna';
 
 export default function ChartPage() {
   const { persons, relationships, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
@@ -103,17 +113,20 @@ export default function ChartPage() {
   const relatives = selectedPersonId ? getPersonRelatives(selectedPersonId) : null;
 
   // Handle search/focus
+  const fuse = useMemo(() => new Fuse(persons, {
+    keys: ['fullName', 'id'],
+    threshold: 0.3,
+    ignoreLocation: true
+  }), [persons]);
+
   const handleSearch = useCallback(() => {
     if (!searchQuery) return;
 
-    const person = persons.find(p =>
-      p.fullName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    if (person) {
-      setSelectedPerson(person.id);
+    const results = fuse.search(searchQuery);
+    if (results.length > 0) {
+      setSelectedPerson(results[0].item.id);
     }
-  }, [searchQuery, persons, setSelectedPerson]);
+  }, [searchQuery, fuse, setSelectedPerson]);
 
   const handleZoom = (direction: 'in' | 'out') => {
     if (direction === 'in') {
@@ -186,6 +199,10 @@ export default function ChartPage() {
     { value: 'pedigree', label: 'Pedigree', icon: TreePine, description: 'Silsilah leluhur' },
     { value: 'tree', label: 'Tree', icon: Network, description: 'Semua per generasi' },
     { value: 'timeline', label: 'Timeline', icon: Calendar, description: 'Urutan waktu' },
+    { value: 'network', label: 'Network', icon: Share2, description: 'Grafik Jaringan' },
+    { value: 'map', label: 'Peta', icon: Map, description: 'Peta Sebaran' },
+    { value: 'sunburst', label: 'Sunburst', icon: PieChart, description: 'Diagram Keturunan' },
+    { value: 'dna', label: 'DNA Tree', icon: Dna, description: 'Warisan Genetik' },
     { value: 'stats', label: 'Stats', icon: GitBranch, description: 'Statistik keluarga' },
     { value: 'main-chart', label: 'Main Chart', icon: Network, description: 'Tampilan Utama' },
   ];
@@ -403,53 +420,66 @@ export default function ChartPage() {
                     <motion.div
                       key="timeline"
                       {...viewTransition}
-                      className="p-6 space-y-6"
+                      className="w-full h-full overflow-y-auto bg-background"
                     >
-                      {getTimelineData().map(({ generation, people }, index) => (
-                        <motion.div
-                          key={generation}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                        >
-                          <h3 className="font-display font-semibold text-lg mb-3 flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm">
-                              {generation}
-                            </span>
-                            Generasi {generation}
-                            <span className="text-sm font-normal text-muted-foreground">
-                              ({people.length} orang)
-                            </span>
-                          </h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pl-10">
-                            {people.map(person => (
-                              <Card
-                                key={person.id}
-                                className="p-3 cursor-pointer hover:shadow-md transition-shadow"
-                                onClick={() => setSelectedPerson(person.id)}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className={`
-                                  w-10 h-10 rounded-full flex items-center justify-center shrink-0
-                                  ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
-                                      person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
-                                        'bg-node-unknown/20 text-node-unknown'}
-                                `}>
-                                    <User className="w-5 h-5" />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="font-medium truncate">{person.fullName}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {person.birthDate ? new Date(person.birthDate).getFullYear() : '?'}
-                                      {person.deathDate && ` - ${new Date(person.deathDate).getFullYear()}`}
-                                    </p>
-                                  </div>
-                                </div>
-                              </Card>
-                            ))}
-                          </div>
-                        </motion.div>
-                      ))}
+                      <TimelineView
+                        persons={persons}
+                        onSelectPerson={setSelectedPerson}
+                      />
+                    </motion.div>
+                  )}
+                  {viewMode === 'network' && (
+                    <motion.div
+                      key="network"
+                      {...viewTransition}
+                      className="w-full h-full"
+                    >
+                      <NetworkGraphView
+                        persons={persons}
+                        relationships={relationships}
+                        onSelectPerson={setSelectedPerson}
+                        selectedPersonId={selectedPersonId}
+                      />
+                    </motion.div>
+                  )}
+                  {viewMode === 'map' && (
+                    <motion.div
+                      key="map"
+                      {...viewTransition}
+                      className="w-full h-full"
+                    >
+                      <GeoMapView
+                        persons={persons}
+                        onSelectPerson={setSelectedPerson}
+                      />
+                    </motion.div>
+                  )}
+                  {viewMode === 'sunburst' && (
+                    <motion.div
+                      key="sunburst"
+                      {...viewTransition}
+                      className="w-full h-full"
+                    >
+                      <SunburstView
+                        persons={persons}
+                        relationships={relationships}
+                        selectedPersonId={selectedPersonId}
+                        onSelectPerson={setSelectedPerson}
+                      />
+                    </motion.div>
+                  )}
+                  {viewMode === 'dna' && (
+                    <motion.div
+                      key="dna"
+                      {...viewTransition}
+                      className="w-full h-full"
+                    >
+                      <InheritanceTreeView
+                        persons={persons}
+                        relationships={relationships}
+                        selectedPersonId={selectedPersonId}
+                        onSelectPerson={setSelectedPerson}
+                      />
                     </motion.div>
                   )}
                   {viewMode === 'stats' && (

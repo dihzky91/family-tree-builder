@@ -21,7 +21,8 @@ import {
   BookOpen,
   Plus,
   Upload,
-  X
+  X,
+  Cake
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -89,6 +90,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       label: 'Overview',
       items: [
         { title: 'Hari Ini', url: '/on-this-day', icon: CalendarHeart },
+        { title: 'Kalender Ulang Tahun', url: '/calendar', icon: Cake },
       ]
     },
     {

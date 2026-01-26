@@ -13,8 +13,10 @@ import {
   AlertTriangle,
   CheckCircle,
   Loader2,
-  Trash2
+  Trash2,
+  Share2
 } from 'lucide-react';
+import { generateGedcom } from '@/features/chart/utils/gedcomExport';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -112,7 +114,7 @@ export default function DataPage() {
 
     try {
       const data = JSON.parse(text);
-      
+
       if (!data.persons || !Array.isArray(data.persons)) {
         throw new Error('Format tidak valid: data "persons" tidak ditemukan');
       }
@@ -180,7 +182,7 @@ export default function DataPage() {
             <Download className="w-5 h-5 text-primary" />
             <h2 className="font-display font-semibold text-lg">Export Data</h2>
           </div>
-          
+
           <p className="text-sm text-muted-foreground mb-4">
             Unduh data silsilah Anda dalam format JSON atau CSV untuk backup.
           </p>
@@ -196,8 +198,8 @@ export default function DataPage() {
             </div>
 
             <div className="flex gap-3">
-              <Button 
-                onClick={handleExportJSON} 
+              <Button
+                onClick={handleExportJSON}
                 disabled={isExporting || persons.length === 0}
                 className="flex-1 gap-2"
               >
@@ -208,7 +210,7 @@ export default function DataPage() {
                 )}
                 Export JSON
               </Button>
-              <Button 
+              <Button
                 variant="outline"
                 onClick={handleExportCSV}
                 disabled={persons.length === 0}
@@ -216,6 +218,28 @@ export default function DataPage() {
               >
                 <FileText className="w-4 h-4" />
                 Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const gedcom = generateGedcom(persons, relationships);
+                  const blob = new Blob([gedcom], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `silsilah-keluarga-${new Date().toISOString().split('T')[0]}.ged`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast({
+                    title: 'Export GEDCOM berhasil',
+                    description: 'File .ged telah diunduh',
+                  });
+                }}
+                disabled={persons.length === 0}
+                className="flex-1 gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Export GEDCOM
               </Button>
             </div>
           </div>
@@ -227,7 +251,7 @@ export default function DataPage() {
             <Upload className="w-5 h-5 text-primary" />
             <h2 className="font-display font-semibold text-lg">Import Data</h2>
           </div>
-          
+
           <p className="text-sm text-muted-foreground mb-4">
             Restore data dari file backup JSON.
           </p>
@@ -304,12 +328,12 @@ export default function DataPage() {
           <AlertTriangle className="w-5 h-5 text-destructive" />
           <h2 className="font-display font-semibold text-lg text-destructive">Zona Berbahaya</h2>
         </div>
-        
+
         <p className="text-sm text-muted-foreground mb-4">
           Aksi di bawah ini bersifat permanen dan tidak dapat dibatalkan. Pastikan Anda sudah membackup data sebelum melanjutkan.
         </p>
 
-        <Button 
+        <Button
           variant="destructive"
           onClick={() => setShowClearConfirm(true)}
           className="gap-2"
@@ -330,7 +354,7 @@ export default function DataPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleClearAll}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

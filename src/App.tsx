@@ -26,6 +26,7 @@ import NotFound from "./pages/NotFound";
 import PublicSubmitPage from "./pages/PublicSubmitPage";
 import BranchManagementPage from "./pages/BranchManagementPage";
 import SubmissionReviewPage from "./pages/SubmissionReviewPage";
+import BirthdayCalendar from "./pages/BirthdayCalendar";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const DashboardRoutes = () => {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<PageTransition><DashboardPage /></PageTransition>} />
         <Route path="/on-this-day" element={<PageTransition><OnThisDayPage /></PageTransition>} />
+        <Route path="/calendar" element={<PageTransition><BirthdayCalendar /></PageTransition>} />
         <Route path="/relationship-check" element={<PageTransition><RelationshipCheckPage /></PageTransition>} />
         <Route path="/stories" element={<PageTransition><StoriesPage /></PageTransition>} />
         <Route path="/data-quality" element={<PageTransition><DataQualityPage /></PageTransition>} />

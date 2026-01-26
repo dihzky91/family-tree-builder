@@ -1,0 +1,46 @@
+import { useEffect, useState } from 'react';
+
+export function useMediaQuery(query: string): boolean {
+    const [matches, setMatches] = useState(false);
+
+    useEffect(() => {
+        const media = window.matchMedia(query);
+
+        // Set initial value
+        setMatches(media.matches);
+
+        // Create listener
+        const listener = (e: MediaQueryListEvent) => setMatches(e.matches);
+
+        // Modern browsers
+        if (media.addEventListener) {
+            media.addEventListener('change', listener);
+            return () => media.removeEventListener('change', listener);
+        } else {
+            // Fallback for older browsers
+            media.addListener(listener);
+            return () => media.removeListener(listener);
+        }
+    }, [query]);
+
+    return matches;
+}
+
+// Convenience hooks
+export function useIsMobile() {
+    return useMediaQuery('(max-width: 768px)');
+}
+
+export function useIsTablet() {
+    return useMediaQuery('(max-width: 1024px)');
+}
+
+export function useIsTouchDevice() {
+    const [isTouch, setIsTouch] = useState(false);
+
+    useEffect(() => {
+        setIsTouch('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    }, []);
+
+    return isTouch;
+}
