@@ -1,4 +1,5 @@
 import { useAuth } from '@/hooks/useAuth';
+import { useFamilyStore } from '@/store/familyStore';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,8 +17,16 @@ import { toast } from 'sonner';
 export function UserMenu() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const { isDemoMode, exitDemoMode } = useFamilyStore();
 
   const handleSignOut = async () => {
+    if (isDemoMode) {
+      await exitDemoMode();
+      toast.success('Keluar dari Demo Mode');
+      navigate('/auth');
+      return;
+    }
+
     const { error } = await signOut();
     if (error) {
       toast.error('Gagal keluar: ' + error.message);
@@ -28,6 +37,7 @@ export function UserMenu() {
   };
 
   const getInitials = () => {
+    if (isDemoMode) return 'D';
     if (profile?.display_name) {
       return profile.display_name
         .split(' ')
@@ -58,10 +68,10 @@ export function UserMenu() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {profile?.display_name || 'Pengguna'}
+              {isDemoMode ? 'Demo User' : (profile?.display_name || 'Pengguna')}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user?.email}
+              {isDemoMode ? 'demo@familytree.local' : user?.email}
             </p>
           </div>
         </DropdownMenuLabel>

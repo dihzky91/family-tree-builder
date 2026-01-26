@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, TreeDeciduous, Mail, Lock, User } from 'lucide-react';
+import { Loader2, TreeDeciduous, Mail, Lock, User, Sparkles } from 'lucide-react';
 import { z } from 'zod';
+import { useFamilyStore } from '@/store/familyStore';
 
 const emailSchema = z.string().email('Email tidak valid');
 const passwordSchema = z.string().min(6, 'Password minimal 6 karakter');
@@ -17,17 +18,23 @@ const nameSchema = z.string().min(2, 'Nama minimal 2 karakter').optional();
 
 export default function AuthPage() {
   const navigate = useNavigate();
+  const { loadDemoData } = useFamilyStore();
+
+  const handleDemoClick = () => {
+    loadDemoData();
+    navigate('/');
+  };
   const { signIn, signUp, isAuthenticated, isLoading: authLoading } = useAuth();
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hasExistingUser, setHasExistingUser] = useState<boolean | null>(null);
-  
+
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  
+
   // Register form
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
@@ -67,7 +74,7 @@ export default function AuthPage() {
     }
 
     const { error } = await signIn(loginEmail, loginPassword);
-    
+
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
         setError('Email atau password salah');
@@ -77,7 +84,7 @@ export default function AuthPage() {
         setError(error.message);
       }
     }
-    
+
     setIsLoading(false);
   };
 
@@ -100,7 +107,7 @@ export default function AuthPage() {
     }
 
     const { data, error } = await signUp(registerEmail, registerPassword, registerName || undefined);
-    
+
     if (error) {
       if (error.message.includes('already registered')) {
         setError('Email sudah terdaftar. Silakan login.');
@@ -113,7 +120,7 @@ export default function AuthPage() {
       setRegisterPassword('');
       setRegisterName('');
     }
-    
+
     setIsLoading(false);
   };
 
@@ -165,7 +172,7 @@ export default function AuthPage() {
                       <AlertDescription>{error}</AlertDescription>
                     </Alert>
                   )}
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
                     <div className="relative">
@@ -181,7 +188,7 @@ export default function AuthPage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Password</Label>
                     <div className="relative">
@@ -236,7 +243,7 @@ export default function AuthPage() {
                         </AlertDescription>
                       </Alert>
                     )}
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="register-name">Nama Lengkap</Label>
                       <div className="relative">
@@ -251,7 +258,7 @@ export default function AuthPage() {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="register-email">Email</Label>
                       <div className="relative">
@@ -267,7 +274,7 @@ export default function AuthPage() {
                         />
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="register-password">Password</Label>
                       <div className="relative">
@@ -301,6 +308,32 @@ export default function AuthPage() {
             )}
           </Tabs>
         </Card>
+
+        {/* Demo Button */}
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Atau
+              </span>
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            className="w-full mt-4 border-dashed border-2 hover:border-primary hover:bg-primary/5 gap-2"
+            onClick={handleDemoClick}
+          >
+            <Sparkles className="w-4 h-4" />
+            Coba Demo - Tanpa Login
+          </Button>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Explore fitur lengkap dengan data contoh keluarga Indonesia
+          </p>
+        </div>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
           Dengan mendaftar, Anda menyetujui ketentuan layanan kami

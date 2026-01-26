@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { Person, Relationship, Evidence, AuditLog, FamilyChartPerson, Story } from '@/types';
 import { storage } from '@/storage';
+import { getDemoData } from '@/data/demoData';
 
 interface UndoAction {
   type: 'DELETE_PERSON' | 'DELETE_RELATIONSHIP' | 'DELETE_STORY';
@@ -22,6 +23,7 @@ interface FamilyState {
   isLoading: boolean;
   searchQuery: string;
   undoStack: UndoAction[];
+  isDemoMode: boolean;
 
   // Actions
   loadData: () => Promise<void>;
@@ -69,6 +71,10 @@ interface FamilyState {
     siblings: Person[];
   };
   findDuplicates: (name: string, birthDate?: string | null) => Person[];
+
+  // Demo mode
+  loadDemoData: () => void;
+  exitDemoMode: () => Promise<void>;
 }
 
 export const useFamilyStore = create<FamilyState>((set, get) => ({
@@ -82,10 +88,12 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   searchQuery: '',
   isZenMode: false,
   undoStack: [],
+  isDemoMode: false,
 
   toggleZenMode: () => set(state => ({ isZenMode: !state.isZenMode })),
 
   loadData: async () => {
+    if (get().isDemoMode) return;
     set({ isLoading: true });
     try {
       const [persons, relationships, evidence, auditLogs] = await Promise.all([
@@ -523,6 +531,27 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
 
       return nameSimilar;
     });
+  },
+
+  loadDemoData: () => {
+    const { persons, relationships } = getDemoData();
+
+    set({
+      persons,
+      relationships,
+      evidence: [],
+      stories: [],
+      auditLogs: [],
+      selectedPersonId: null,
+      isLoading: false,
+      isDemoMode: true,
+      undoStack: [],
+    });
+  },
+
+  exitDemoMode: async () => {
+    set({ isDemoMode: false });
+    await get().loadData();
   },
 }));
 

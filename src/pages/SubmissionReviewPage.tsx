@@ -31,7 +31,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
 export default function SubmissionReviewPage() {
-    const { addPerson, addRelationship, persons } = useFamilyStore();
+    const { addPerson, addRelationship, persons, isDemoMode } = useFamilyStore();
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
     const [selectedBranch, setSelectedBranch] = useState<string>('all');
@@ -43,6 +43,13 @@ export default function SubmissionReviewPage() {
     }, [selectedBranch, selectedStatus]);
 
     const fetchData = async () => {
+        if (isDemoMode) {
+            setSubmissions([]);
+            setBranches([]);
+            setIsLoading(false);
+            return;
+        }
+
         try {
             setIsLoading(true);
             const [submissionsData, branchesData] = await Promise.all([

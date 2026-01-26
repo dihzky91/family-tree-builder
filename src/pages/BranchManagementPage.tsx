@@ -29,7 +29,7 @@ import { BranchFormSchema, type BranchFormData, type Branch } from '@/types';
 import { toast } from 'sonner';
 
 export default function BranchManagementPage() {
-    const { persons, loadData } = useFamilyStore();
+    const { persons, loadData, isDemoMode } = useFamilyStore();
     const [branches, setBranches] = useState<Branch[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -56,6 +56,11 @@ export default function BranchManagementPage() {
     }, []); // Only run once on mount
 
     const fetchBranches = async () => {
+        if (isDemoMode) {
+            setBranches([]); // Or mock branches if desired
+            setIsLoading(false);
+            return;
+        }
         try {
             setIsLoading(true);
             const data = await getAllBranches();

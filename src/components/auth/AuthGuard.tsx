@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useFamilyStore } from '@/store/familyStore';
 import { Loader2 } from 'lucide-react';
 
 interface AuthGuardProps {
@@ -9,6 +10,7 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const { isAuthenticated, isLoading } = useAuth();
+  const isDemoMode = useFamilyStore(state => state.isDemoMode);
   const location = useLocation();
 
   if (isLoading) {
@@ -22,7 +24,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isDemoMode) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 

@@ -56,7 +56,7 @@ interface AppSidebarProps {
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { searchQuery, setSearchQuery, persons, relationships } = useFamilyStore();
+  const { searchQuery, setSearchQuery, persons, relationships, isZenMode, isDemoMode } = useFamilyStore();
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [showAddPersonDialog, setShowAddPersonDialog] = useState(false);
 
@@ -174,6 +174,13 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             <h1 className="font-display font-semibold text-lg truncate">Silsilah</h1>
             <p className="text-xs text-sidebar-foreground/60 truncate">Keluarga</p>
           </div>
+        )}
+
+        {/* Demo Mode Indicator */}
+        {isDemoMode && !collapsed && (
+          <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/50 text-[10px] px-1.5 py-0.5">
+            DEMO
+          </Badge>
         )}
         <Button
           variant="ghost"
