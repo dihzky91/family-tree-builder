@@ -335,9 +335,7 @@ export default function AuthPage() {
           </p>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          Dengan mendaftar, Anda menyetujui ketentuan layanan kami
-        </p>
+
       </div>
     </div>
   );
