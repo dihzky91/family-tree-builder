@@ -154,7 +154,9 @@ export function FamilyMainView({
 
         return () => {
             containerRef.current?.removeEventListener('click', handleClick)
-            containerRef.current!.innerHTML = ''
+            if (containerRef.current) {
+                containerRef.current.innerHTML = ''
+            }
         }
     }, [data, rootId, onSelectPerson, onAddRelationship])
 
