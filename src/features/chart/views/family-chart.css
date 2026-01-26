@@ -2,7 +2,7 @@
   background: white;
   border-radius: 12px;
   padding: 12px;
-  min-width: 180px;
+  min-width: 200px;
   border: 2px solid #e5e7eb;
   text-align: center;
 }
@@ -28,8 +28,9 @@
 }
 
 .f3-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: #6b7280;
+  white-space: nowrap;
 }
 
 .f3 .link {
