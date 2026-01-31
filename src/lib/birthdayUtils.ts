@@ -42,8 +42,8 @@ export function getAgeOnNextBirthday(birthDate: Date): number {
     const birthMonthDay = birthDate.getMonth() * 100 + birthDate.getDate();
 
     if (todayMonthDay < birthMonthDay) {
-        // Birthday this year
-        age = age;
+        // Birthday this year - age stays the same
+        // age is already correct from initial calculation
     } else {
         // Birthday next year
         age = age + 1;

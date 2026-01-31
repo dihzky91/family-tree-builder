@@ -58,6 +58,41 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
     setIsDragging(false);
   }, []);
 
+  // Touch event handlers for mobile support
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    // Don't start drag if touching interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, [role="button"]')) return;
+    
+    // Only handle single touch
+    if (e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    setIsDragging(true);
+    dragStart.current = {
+      x: touch.clientX - state.x,
+      y: touch.clientY - state.y,
+    };
+  }, [state.x, state.y]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging) return;
+    if (e.touches.length !== 1) return;
+    
+    e.preventDefault(); // Prevent scrolling while dragging
+    const touch = e.touches[0];
+    
+    setState(prev => ({
+      ...prev,
+      x: touch.clientX - dragStart.current.x,
+      y: touch.clientY - dragStart.current.y,
+    }));
+  }, [isDragging]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     // Only zoom if Ctrl/Cmd is pressed
     if (!e.ctrlKey && !e.metaKey) return;
@@ -97,14 +132,25 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
     }));
   }, [minScale, maxScale]);
 
-  // Add global mouse up listener to handle drag end outside container
+  // Add global mouse/touch up listeners to handle drag end outside container
   useEffect(() => {
     const handleGlobalMouseUp = () => {
       setIsDragging(false);
     };
 
+    const handleGlobalTouchEnd = () => {
+      setIsDragging(false);
+    };
+
     window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener('touchend', handleGlobalTouchEnd);
+    window.addEventListener('touchcancel', handleGlobalTouchEnd);
+    
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('touchend', handleGlobalTouchEnd);
+      window.removeEventListener('touchcancel', handleGlobalTouchEnd);
+    };
   }, []);
 
   return {
@@ -117,6 +163,9 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
       onMouseUp: handleMouseUp,
       onMouseLeave: handleMouseLeave,
       onWheel: handleWheel,
+      onTouchStart: handleTouchStart,
+      onTouchMove: handleTouchMove,
+      onTouchEnd: handleTouchEnd,
     },
     zoomIn,
     zoomOut,

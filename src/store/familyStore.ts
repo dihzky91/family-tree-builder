@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import type { Person, Relationship, Evidence, AuditLog, FamilyChartPerson, Story } from '@/types';
+import type { Person, Relationship, Evidence, AuditLog, FamilyChartPerson, Story, Branch } from '@/types';
 import { storage } from '@/storage';
 import { getDemoData } from '@/data/demoData';
 
@@ -17,6 +17,7 @@ interface FamilyState {
   evidence: Evidence[];
   stories: Story[];
   auditLogs: AuditLog[];
+  branches: Branch[];
 
   // UI State
   selectedPersonId: string | null;
@@ -83,6 +84,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   evidence: [],
   stories: [],
   auditLogs: [],
+  branches: [],
   selectedPersonId: null,
   isLoading: true,
   searchQuery: '',
@@ -102,7 +104,18 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
         storage.getAllEvidence(),
         storage.getAuditLogs(),
       ]);
-      set({ persons, relationships, evidence, auditLogs, isLoading: false });
+      
+      // Load branches if the method exists
+      let branches: Branch[] = [];
+      if (storage.getAllBranches) {
+        try {
+          branches = await storage.getAllBranches();
+        } catch (e) {
+          console.warn('Failed to load branches:', e);
+        }
+      }
+      
+      set({ persons, relationships, evidence, auditLogs, branches, isLoading: false });
     } catch (error) {
       console.error('Failed to load data:', error);
       set({ isLoading: false });

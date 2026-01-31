@@ -1,5 +1,9 @@
 import { useState, useEffect, ReactNode } from 'react';
 import { AppSidebar } from './AppSidebar';
+import { MobileNav } from './MobileNav';
+import { MobileBottomNav } from './MobileBottomNav';
+import { Breadcrumbs } from './Breadcrumbs';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useFamilyStore } from '@/store/familyStore';
 import { Loader2 } from 'lucide-react';
 
@@ -11,6 +15,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { loadData, isLoading } = useFamilyStore();
   const [initialized, setInitialized] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const initialize = async () => {
@@ -32,14 +37,31 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <AppSidebar 
-        collapsed={sidebarCollapsed} 
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
-      />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
+    <div className="flex flex-col md:flex-row min-h-screen w-full bg-background">
+      {/* Desktop Sidebar - hidden on mobile */}
+      <div className="hidden md:block">
+        <AppSidebar 
+          collapsed={sidebarCollapsed} 
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
+        />
+      </div>
+      
+      {/* Mobile Header */}
+      {isMobile && <MobileNav />}
+      
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Breadcrumbs Navigation */}
+        <Breadcrumbs />
+        
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto min-h-0 pb-16 md:pb-0">
+          {children}
+        </main>
+      </div>
+      
+      {/* Mobile Bottom Navigation */}
+      {isMobile && <MobileBottomNav />}
     </div>
   );
 }

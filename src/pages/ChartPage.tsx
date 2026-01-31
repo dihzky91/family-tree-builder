@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Fuse from 'fuse.js';
 import { useFamilyStore } from '@/store/familyStore';
 import { usePanZoom } from '@/hooks/usePanZoom';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -92,6 +93,7 @@ type ViewMode = 'family' | 'pedigree' | 'tree' | 'timeline' | 'stats' | 'main-ch
 
 export default function ChartPage() {
   const { persons, relationships, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<ViewMode>('family');
   const [searchQuery, setSearchQuery] = useState('');
   const [pedigreeGenerations, setPedigreeGenerations] = useState(4);
@@ -588,11 +590,24 @@ export default function ChartPage() {
         </div>
       </div>
 
+      {/* Backdrop for mobile detail panel */}
+      <AnimatePresence>
+        {selectedPerson && isMobile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setSelectedPerson(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Detail Panel */}
       <AnimatePresence>
         {selectedPerson && (
           <motion.div
-            className="w-96 border-l bg-card overflow-y-auto"
+            className="fixed md:relative inset-y-0 right-0 w-full md:w-96 border-l bg-card overflow-y-auto z-50 md:z-auto"
             variants={panelVariants}
             initial="hidden"
             animate="visible"

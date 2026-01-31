@@ -1,4 +1,4 @@
-import type { Person, Relationship, Evidence, AuditLog } from '@/types';
+import type { Person, Relationship, Evidence, AuditLog, Branch } from '@/types';
 
 export interface StorageAdapter {
   // Person operations
@@ -26,6 +26,9 @@ export interface StorageAdapter {
   // Audit operations
   createAuditLog(log: AuditLog): Promise<AuditLog>;
   getAuditLogs(): Promise<AuditLog[]>;
+  
+  // Branch operations
+  getAllBranches?(): Promise<Branch[]>;
   
   // Bulk operations
   importData(persons: Person[], relationships: Relationship[], evidence: Evidence[]): Promise<void>;
