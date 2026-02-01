@@ -125,11 +125,27 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
     setState({ x: 0, y: 0, scale: initialScale });
   }, [initialScale]);
 
+  const panBy = useCallback((deltaX: number, deltaY: number) => {
+    setState(prev => ({
+      ...prev,
+      x: prev.x + deltaX,
+      y: prev.y + deltaY,
+    }));
+  }, []);
+
   const setScale = useCallback((newScale: number) => {
     setState(prev => ({
       ...prev,
       scale: Math.max(minScale, Math.min(maxScale, newScale)),
     }));
+  }, [minScale, maxScale]);
+
+  const setTransform = useCallback((next: PanZoomState) => {
+    setState({
+      x: next.x,
+      y: next.y,
+      scale: Math.max(minScale, Math.min(maxScale, next.scale)),
+    });
   }, [minScale, maxScale]);
 
   // Add global mouse/touch up listeners to handle drag end outside container
@@ -153,6 +169,14 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
     };
   }, []);
 
+  useEffect(() => {
+    setState(prev => {
+      const clampedScale = Math.max(minScale, Math.min(maxScale, prev.scale));
+      if (clampedScale === prev.scale) return prev;
+      return { ...prev, scale: clampedScale };
+    });
+  }, [minScale, maxScale]);
+
   return {
     state,
     isDragging,
@@ -171,5 +195,7 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
     zoomOut,
     reset,
     setScale,
+    setTransform,
+    panBy,
   };
 }

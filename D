@@ -1,0 +1,184 @@
+import { toPng } from 'html-to-image';
+import jsPDF from 'jspdf';
+import { toast } from 'sonner';
+
+export type PremiumTheme = 'modern';
+
+interface PremiumExportOptions {
+  title?: string;
+  subtitle?: string;
+  theme?: PremiumTheme;
+  scale?: number;
+}
+
+const DEFAULT_THEME: PremiumTheme = 'modern';
+
+const MODERN_THEME = {
+  backgroundStart: '#f8fafc',
+  backgroundEnd: '#eef2f7',
+  panel: '#ffffff',
+  border: '#d6dde6',
+  textPrimary: '#0f172a',
+  textSecondary: '#64748b',
+  accent: '#14b8a6',
+  shadow: 'rgba(15, 23, 42, 0.12)',
+};
+
+const loadImage = (dataUrl: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = (error) => reject(error);
+    img.src = dataUrl;
+  });
+
+const drawRoundedRect = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) => {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+};
+
+const formatDate = () =>
+  new Date().toLocaleDateString('id-ID', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+export async function exportTreePremiumDigital(
+  element: HTMLElement,
+  options: PremiumExportOptions = {}
+): Promise<void> {
+  const {
+    title = 'Silsilah Keluarga',
+    subtitle,
+    theme = DEFAULT_THEME,
+    scale = 3,
+  } = options;
+
+  const palette = theme === 'modern' ? MODERN_THEME : MODERN_THEME;
+
+  try {
+    toast.loading('Menyiapkan export premium...', { id: 'premium-export' });
+
+    const rawDataUrl = await toPng(element, {
+      backgroundColor: '#ffffff',
+      pixelRatio: scale,
+      cacheBust: true,
+      style: {
+        transform: 'none',
+      },
+      filter: (node) => {
+        if (node instanceof Element) {
+          if (node.classList?.contains('scrollbar')) return false;
+        }
+        return true;
+      },
+    });
+
+    const image = await loadImage(rawDataUrl);
+
+    const headerHeight = 220;
+    const footerHeight = 90;
+    const padding = 120;
+    const frameRadius = 36;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width + padding * 2;
+    canvas.height = image.height + padding * 2 + headerHeight + footerHeight;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Canvas context not available');
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, palette.backgroundStart);
+    gradient.addColorStop(1, palette.backgroundEnd);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = palette.accent;
+    ctx.fillRect(0, 0, canvas.width, 6);
+
+    ctx.fillStyle = palette.textPrimary;
+    ctx.font = '700 64px "Playfair Display", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(title, canvas.width / 2, 110);
+
+    ctx.fillStyle = palette.textSecondary;
+    ctx.font = '500 26px "Inter", sans-serif';
+    const metaText = subtitle ? `${subtitle} • ${formatDate()}` : formatDate();
+    ctx.fillText(metaText, canvas.width / 2, 160);
+
+    const panelX = padding;
+    const panelY = headerHeight + padding;
+    const panelWidth = image.width;
+    const panelHeight = image.height;
+
+    ctx.save();
+    ctx.shadowColor = palette.shadow;
+    ctx.shadowBlur = 40;
+    ctx.shadowOffsetY = 12;
+    drawRoundedRect(ctx, panelX, panelY, panelWidth, panelHeight, frameRadius);
+    ctx.fillStyle = palette.panel;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    drawRoundedRect(ctx, panelX, panelY, panelWidth, panelHeight, frameRadius);
+    ctx.clip();
+    ctx.drawImage(image, panelX, panelY, panelWidth, panelHeight);
+    ctx.restore();
+
+    ctx.strokeStyle = palette.border;
+    ctx.lineWidth = 2;
+    drawRoundedRect(ctx, panelX, panelY, panelWidth, panelHeight, frameRadius);
+    ctx.stroke();
+
+    ctx.fillStyle = palette.textSecondary;
+    ctx.font = '500 20px "Inter", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Export Premium • Digital', canvas.width / 2, canvas.height - 45);
+
+    const premiumDataUrl = canvas.toDataURL('image/png');
+    const datePart = new Date().toISOString().split('T')[0];
+    const baseFilename = `silsilah-premium-${datePart}`;
+
+    const pngLink = document.createElement('a');
+    pngLink.download = `${baseFilename}.png`;
+    pngLink.href = premiumDataUrl;
+    pngLink.click();
+
+    const pdfWidth = canvas.width * 0.75;
+    const pdfHeight = canvas.height * 0.75;
+    const orientation = pdfWidth >= pdfHeight ? 'l' : 'p';
+
+    const pdf = new jsPDF({
+      orientation,
+      unit: 'pt',
+      format: [pdfWidth, pdfHeight],
+    });
+
+    pdf.addImage(premiumDataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`${baseFilename}.pdf`);
+
+    toast.success('Export premium selesai (PNG + PDF).', { id: 'premium-export' });
+  } catch (error) {
+    console.error('Premium export failed:', error);
+    toast.error('Gagal membuat export premium.', { id: 'premium-export' });
+  }
+}

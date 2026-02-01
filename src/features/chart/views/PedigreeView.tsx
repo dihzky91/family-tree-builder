@@ -18,6 +18,33 @@ interface AncestorNode {
   mother: AncestorNode | null;
 }
 
+const getBaseRowHeight = (generation: number) => {
+  if (generation === 0) return 160;
+  if (generation === 1) return 130;
+  return 110;
+};
+
+const getSubtreeHeight = (
+  node: AncestorNode,
+  generation: number,
+  maxGenerations: number
+): number => {
+  const baseRowHeight = getBaseRowHeight(generation);
+
+  if (generation >= maxGenerations - 1) {
+    return baseRowHeight * 2;
+  }
+
+  const fatherHeight = node.father
+    ? getSubtreeHeight(node.father, generation + 1, maxGenerations)
+    : baseRowHeight;
+  const motherHeight = node.mother
+    ? getSubtreeHeight(node.mother, generation + 1, maxGenerations)
+    : baseRowHeight;
+
+  return Math.max(baseRowHeight * 2, fatherHeight + motherHeight);
+};
+
 export function PedigreeView({
   persons,
   relationships,
@@ -119,13 +146,25 @@ function PedigreeColumn({
 
   // Heights for SVG connectors - increased for better spacing
   // Each person needs space for their own parents
-  const rowHeight = generation === 0 ? 160 : generation === 1 ? 130 : 100;
+  const baseRowHeight = getBaseRowHeight(generation);
+  const totalHeight = showParents
+    ? getSubtreeHeight(node, generation, maxGenerations)
+    : baseRowHeight * 2;
+  const fatherHeight = showParents
+    ? (node.father ? getSubtreeHeight(node.father, generation + 1, maxGenerations) : baseRowHeight)
+    : 0;
+  const motherHeight = showParents
+    ? (node.mother ? getSubtreeHeight(node.mother, generation + 1, maxGenerations) : baseRowHeight)
+    : 0;
+  const centerY = totalHeight / 2;
+  const fatherCenterY = fatherHeight / 2;
+  const motherCenterY = fatherHeight + motherHeight / 2;
   const connectorWidth = generation === 0 ? 48 : generation === 1 ? 40 : 32;
 
   return (
     <div className="flex items-center">
       {/* Current person column */}
-      <div className="flex flex-col items-center justify-center" style={{ minHeight: `${rowHeight * 2}px` }}>
+      <div className="flex flex-col items-center justify-center" style={{ minHeight: `${totalHeight}px` }}>
         {node.person ? (
           <PersonNode
             person={node.person}
@@ -153,8 +192,8 @@ function PedigreeColumn({
         <svg
           className="shrink-0"
           width={connectorWidth}
-          height={rowHeight * 2}
-          viewBox={`0 0 ${connectorWidth} ${rowHeight * 2}`}
+          height={totalHeight}
+          viewBox={`0 0 ${connectorWidth} ${totalHeight}`}
         >
           <defs>
             <linearGradient id={`pedigreeGrad${generation}`} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -165,7 +204,7 @@ function PedigreeColumn({
 
           {/* Main horizontal line from person */}
           <path
-            d={`M 0 ${rowHeight} L ${connectorWidth * 0.3} ${rowHeight}`}
+            d={`M 0 ${centerY} L ${connectorWidth * 0.3} ${centerY}`}
             stroke={`url(#pedigreeGrad${generation})`}
             strokeWidth="2"
             fill="none"
@@ -176,8 +215,8 @@ function PedigreeColumn({
           {/* Vertical bracket */}
           {(node.father || node.mother) && (
             <path
-              d={`M ${connectorWidth * 0.3} ${rowHeight * 0.5} 
-                  L ${connectorWidth * 0.3} ${rowHeight * 1.5}`}
+              d={`M ${connectorWidth * 0.3} ${fatherCenterY} 
+                  L ${connectorWidth * 0.3} ${motherCenterY}`}
               stroke="hsl(var(--border))"
               strokeWidth="2"
               fill="none"
@@ -189,10 +228,10 @@ function PedigreeColumn({
           {/* Curved branch to father (top) */}
           {(node.father || node.person) && (
             <path
-              d={`M ${connectorWidth * 0.3} ${rowHeight * 0.5} 
-                  Q ${connectorWidth * 0.5} ${rowHeight * 0.5}, 
-                    ${connectorWidth * 0.7} ${rowHeight * 0.5}
-                  L ${connectorWidth} ${rowHeight * 0.5}`}
+              d={`M ${connectorWidth * 0.3} ${fatherCenterY} 
+                  Q ${connectorWidth * 0.5} ${fatherCenterY}, 
+                    ${connectorWidth * 0.7} ${fatherCenterY}
+                  L ${connectorWidth} ${fatherCenterY}`}
               stroke={node.father ? "hsl(var(--node-male))" : "hsl(var(--border))"}
               strokeWidth="2"
               strokeDasharray={node.father ? "none" : "4 3"}
@@ -206,10 +245,10 @@ function PedigreeColumn({
           {/* Curved branch to mother (bottom) */}
           {(node.mother || node.person) && (
             <path
-              d={`M ${connectorWidth * 0.3} ${rowHeight * 1.5} 
-                  Q ${connectorWidth * 0.5} ${rowHeight * 1.5}, 
-                    ${connectorWidth * 0.7} ${rowHeight * 1.5}
-                  L ${connectorWidth} ${rowHeight * 1.5}`}
+              d={`M ${connectorWidth * 0.3} ${motherCenterY} 
+                  Q ${connectorWidth * 0.5} ${motherCenterY}, 
+                    ${connectorWidth * 0.7} ${motherCenterY}
+                  L ${connectorWidth} ${motherCenterY}`}
               stroke={node.mother ? "hsl(var(--node-female))" : "hsl(var(--border))"}
               strokeWidth="2"
               strokeDasharray={node.mother ? "none" : "4 3"}
@@ -224,7 +263,7 @@ function PedigreeColumn({
           {node.father && (
             <circle
               cx={connectorWidth * 0.3}
-              cy={rowHeight * 0.5}
+              cy={fatherCenterY}
               r="3"
               fill="hsl(var(--node-male))"
               className="animate-scale-in"
@@ -233,7 +272,7 @@ function PedigreeColumn({
           {node.mother && (
             <circle
               cx={connectorWidth * 0.3}
-              cy={rowHeight * 1.5}
+              cy={motherCenterY}
               r="3"
               fill="hsl(var(--node-female))"
               className="animate-scale-in"
@@ -244,9 +283,9 @@ function PedigreeColumn({
 
       {/* Parents column */}
       {showParents && (
-        <div className="flex flex-col justify-between" style={{ height: `${rowHeight * 2}px` }}>
+        <div className="flex flex-col" style={{ height: `${totalHeight}px` }}>
           {/* Father branch - top half */}
-          <div className="flex items-center justify-center" style={{ height: `${rowHeight}px` }}>
+          <div className="flex items-center justify-center" style={{ height: `${fatherHeight}px` }}>
             {node.father ? (
               <PedigreeColumn
                 node={node.father}
@@ -266,7 +305,7 @@ function PedigreeColumn({
           </div>
 
           {/* Mother branch - bottom half */}
-          <div className="flex items-center justify-center" style={{ height: `${rowHeight}px` }}>
+          <div className="flex items-center justify-center" style={{ height: `${motherHeight}px` }}>
             {node.mother ? (
               <PedigreeColumn
                 node={node.mother}

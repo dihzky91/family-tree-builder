@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Map, Maximize2, Minimize2, X } from 'lucide-react';
+import { LocateFixed, Map, Maximize2, Minimize2, X } from 'lucide-react';
 import type { Person, Relationship } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +9,7 @@ interface MiniMapProps {
   relationships: Relationship[];
   selectedPersonId: string | null;
   onSelectPerson: (id: string) => void;
+  onCenterSelected?: () => void;
   className?: string;
 }
 
@@ -24,6 +25,7 @@ export function MiniMap({
   relationships,
   selectedPersonId,
   onSelectPerson,
+  onCenterSelected,
   className,
 }: MiniMapProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -103,6 +105,7 @@ export function MiniMap({
 
   const mapWidth = isExpanded ? 320 : 180;
   const mapHeight = isExpanded ? 240 : 140;
+  const canCenter = Boolean(selectedPersonId && onCenterSelected);
 
   return (
     <AnimatePresence>
@@ -127,6 +130,17 @@ export function MiniMap({
               </span>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                onClick={onCenterSelected}
+                className={cn(
+                  "p-1 rounded transition-colors",
+                  canCenter ? "hover:bg-muted" : "opacity-40 cursor-not-allowed"
+                )}
+                title="Pusatkan ke pilihan"
+                disabled={!canCenter}
+              >
+                <LocateFixed className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="p-1 hover:bg-muted rounded transition-colors"

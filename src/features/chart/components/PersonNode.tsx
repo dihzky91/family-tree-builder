@@ -87,6 +87,7 @@ export function PersonNode({
     >
       <motion.button
         onClick={onClick}
+        data-person-id={person.id}
         className={cn(
           "flex flex-col items-center rounded-lg border-2",
           config.card,

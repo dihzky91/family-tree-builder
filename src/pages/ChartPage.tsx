@@ -1,9 +1,10 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Fuse from 'fuse.js';
 import { useFamilyStore } from '@/store/familyStore';
 import { usePanZoom } from '@/hooks/usePanZoom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -57,6 +58,7 @@ import { RelationshipForm } from '@/features/relationships/RelationshipForm';
 import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
 import { MiniMap } from '@/features/chart/components/MiniMap';
 import { exportTreeAsImage, type ExportFormat } from '@/features/chart/utils/exportTreeAsImage';
+import { exportTreePremiumDigital, type PremiumTheme, type PremiumPaletteOverrides } from '@/features/chart/utils/premiumExport';
 import { PrintDialog } from '@/features/chart/components/PrintDialog';
 import { FamilyMainView } from '@/features/chart/views/FamilyMainView';
 import { transformToFamilyChartData } from '@/features/chart/utils/familyChartMapper';
@@ -92,7 +94,8 @@ const panelVariants = {
 type ViewMode = 'family' | 'pedigree' | 'tree' | 'timeline' | 'stats' | 'main-chart' | 'network' | 'map' | 'sunburst' | 'dna';
 
 export default function ChartPage() {
-  const { persons, relationships, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
+  const { persons, relationships, evidence, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
+  const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<ViewMode>('family');
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,13 +109,82 @@ export default function ChartPage() {
   const chartRef = useRef<HTMLDivElement>(null);
 
   // Pan and Zoom hook
-  const { state: panZoomState, isDragging, handlers: panZoomHandlers, zoomIn, zoomOut, reset } = usePanZoom({
-    minScale: 0.3,
-    maxScale: 2,
+  const maxScale = 2;
+  const minScale = viewMode === 'pedigree' ? 0.5 : 0.3;
+  const {
+    state: panZoomState,
+    isDragging,
+    handlers: panZoomHandlers,
+    zoomIn,
+    zoomOut,
+    reset,
+    panBy,
+    setTransform,
+    containerRef: panZoomContainerRef,
+  } = usePanZoom({
+    minScale,
+    maxScale,
     initialScale: 1,
   });
   const selectedPerson = persons.find(p => p.id === selectedPersonId);
   const relatives = selectedPersonId ? getPersonRelatives(selectedPersonId) : null;
+
+  useEffect(() => {
+    const focusId = searchParams.get('focus');
+    if (focusId) {
+      setSelectedPerson(focusId);
+    }
+  }, [searchParams, setSelectedPerson]);
+
+  const buildLineageIds = useCallback((personId: string | null) => {
+    if (!personId) return [];
+    const parentsByChild = new globalThis.Map() as Map<string, string[]>;
+    const childrenByParent = new globalThis.Map() as Map<string, string[]>;
+
+    relationships.forEach((rel) => {
+      if (rel.type !== 'PARENT_CHILD') return;
+      if (!parentsByChild.has(rel.toPersonId)) {
+        parentsByChild.set(rel.toPersonId, []);
+      }
+      parentsByChild.get(rel.toPersonId)!.push(rel.fromPersonId);
+
+      if (!childrenByParent.has(rel.fromPersonId)) {
+        childrenByParent.set(rel.fromPersonId, []);
+      }
+      childrenByParent.get(rel.fromPersonId)!.push(rel.toPersonId);
+    });
+
+    const ancestorIds = new Set<string>();
+    const descendantIds = new Set<string>();
+
+    const ancestorStack = [personId];
+    while (ancestorStack.length > 0) {
+      const current = ancestorStack.pop();
+      if (!current) continue;
+      const parents = parentsByChild.get(current) || [];
+      parents.forEach((parentId) => {
+        if (!ancestorIds.has(parentId)) {
+          ancestorIds.add(parentId);
+          ancestorStack.push(parentId);
+        }
+      });
+    }
+
+    const descendantStack = [personId];
+    while (descendantStack.length > 0) {
+      const current = descendantStack.pop();
+      if (!current) continue;
+      const children = childrenByParent.get(current) || [];
+      children.forEach((childId) => {
+        if (!descendantIds.has(childId)) {
+          descendantIds.add(childId);
+          descendantStack.push(childId);
+        }
+      });
+    }
+
+    return Array.from(new Set([personId, ...ancestorIds, ...descendantIds]));
+  }, [relationships]);
 
   // Handle search/focus
   const fuse = useMemo(() => new Fuse(persons, {
@@ -141,6 +213,114 @@ export default function ChartPage() {
   const handleExport = async (format: ExportFormat) => {
     if (!chartRef.current) return;
     await exportTreeAsImage(chartRef.current, { format, filename: 'silsilah-keluarga' });
+  };
+
+  const handleCenterOnSelected = useCallback(() => {
+    if (!selectedPersonId || !chartRef.current || !panZoomContainerRef.current) return;
+    const target = chartRef.current.querySelector(
+      `[data-person-id="${selectedPersonId}"]`
+    ) as HTMLElement | null;
+    if (!target) return;
+
+    const targetRect = target.getBoundingClientRect();
+    const containerRect = panZoomContainerRef.current.getBoundingClientRect();
+    const targetCenterX = targetRect.left + targetRect.width / 2;
+    const targetCenterY = targetRect.top + targetRect.height / 2;
+    const containerCenterX = containerRect.left + containerRect.width / 2;
+    const containerCenterY = containerRect.top + containerRect.height / 2;
+
+    panBy(containerCenterX - targetCenterX, containerCenterY - targetCenterY);
+  }, [selectedPersonId, panBy, panZoomContainerRef]);
+
+  const autoFitToContent = useCallback(() => {
+    if (!chartRef.current || !panZoomContainerRef.current) return;
+    const nodes = Array.from(
+      chartRef.current.querySelectorAll('[data-person-id]')
+    ) as HTMLElement[];
+    if (nodes.length === 0) return;
+
+    setTransform({ x: 0, y: 0, scale: 1 });
+
+    requestAnimationFrame(() => {
+      if (!panZoomContainerRef.current) return;
+      const containerRect = panZoomContainerRef.current.getBoundingClientRect();
+
+      let minLeft = Infinity;
+      let minTop = Infinity;
+      let maxRight = -Infinity;
+      let maxBottom = -Infinity;
+
+      nodes.forEach((node) => {
+        const rect = node.getBoundingClientRect();
+        minLeft = Math.min(minLeft, rect.left);
+        minTop = Math.min(minTop, rect.top);
+        maxRight = Math.max(maxRight, rect.right);
+        maxBottom = Math.max(maxBottom, rect.bottom);
+      });
+
+      const contentWidth = maxRight - minLeft;
+      const contentHeight = maxBottom - minTop;
+      if (contentWidth <= 0 || contentHeight <= 0) return;
+
+      const scale = Math.min(
+        containerRect.width / contentWidth,
+        containerRect.height / contentHeight
+      ) * 0.9;
+
+      const clampedScale = Math.max(minScale, Math.min(maxScale, scale));
+      const centerX = (minLeft + maxRight) / 2 - containerRect.left;
+      const centerY = (minTop + maxBottom) / 2 - containerRect.top;
+
+      const nextX = containerRect.width / 2 - centerX * clampedScale;
+      const nextY = containerRect.height / 2 - centerY * clampedScale;
+
+      setTransform({ x: nextX, y: nextY, scale: clampedScale });
+    });
+  }, [maxScale, minScale, setTransform, panZoomContainerRef]);
+
+  useEffect(() => {
+    if (viewMode !== 'pedigree') return;
+    autoFitToContent();
+  }, [viewMode, pedigreeGenerations, persons.length, relationships.length, autoFitToContent]);
+
+  const customPalette: PremiumPaletteOverrides = {
+    backgroundStart: '#f0fdfa',
+    backgroundEnd: '#e0f2f1',
+    accent: '#0f766e',
+    textPrimary: '#0f172a',
+    textSecondary: '#475569',
+    border: '#cbd5e1',
+  };
+
+  const handlePremiumExport = async (
+    exportTheme: PremiumTheme,
+    paletteOverrides?: PremiumPaletteOverrides
+  ) => {
+    if (!chartRef.current) return;
+    const stats = getStats();
+    const subtitle = selectedPerson
+      ? `Fokus: ${selectedPerson.fullName}`
+      : `${persons.length} anggota`;
+    const qrData = selectedPersonId
+      ? `${window.location.origin}/chart?focus=${selectedPersonId}`
+      : `${window.location.origin}/chart`;
+    await exportTreePremiumDigital(chartRef.current, {
+      title: 'Silsilah Keluarga',
+      subtitle,
+      theme: exportTheme,
+      scale: 3,
+      stats: {
+        totalMembers: stats.total,
+        totalRelationships: relationships.length,
+        generations: stats.generations,
+        verifiedMembers: stats.verified,
+        livingMembers: stats.living,
+        documents: evidence.length,
+      },
+      qrData,
+      paletteOverrides,
+      highlightedPersonIds: buildLineageIds(selectedPersonId),
+    });
   };
 
   const handleAddRelationship = (personId: string, type: 'parent' | 'spouse' | 'child') => {
@@ -329,6 +509,27 @@ export default function ChartPage() {
                   <Download className="w-4 h-4 mr-2" />
                   Export SVG
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => { void handlePremiumExport('modern'); }}
+                  disabled={persons.length === 0}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Premium Modern (PNG + PDF)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => { void handlePremiumExport('classic'); }}
+                  disabled={persons.length === 0}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Premium Classic (PNG + PDF)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => { void handlePremiumExport('modern', customPalette); }}
+                  disabled={persons.length === 0}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Premium Custom (PNG + PDF)
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => {
@@ -363,6 +564,7 @@ export default function ChartPage() {
           ) : (
             <div
               className={`w-full h-full overflow-hidden ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              ref={panZoomContainerRef}
               {...panZoomHandlers}
             >
               <div
@@ -826,6 +1028,7 @@ export default function ChartPage() {
           relationships={relationships}
           selectedPersonId={selectedPersonId}
           onSelectPerson={setSelectedPerson}
+          onCenterSelected={handleCenterOnSelected}
         />
       )}
     </div>
