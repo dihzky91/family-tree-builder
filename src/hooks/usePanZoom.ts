@@ -78,8 +78,9 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!isDragging) return;
     if (e.touches.length !== 1) return;
-    
-    e.preventDefault(); // Prevent scrolling while dragging
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     const touch = e.touches[0];
     
     setState(prev => ({

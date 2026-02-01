@@ -1,7 +1,5 @@
 import { useEffect, useRef } from 'react'
 import * as f3 from 'family-chart'
-import { format, parseISO } from 'date-fns'
-import { id } from 'date-fns/locale'
 import type { FamilyChartDatum } from '../utils/familyChartMapper'
 import 'family-chart/styles/family-chart.css'
 import './family-chart.css'
@@ -11,15 +9,6 @@ interface FamilyMainViewProps {
     rootId: string
     onSelectPerson: (id: string) => void
     onAddRelationship: (id: string) => void
-}
-
-const formatDate = (dateStr?: string) => {
-    if (!dateStr) return null
-    try {
-        return format(parseISO(dateStr), 'd MMM yyyy', { locale: id })
-    } catch {
-        return dateStr.slice(0, 4) // fallback ke tahun saja
-    }
 }
 
 export function FamilyMainView({
@@ -39,34 +28,23 @@ export function FamilyMainView({
         const chart: any = f3.createChart(containerRef.current, data)
         chartRef.current = chart
 
-        // =========================
-        // CARD HTML
-        // =========================
-        chart.setCardHtml((d: FamilyChartDatum) => {
-            const fullName =
-                `${d.data['first name']} ${d.data['last name']}`.trim()
+        chart
+            .setCardHtml((d: FamilyChartDatum) => {
+                const fullName =
+                    `${d.data['first name']} ${d.data['last name']}`.trim()
 
-            const birthDate = formatDate(d.data.birthday)
-            const deathDate = formatDate(d.data.deathday)
+                const hasParents =
+                    Array.isArray(d.rels.parents) && d.rels.parents.length > 0
 
-            let dateHtml = ''
-            if (birthDate) {
-                dateHtml += `<span>* ${birthDate}</span>`
-            }
-            if (deathDate) {
-                dateHtml += ` <span class="deceased">† ${deathDate}</span>`
-            }
-
-            const hasParents =
-                Array.isArray(d.rels.parents) && d.rels.parents.length === 2
-
-            return `
+                return `
         <div
           class="f3-card ${d.data.gender === 'M' ? 'male' : 'female'}"
           data-person-id="${d.id}"
+          data-action="select"
+          data-id="${d.id}"
         >
           ${hasParents
-                    ? `
+                        ? `
               <button
                 class="mini-root-switch"
                 data-action="root"
@@ -74,20 +52,16 @@ export function FamilyMainView({
                 title="Lihat silsilah orang tua"
               ></button>
               `
-                    : ''
-                }
+                        : ''
+                    }
 
           ${d.data.avatar
-                    ? `<img src="${d.data.avatar}" class="f3-avatar" />`
-                    : ''
-                }
+                        ? `<img src="${d.data.avatar}" class="f3-avatar" />`
+                        : ''
+                    }
 
           <div class="f3-name">${fullName || '-'}</div>
-
-          ${dateHtml
-                    ? `<div class="f3-meta">${dateHtml}</div>`
-                    : ''
-                }
+          <div class="f3-meta" data-card-text></div>
 
           <button
             class="add-member-btn"
@@ -97,7 +71,8 @@ export function FamilyMainView({
           >+</button>
         </div>
       `
-        })
+            })
+            .setCardDisplay([['first name', 'last name'], ['birthYear', 'deathYear']])
 
         // =========================
         // LAYOUT
@@ -110,7 +85,7 @@ export function FamilyMainView({
         // =========================
         // EVENT HANDLER
         // =========================
-        const handleClick = (e: MouseEvent) => {
+        const handleCardClick = (e: MouseEvent, d: FamilyChartDatum) => {
             const target = e.target as HTMLElement
 
             // 1️⃣ Mini root switch (ancestor focus)
@@ -134,26 +109,37 @@ export function FamilyMainView({
                 return
             }
 
-            // 3️⃣ Select person (detail panel)
-            const card = target.closest('.f3-card') as HTMLElement
-            if (card) {
-                const id = card.dataset.personId
-                if (id) {
-                    onSelectPerson(id)
-
-                    // optional focus on select
-                    if (chartRef.current && id !== rootId) {
-                        chartRef.current.updateMainId(id)
-                        chartRef.current.updateTree({ initial: false })
-                    }
+            // 3️⃣ Select person + default focus
+            if (d?.id) {
+                onSelectPerson(d.id)
+                if (chartRef.current?.onCardClickDefault) {
+                    chartRef.current.onCardClickDefault(e, d)
+                } else if (chartRef.current && d.id !== rootId) {
+                    chartRef.current.updateMainId(d.id)
+                    chartRef.current.updateTree({ initial: false })
                 }
             }
         }
 
-        containerRef.current.addEventListener('click', handleClick)
+        let fallbackListener: ((e: MouseEvent) => void) | null = null
+
+        if (chartRef.current?.setOnCardClick) {
+            chartRef.current.setOnCardClick(handleCardClick)
+        } else if (containerRef.current) {
+            fallbackListener = (e: MouseEvent) => {
+                const target = e.target as HTMLElement
+                const card = target.closest('[data-action="select"]') as HTMLElement
+                if (card?.dataset.personId) {
+                    handleCardClick(e, { id: card.dataset.personId } as FamilyChartDatum)
+                }
+            }
+            containerRef.current.addEventListener('click', fallbackListener)
+        }
 
         return () => {
-            containerRef.current?.removeEventListener('click', handleClick)
+            if (fallbackListener && containerRef.current) {
+                containerRef.current.removeEventListener('click', fallbackListener)
+            }
             if (containerRef.current) {
                 containerRef.current.innerHTML = ''
             }

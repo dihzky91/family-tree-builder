@@ -1,45 +1,58 @@
 .f3-card {
-  background: white;
-  border-radius: 12px;
-  padding: 12px;
+  background: hsl(var(--card));
+  border-radius: 14px;
+  padding: 12px 14px;
   min-width: 200px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid hsl(var(--border));
   text-align: center;
+  color: hsl(var(--foreground));
+  box-shadow: 0 10px 24px -16px rgba(15, 23, 42, 0.45);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: visible;
 }
 
 .f3-card.male {
-  border-color: #60a5fa;
+  border-color: hsl(var(--node-male));
 }
 
 .f3-card.female {
-  border-color: #f472b6;
+  border-color: hsl(var(--node-female));
+}
+
+.f3-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px -18px rgba(15, 23, 42, 0.5);
+  border-color: hsl(var(--primary));
 }
 
 .f3-avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  border: 2px solid hsl(var(--border));
 }
 
 .f3-name {
   font-weight: 600;
   font-size: 14px;
+  letter-spacing: 0.2px;
 }
 
 .f3-meta {
   font-size: 11px;
-  color: #6b7280;
+  color: hsl(var(--muted-foreground));
   white-space: nowrap;
 }
 
 .f3 .link {
-  stroke: #6b7280;
+  stroke: hsl(var(--border));
   stroke-width: 2px;
 }
 
 .f3 .marriage {
-  stroke: #a16207;
+  stroke: hsl(var(--accent));
   stroke-width: 2px;
 }
 
@@ -51,9 +64,9 @@
   height: 10px;
   border-radius: 6px;
   background: linear-gradient(to right,
-      #60a5fa 50%,
-      #f472b6 50%);
-  border: 2px solid #fff;
+      hsl(var(--node-male)) 50%,
+      hsl(var(--node-female)) 50%);
+  border: 2px solid hsl(var(--card));
   cursor: pointer;
   z-index: 5;
 }
@@ -70,9 +83,9 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #10b981;
-  color: white;
-  border: 2px solid white;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: 2px solid hsl(var(--card));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -80,10 +93,11 @@
   z-index: 5;
   font-size: 16px;
   line-height: 1;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 16px -12px rgba(15, 23, 42, 0.6);
 }
 
 .add-member-btn:hover {
-  background: #059669;
-  transform: translateX(-50%) scale(1.1);
+  background: hsl(var(--primary));
+  transform: translateX(-50%) scale(1.08);
+  filter: brightness(0.95);
 }

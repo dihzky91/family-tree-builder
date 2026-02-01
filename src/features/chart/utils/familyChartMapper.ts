@@ -8,6 +8,8 @@ export interface FamilyChartDatum {
         'last name': string;
         birthday?: string;   // yyyy-mm-dd
         deathday?: string;   // yyyy-mm-dd (optional)
+        birthYear?: string;
+        deathYear?: string;
         avatar?: string;
         label?: string;
     };
@@ -43,6 +45,9 @@ export function transformToFamilyChartData(
         const firstName = parts[0] || '?';
         const lastName = parts.slice(1).join(' ') || '';
 
+        const birthYear = person.birthDate ? person.birthDate.slice(0, 4) : undefined;
+        const deathYear = person.deathDate ? person.deathDate.slice(0, 4) : undefined;
+
         return {
             id: person.id,
             data: {
@@ -53,6 +58,8 @@ export function transformToFamilyChartData(
                 // ⬇️ PENTING: gunakan undefined, bukan string kosong
                 birthday: person.birthDate || undefined,
                 deathday: person.deathDate || undefined,
+                birthYear: birthYear ? `* ${birthYear}` : undefined,
+                deathYear: deathYear ? `† ${deathYear}` : undefined,
 
                 avatar: person.photoUrl || undefined,
                 label: person.fullName,

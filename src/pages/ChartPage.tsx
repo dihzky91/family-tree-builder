@@ -202,6 +202,16 @@ export default function ChartPage() {
     }
   }, [searchQuery, fuse, setSelectedPerson]);
 
+  useEffect(() => {
+    if (viewMode !== 'family') return;
+    if (!isMobile) return;
+    if (!searchQuery) return;
+    const results = fuse.search(searchQuery);
+    if (results.length > 0) {
+      setSelectedPerson(results[0].item.id);
+    }
+  }, [viewMode, isMobile, searchQuery, fuse, setSelectedPerson]);
+
   const handleZoom = (direction: 'in' | 'out') => {
     if (direction === 'in') {
       zoomIn();
@@ -563,7 +573,7 @@ export default function ChartPage() {
             </motion.div>
           ) : (
             <div
-              className={`w-full h-full overflow-hidden ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              className={`w-full h-full overflow-hidden touch-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
               ref={panZoomContainerRef}
               {...panZoomHandlers}
             >

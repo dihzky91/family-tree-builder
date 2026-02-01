@@ -104,6 +104,10 @@ export function FamilyView({
     return { parents, spouses, children, siblings, grandparents };
   }, [selectedPerson, persons, relationships]);
 
+  const familyChartData = useMemo(() => {
+    return transformToFamilyChartData(persons, relationships);
+  }, [persons, relationships]);
+
   if (!selectedPerson || !familyData) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground p-8">
@@ -114,25 +118,6 @@ export function FamilyView({
       </div>
     );
   }
-
-  const familyChartData = useMemo(() => {
-    if (!selectedPerson) return [];
-    const relevantIds = new Set<string>([
-      selectedPerson.id,
-      ...familyData.parents.map(p => p.id),
-      ...familyData.spouses.map(p => p.id),
-      ...familyData.children.map(p => p.id),
-      ...familyData.siblings.map(p => p.id),
-      ...familyData.grandparents.map(p => p.id),
-    ]);
-
-    const filteredPersons = persons.filter(p => relevantIds.has(p.id));
-    const filteredRelationships = relationships.filter(
-      r => relevantIds.has(r.fromPersonId) && relevantIds.has(r.toPersonId)
-    );
-
-    return transformToFamilyChartData(filteredPersons, filteredRelationships);
-  }, [selectedPerson, familyData, persons, relationships]);
 
   return (
     <div className="w-full h-full">
