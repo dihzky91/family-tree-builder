@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { getSupabaseClient } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,9 @@ const nameSchema = z.string().min(2, 'Nama minimal 2 karakter').optional();
 export default function AuthPage() {
   const navigate = useNavigate();
   const { loadDemoData } = useFamilyStore();
+  const hasSupabaseConfig = Boolean(
+    import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  );
 
   const handleDemoClick = () => {
     loadDemoData();
@@ -43,13 +46,18 @@ export default function AuthPage() {
   // Check if user already exists (Single User Mode)
   useEffect(() => {
     const checkExistingUser = async () => {
+      if (!hasSupabaseConfig) {
+        setHasExistingUser(false);
+        return;
+      }
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase.rpc('has_registered_user');
       if (!error) {
         setHasExistingUser(data as boolean);
       }
     };
     checkExistingUser();
-  }, []);
+  }, [hasSupabaseConfig]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -135,6 +143,15 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
       <div className="w-full max-w-md">
+        {!hasSupabaseConfig && (
+          <div className="mb-6">
+            <Alert variant="destructive">
+              <AlertDescription>
+                Supabase belum dikonfigurasi. Pastikan VITE_SUPABASE_URL dan VITE_SUPABASE_PUBLISHABLE_KEY tersedia di environment production.
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">

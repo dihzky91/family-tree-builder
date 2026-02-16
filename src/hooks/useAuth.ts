@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { getSupabaseClient } from '@/integrations/supabase/client';
 
 interface Profile {
   id: string;
@@ -19,6 +19,9 @@ interface AuthState {
 }
 
 export function useAuth() {
+  const hasSupabaseConfig = Boolean(
+    import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  );
   const [state, setState] = useState<AuthState>({
     user: null,
     session: null,
@@ -27,6 +30,7 @@ export function useAuth() {
   });
 
   const fetchProfile = useCallback(async (userId: string) => {
+    const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -39,6 +43,12 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
+    if (!hasSupabaseConfig) {
+      setState(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
+
+    const supabase = getSupabaseClient();
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -75,9 +85,13 @@ export function useAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+  }, [fetchProfile, hasSupabaseConfig]);
 
   const signUp = async (email: string, password: string, displayName?: string) => {
+    if (!hasSupabaseConfig) {
+      return { data: null, error: new Error('Supabase is not configured') };
+    }
+    const supabase = getSupabaseClient();
     const redirectUrl = `${window.location.origin}/`;
     
     const { data, error } = await supabase.auth.signUp({
@@ -95,6 +109,10 @@ export function useAuth() {
   };
 
   const signIn = async (email: string, password: string) => {
+    if (!hasSupabaseConfig) {
+      return { data: null, error: new Error('Supabase is not configured') };
+    }
+    const supabase = getSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -104,13 +122,21 @@ export function useAuth() {
   };
 
   const signOut = async () => {
+    if (!hasSupabaseConfig) {
+      return { error: new Error('Supabase is not configured') };
+    }
+    const supabase = getSupabaseClient();
     const { error } = await supabase.auth.signOut();
     return { error };
   };
 
   const updateProfile = async (updates: Partial<Pick<Profile, 'display_name' | 'avatar_url'>>) => {
+    if (!hasSupabaseConfig) {
+      return { error: new Error('Supabase is not configured') };
+    }
     if (!state.user) return { error: new Error('No user logged in') };
 
+    const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('profiles')
       .update(updates)
