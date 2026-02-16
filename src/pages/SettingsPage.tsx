@@ -9,10 +9,13 @@ import {
   Info
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useFamilyStore } from '@/store/familyStore';
+import { isSupabaseConfigured } from '@/storage';
 
 export default function SettingsPage() {
   const [isDark, setIsDark] = useState(false);
-  const [privateMode, setPrivateMode] = useState(true);
+  const { isPrivateMode, setPrivateMode } = useFamilyStore();
+  const supabaseConfigured = isSupabaseConfigured();
 
   useEffect(() => {
     // Check initial dark mode
@@ -72,13 +75,16 @@ export default function SettingsPage() {
             <div>
               <Label htmlFor="private-mode" className="font-medium">Mode Privat</Label>
               <p className="text-sm text-muted-foreground">
-                Data disimpan lokal di perangkat ini saja
+                {isPrivateMode
+                  ? 'Data disimpan lokal di perangkat ini saja (IndexedDB)'
+                  : 'Data disimpan di cloud (Supabase) untuk akun ini'}
               </p>
             </div>
             <Switch
               id="private-mode"
-              checked={privateMode}
-              onCheckedChange={setPrivateMode}
+              checked={isPrivateMode}
+              onCheckedChange={(value) => setPrivateMode(value)}
+              disabled={!supabaseConfigured}
             />
           </div>
 
@@ -87,10 +93,15 @@ export default function SettingsPage() {
             <div className="text-sm">
               <p className="font-medium">Tentang Penyimpanan Data</p>
               <p className="text-muted-foreground mt-1">
-                Semua data Anda disimpan secara lokal di browser menggunakan IndexedDB. 
-                Tidak ada data yang dikirim ke server. Pastikan untuk melakukan backup 
-                secara berkala menggunakan fitur Export.
+                {isPrivateMode
+                  ? 'Semua data Anda disimpan secara lokal di browser menggunakan IndexedDB. Tidak ada data yang dikirim ke server.'
+                  : 'Data tersimpan di cloud dan terhubung ke akun Anda. Pastikan Anda menggunakan akun yang benar.'}
               </p>
+              {!supabaseConfigured && (
+                <p className="text-muted-foreground mt-2">
+                  Supabase belum dikonfigurasi. Mode cloud dinonaktifkan dan aplikasi akan memakai penyimpanan lokal.
+                </p>
+              )}
             </div>
           </div>
         </div>

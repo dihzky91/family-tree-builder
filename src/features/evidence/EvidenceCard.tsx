@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useFamilyStore } from '@/store/familyStore';
+import { useState, useEffect } from 'react';
 import type { Evidence, VerificationStatus } from '@/types';
 import { calculateConfidenceAdjustment } from '@/lib/confidenceScore';
+import { getEvidenceFileUrl } from '@/lib/evidenceStorage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -96,14 +96,32 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
   const [showStatusChange, setShowStatusChange] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<VerificationStatus | null>(null);
+  const [resolvedFileUrl, setResolvedFileUrl] = useState<string | null>(null);
 
   const config = statusConfig[evidence.status];
   const StatusIcon = config.icon;
-  const isImage = evidence.fileName?.match(/\.(jpg|jpeg|png|webp)$/i);
+  const fallbackFileName = evidence.filePath?.split('/').pop();
+  const fileName = evidence.fileName || fallbackFileName || '';
+  const isImage = fileName.match(/\.(jpg|jpeg|png|webp)$/i);
   
   // Support both legacy base64 (fileData) and new storage URLs (fileUrl)
-  const fileSource = evidence.fileUrl || evidence.fileData;
-  const hasFile = !!fileSource;
+  const fileSource = resolvedFileUrl || evidence.fileUrl || evidence.fileData;
+  const hasFile = Boolean(fileSource || evidence.filePath);
+
+  useEffect(() => {
+    if (!showPreview || !evidence.filePath) return;
+    let active = true;
+    getEvidenceFileUrl(evidence.filePath)
+      .then((url) => {
+        if (active) setResolvedFileUrl(url);
+      })
+      .catch((error) => {
+        console.warn('Failed to refresh evidence URL:', error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [showPreview, evidence.filePath]);
 
   const handleStatusSelect = (newStatus: VerificationStatus) => {
     if (newStatus === evidence.status) return;
@@ -136,10 +154,10 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
               "w-14 h-14 rounded-lg flex items-center justify-center shrink-0",
               config.bgColor
             )}>
-              {hasFile && isImage ? (
+              {hasFile && isImage && fileSource ? (
                 <img 
                   src={fileSource} 
-                  alt={evidence.fileName || 'Evidence'} 
+                  alt={fileName || 'Evidence'} 
                   className="w-full h-full object-cover rounded-lg cursor-pointer"
                   onClick={() => setShowPreview(true)}
                 />
@@ -229,23 +247,23 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{evidence.fileName || 'Preview Dokumen'}</DialogTitle>
+            <DialogTitle>{fileName || 'Preview Dokumen'}</DialogTitle>
           </DialogHeader>
           <div className="mt-4">
-            {hasFile && isImage ? (
+            {hasFile && isImage && fileSource ? (
               <img 
                 src={fileSource} 
-                alt={evidence.fileName || 'Evidence'} 
+                alt={fileName || 'Evidence'} 
                 className="w-full max-h-[70vh] object-contain rounded-lg"
               />
-            ) : hasFile ? (
+            ) : hasFile && fileSource ? (
               <div className="flex flex-col items-center justify-center py-12 bg-muted rounded-lg">
                 <FileText className="w-16 h-16 text-muted-foreground mb-4" />
-                <p className="font-medium">{evidence.fileName}</p>
+                <p className="font-medium">{fileName || 'Dokumen'}</p>
                 <p className="text-sm text-muted-foreground">File PDF</p>
                 <a 
                   href={fileSource} 
-                  download={evidence.fileName}
+                  download={fileName || undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-4"

@@ -164,6 +164,7 @@ export interface ExportData {
   persons: Person[];
   relationships: Relationship[];
   evidence: Evidence[];
+  stories: Story[];
 }
 
 // ============= FILTER TYPES =============

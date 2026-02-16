@@ -1,15 +1,16 @@
 import { openDB, type IDBPDatabase } from 'idb';
-import type { Person, Relationship, Evidence, AuditLog } from '@/types';
+import type { Person, Relationship, Evidence, AuditLog, Story } from '@/types';
 import type { StorageAdapter } from '../StorageAdapter';
 
 const DB_NAME = 'silsilah-keluarga';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 interface SilsilahDB {
   persons: Person;
   relationships: Relationship;
   evidence: Evidence;
   auditLogs: AuditLog;
+  stories: Story;
 }
 
 let dbInstance: IDBPDatabase<SilsilahDB> | null = null;
@@ -34,6 +35,9 @@ async function getDB(): Promise<IDBPDatabase<SilsilahDB>> {
       }
       if (!db.objectStoreNames.contains('auditLogs')) {
         db.createObjectStore('auditLogs', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('stories')) {
+        db.createObjectStore('stories', { keyPath: 'id' });
       }
     },
   });
@@ -144,6 +148,29 @@ export const indexedDBAdapter: StorageAdapter = {
     const db = await getDB();
     return db.getAll('auditLogs');
   },
+
+  // Story operations
+  async getAllStories() {
+    const db = await getDB();
+    return db.getAll('stories');
+  },
+
+  async createStory(story: Story) {
+    const db = await getDB();
+    await db.put('stories', story);
+    return story;
+  },
+
+  async updateStory(story: Story) {
+    const db = await getDB();
+    await db.put('stories', story);
+    return story;
+  },
+
+  async deleteStory(id: string) {
+    const db = await getDB();
+    await db.delete('stories', id);
+  },
   
   // Bulk operations
   async importData(persons: Person[], relationships: Relationship[], evidence: Evidence[]) {
@@ -165,11 +192,12 @@ export const indexedDBAdapter: StorageAdapter = {
   
   async clearAll() {
     const db = await getDB();
-    const tx = db.transaction(['persons', 'relationships', 'evidence', 'auditLogs'], 'readwrite');
+    const tx = db.transaction(['persons', 'relationships', 'evidence', 'auditLogs', 'stories'], 'readwrite');
     await tx.objectStore('persons').clear();
     await tx.objectStore('relationships').clear();
     await tx.objectStore('evidence').clear();
     await tx.objectStore('auditLogs').clear();
+    await tx.objectStore('stories').clear();
     await tx.done;
   },
 };

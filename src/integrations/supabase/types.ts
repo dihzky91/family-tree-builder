@@ -383,6 +383,45 @@ export type Database = {
           },
         ]
       }
+      stories: {
+        Row: {
+          author_id: string | null
+          content: string
+          created_at: string
+          date: string | null
+          id: string
+          person_ids: string[] | null
+          tags: string[] | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          content: string
+          created_at?: string
+          date?: string | null
+          id?: string
+          person_ids?: string[] | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          author_id?: string | null
+          content?: string
+          created_at?: string
+          date?: string | null
+          id?: string
+          person_ids?: string[] | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -30,7 +30,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 export default function DataPage() {
-  const { exportData, importData, clearAllData, persons, relationships, evidence } = useFamilyStore();
+  const { exportData, importData, clearAllData, persons, relationships, evidence, stories } = useFamilyStore();
   const [importText, setImportText] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -124,6 +124,7 @@ export default function DataPage() {
         personsCount: data.persons.length,
         relationshipsCount: data.relationships?.length || 0,
         evidenceCount: data.evidence?.length || 0,
+        storiesCount: data.stories?.length || 0,
         exportedAt: data.exportedAt,
       });
     } catch (error: any) {
@@ -194,6 +195,7 @@ export default function DataPage() {
                 <li>• {persons.length} anggota keluarga</li>
                 <li>• {relationships.length} relasi</li>
                 <li>• {evidence.length} dokumen</li>
+                <li>• {stories.length} cerita</li>
               </ul>
             </div>
 
@@ -301,6 +303,7 @@ export default function DataPage() {
                     <li>{importPreview.personsCount} anggota</li>
                     <li>{importPreview.relationshipsCount} relasi</li>
                     <li>{importPreview.evidenceCount} dokumen</li>
+                    <li>{importPreview.storiesCount} cerita</li>
                   </ul>
                 </div>
               </div>

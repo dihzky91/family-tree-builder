@@ -1,4 +1,4 @@
-import type { Person, Relationship, Evidence, AuditLog, Branch } from '@/types';
+import type { Person, Relationship, Evidence, AuditLog, Branch, Story } from '@/types';
 
 export interface StorageAdapter {
   // Person operations
@@ -26,6 +26,12 @@ export interface StorageAdapter {
   // Audit operations
   createAuditLog(log: AuditLog): Promise<AuditLog>;
   getAuditLogs(): Promise<AuditLog[]>;
+
+  // Story operations
+  getAllStories(): Promise<Story[]>;
+  createStory(story: Story): Promise<Story>;
+  updateStory(story: Story): Promise<Story>;
+  deleteStory(id: string): Promise<void>;
   
   // Branch operations
   getAllBranches?(): Promise<Branch[]>;

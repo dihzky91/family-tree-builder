@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { Person, Relationship, Evidence, AuditLog, FamilyChartPerson, Story, Branch } from '@/types';
-import { storage } from '@/storage';
+import { storage, setStorageMode, isSupabaseConfigured, type StorageMode } from '@/storage';
 import { getDemoData } from '@/data/demoData';
+import { deleteEvidenceFile } from '@/lib/evidenceStorage';
 
 interface UndoAction {
   type: 'DELETE_PERSON' | 'DELETE_RELATIONSHIP' | 'DELETE_STORY';
@@ -25,6 +26,7 @@ interface FamilyState {
   searchQuery: string;
   undoStack: UndoAction[];
   isDemoMode: boolean;
+  isPrivateMode: boolean;
 
   // Actions
   loadData: () => Promise<void>;
@@ -55,6 +57,9 @@ interface FamilyState {
   toggleZenMode: () => void;
   isZenMode: boolean;
 
+  // Storage mode
+  setPrivateMode: (isPrivate: boolean) => Promise<void>;
+
   // Undo
   undo: () => Promise<void>;
 
@@ -78,6 +83,16 @@ interface FamilyState {
   exitDemoMode: () => Promise<void>;
 }
 
+const STORAGE_MODE_KEY = 'silsilah-storage-mode';
+
+const getInitialPrivateMode = (): boolean => {
+  if (typeof localStorage === 'undefined') return !isSupabaseConfigured();
+  const stored = localStorage.getItem(STORAGE_MODE_KEY);
+  if (stored === 'private') return true;
+  if (stored === 'cloud') return false;
+  return !isSupabaseConfigured();
+};
+
 export const useFamilyStore = create<FamilyState>((set, get) => ({
   persons: [],
   relationships: [],
@@ -91,31 +106,52 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   isZenMode: false,
   undoStack: [],
   isDemoMode: false,
+  isPrivateMode: getInitialPrivateMode(),
 
   toggleZenMode: () => set(state => ({ isZenMode: !state.isZenMode })),
+
+  setPrivateMode: async (isPrivate) => {
+    const mode: StorageMode = isPrivate ? 'private' : 'cloud';
+    const activeMode = await setStorageMode(mode);
+    const nextIsPrivate = activeMode === 'private';
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_MODE_KEY, activeMode);
+    }
+    set({ isPrivateMode: nextIsPrivate });
+    await get().loadData();
+  },
 
   loadData: async () => {
     if (get().isDemoMode) return;
     set({ isLoading: true });
     try {
+      const desiredMode: StorageMode = get().isPrivateMode ? 'private' : 'cloud';
+      const activeMode = await setStorageMode(desiredMode);
+      if (activeMode !== desiredMode) {
+        const nextIsPrivate = activeMode === 'private';
+        set({ isPrivateMode: nextIsPrivate });
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(STORAGE_MODE_KEY, activeMode);
+        }
+      }
+
       const [persons, relationships, evidence, auditLogs] = await Promise.all([
         storage.getAllPersons(),
         storage.getAllRelationships(),
         storage.getAllEvidence(),
         storage.getAuditLogs(),
       ]);
+
+      const stories = await storage.getAllStories();
       
-      // Load branches if the method exists
       let branches: Branch[] = [];
-      if (storage.getAllBranches) {
-        try {
-          branches = await storage.getAllBranches();
-        } catch (e) {
-          console.warn('Failed to load branches:', e);
-        }
+      try {
+        branches = await storage.getAllBranches();
+      } catch (e) {
+        console.warn('Failed to load branches:', e);
       }
       
-      set({ persons, relationships, evidence, auditLogs, branches, isLoading: false });
+      set({ persons, relationships, evidence, auditLogs, branches, stories, isLoading: false });
     } catch (error) {
       console.error('Failed to load data:', error);
       set({ isLoading: false });
@@ -309,6 +345,15 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   },
 
   deleteEvidence: async (id) => {
+    const state = get();
+    const existing = state.evidence.find(e => e.id === id);
+    if (existing?.filePath) {
+      try {
+        await deleteEvidenceFile(existing.filePath);
+      } catch (error) {
+        console.warn('Failed to delete evidence file:', error);
+      }
+    }
     await storage.deleteEvidence(id);
     set(state => ({
       evidence: state.evidence.filter(e => e.id !== id),
@@ -356,10 +401,11 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     const data = {
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
-      checksum: btoa(String(state.persons.length + state.relationships.length)),
+      checksum: btoa(String(state.persons.length + state.relationships.length + state.stories.length)),
       persons: state.persons,
       relationships: state.relationships,
       evidence: state.evidence,
+      stories: state.stories,
     };
     return JSON.stringify(data, null, 2);
   },
@@ -368,6 +414,15 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     try {
       const data = JSON.parse(jsonData);
       await storage.importData(data.persons || [], data.relationships || [], data.evidence || []);
+      if (Array.isArray(data.stories)) {
+        for (const story of data.stories) {
+          try {
+            await storage.createStory(story);
+          } catch (error) {
+            console.warn('Failed to import story:', error);
+          }
+        }
+      }
       await get().loadData();
     } catch (error) {
       console.error('Import failed:', error);
@@ -382,6 +437,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       relationships: [],
       evidence: [],
       auditLogs: [],
+      stories: [],
       selectedPersonId: null,
       undoStack: [],
     });
@@ -489,8 +545,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       updatedAt: now,
     };
 
-    // Ideally save to storage, but skipping storage modification for now or adding later
-    // await storage.createStory(story);
+    await storage.createStory(story);
 
     set(state => ({
       stories: [...state.stories, story],
@@ -510,7 +565,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    // await storage.updateStory(updated);
+    await storage.updateStory(updated);
 
     set(state => ({
       stories: state.stories.map(s => s.id === id ? updated : s),
@@ -518,7 +573,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   },
 
   deleteStory: async (id) => {
-    // await storage.deleteStory(id);
+    await storage.deleteStory(id);
     set(state => ({
       stories: state.stories.filter(s => s.id !== id),
     }));

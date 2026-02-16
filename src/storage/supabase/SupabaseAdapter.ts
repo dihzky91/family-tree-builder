@@ -1,5 +1,6 @@
 import type { StorageAdapter } from '../StorageAdapter';
-import type { Person, Relationship, Evidence, AuditLog } from '@/types';
+import type { Person, Relationship, Evidence, AuditLog, Story } from '@/types';
+import type { Tables, TablesInsert } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 
 // Helper to get current user id
@@ -7,6 +8,68 @@ async function getCurrentUserId(): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
   return user.id;
+}
+
+const STORIES_STORAGE_PREFIX = 'silsilah-stories';
+
+async function getStoriesStorageKey(): Promise<string> {
+  try {
+    const userId = await getCurrentUserId();
+    return `${STORIES_STORAGE_PREFIX}:${userId}`;
+  } catch {
+    return `${STORIES_STORAGE_PREFIX}:anon`;
+  }
+}
+
+type DbStory = Tables<'stories'>;
+type DbStoryInsert = TablesInsert<'stories'>;
+
+function dbToStory(row: DbStory): Story {
+  return {
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    authorId: row.author_id || null,
+    personIds: row.person_ids || [],
+    date: row.date || null,
+    tags: row.tags || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function storyToDb(story: Story, userId: string): DbStoryInsert {
+  return {
+    id: story.id,
+    user_id: userId,
+    title: story.title,
+    content: story.content,
+    author_id: story.authorId || null,
+    person_ids: story.personIds || [],
+    date: story.date || null,
+    tags: story.tags || [],
+    created_at: story.createdAt,
+    updated_at: story.updatedAt,
+  };
+}
+
+const storiesTable = () => supabase.from('stories');
+
+function readStories(storageKey: string): Story[] {
+  if (typeof localStorage === 'undefined') return [];
+  const raw = localStorage.getItem(storageKey);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStories(storageKey: string, stories: Story[]): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(storageKey, JSON.stringify(stories));
 }
 
 // Transform DB row to Person type
@@ -364,6 +427,87 @@ export class SupabaseAdapter implements StorageAdapter {
     return (data || []).map(dbToAuditLog);
   }
 
+  // Story operations (local-only for now)
+  async getAllStories(): Promise<Story[]> {
+    try {
+      const { data, error } = await storiesTable()
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      const rows = data || [];
+      return rows.map((row) => dbToStory(row));
+    } catch (error) {
+      console.warn('Stories table unavailable, using local storage.', error);
+      const storageKey = await getStoriesStorageKey();
+      return readStories(storageKey);
+    }
+  }
+
+  async createStory(story: Story): Promise<Story> {
+    try {
+      const userId = await getCurrentUserId();
+      const { data, error } = await storiesTable()
+        .insert(storyToDb(story, userId))
+        .select()
+        .single();
+
+      if (error) throw error;
+      return dbToStory(data as DbStory);
+    } catch (error) {
+      console.warn('Stories table unavailable, using local storage.', error);
+      const storageKey = await getStoriesStorageKey();
+      const stories = readStories(storageKey);
+      const next = stories.filter(s => s.id !== story.id).concat(story);
+      writeStories(storageKey, next);
+      return story;
+    }
+  }
+
+  async updateStory(story: Story): Promise<Story> {
+    try {
+      const { data, error } = await storiesTable()
+        .update({
+          title: story.title,
+          content: story.content,
+          author_id: story.authorId || null,
+          person_ids: story.personIds || [],
+          date: story.date || null,
+          tags: story.tags || [],
+          updated_at: story.updatedAt,
+        })
+        .eq('id', story.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return dbToStory(data as DbStory);
+    } catch (error) {
+      console.warn('Stories table unavailable, using local storage.', error);
+      const storageKey = await getStoriesStorageKey();
+      const stories = readStories(storageKey);
+      const next = stories.map(s => s.id === story.id ? story : s);
+      writeStories(storageKey, next);
+      return story;
+    }
+  }
+
+  async deleteStory(id: string): Promise<void> {
+    try {
+      const { error } = await storiesTable()
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.warn('Stories table unavailable, using local storage.', error);
+      const storageKey = await getStoriesStorageKey();
+      const stories = readStories(storageKey);
+      const next = stories.filter(s => s.id !== id);
+      writeStories(storageKey, next);
+    }
+  }
+
   // Bulk operations
   async importData(persons: Person[], relationships: Relationship[], evidence: Evidence[]): Promise<void> {
     const userId = await getCurrentUserId();
@@ -402,6 +546,15 @@ export class SupabaseAdapter implements StorageAdapter {
     await supabase.from('relationships').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('persons').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+    try {
+      await storiesTable().delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    } catch (error) {
+      console.warn('Stories table unavailable, skipping clear.', error);
+    }
+
+    const storageKey = await getStoriesStorageKey();
+    writeStories(storageKey, []);
   }
 }
 
