@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useRateLimit } from '@/hooks/useRateLimit';
 import { getSupabaseClient } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,15 @@ import { z } from 'zod';
 import { useFamilyStore } from '@/store/familyStore';
 
 const emailSchema = z.string().email('Email tidak valid');
-const passwordSchema = z.string().min(6, 'Password minimal 6 karakter');
+
+// Enhanced password policy: min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+const passwordSchema = z.string()
+  .min(8, 'Password minimal 8 karakter')
+  .regex(/[A-Z]/, 'Password harus mengandung minimal 1 huruf besar')
+  .regex(/[a-z]/, 'Password harus mengandung minimal 1 huruf kecil')
+  .regex(/[0-9]/, 'Password harus mengandung minimal 1 angka')
+  .regex(/[^A-Za-z0-9]/, 'Password harus mengandung minimal 1 karakter khusus (!@#$%^&*)');
+
 const nameSchema = z.string().min(2, 'Nama minimal 2 karakter').optional();
 
 export default function AuthPage() {
@@ -28,6 +37,7 @@ export default function AuthPage() {
     navigate('/');
   };
   const { signIn, signUp, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isLocked, remainingAttempts, recordAttempt, resetAttempts, formatRemainingTime } = useRateLimit('login');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +78,13 @@ export default function AuthPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Check if user is rate limited
+    if (isLocked) {
+      setError(`Terlalu banyak percobaan login. Silakan coba lagi dalam ${formatRemainingTime()}.`);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -84,13 +101,24 @@ export default function AuthPage() {
     const { error } = await signIn(loginEmail, loginPassword);
 
     if (error) {
+      // Record failed attempt
+      recordAttempt();
+
       if (error.message.includes('Invalid login credentials')) {
-        setError('Email atau password salah');
+        const remaining = remainingAttempts - 1;
+        if (remaining <= 0) {
+          setError(`Email atau password salah. Akun terkunci selama 15 menit karena terlalu banyak percobaan.`);
+        } else {
+          setError(`Email atau password salah. Sisa percobaan: ${remaining}`);
+        }
       } else if (error.message.includes('Email not confirmed')) {
         setError('Email belum dikonfirmasi. Silakan cek inbox Anda.');
       } else {
         setError(error.message);
       }
+    } else {
+      // Login successful, reset attempts
+      resetAttempts();
     }
 
     setIsLoading(false);

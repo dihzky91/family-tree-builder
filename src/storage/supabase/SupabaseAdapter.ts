@@ -398,19 +398,19 @@ export class SupabaseAdapter implements StorageAdapter {
   // Audit operations
   async createAuditLog(log: AuditLog): Promise<AuditLog> {
     const userId = await getCurrentUserId();
-    const { data, error } = await supabase
-      .from('audit_logs')
-      .insert({
-        id: log.id,
-        user_id: userId,
-        action: log.action,
-        entity_type: log.entityType,
-        entity_id: log.entityId,
-        changes: log.changes || null,
-        timestamp: log.timestamp,
-      })
-      .select()
-      .single();
+    
+    // Use the security definer function to create audit log
+    // This bypasses RLS and ensures only the system can create audit logs
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
+    const { data, error } = await client
+      .rpc('create_audit_log', {
+        p_user_id: userId,
+        p_action: log.action,
+        p_entity_type: log.entityType,
+        p_entity_id: log.entityId,
+        p_changes: log.changes || null,
+      });
     
     if (error) throw error;
     return dbToAuditLog(data);
