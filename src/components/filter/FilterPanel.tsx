@@ -262,7 +262,7 @@ export function FilterPanel({ filterConfig, onFilterChange, persons, relationshi
             <div className="md:hidden">
                 <Sheet open={isOpen} onOpenChange={setIsOpen}>
                     <SheetTrigger asChild>
-                        <Button variant="outline" className="gap-2">
+                        <Button variant="outline" className="h-11 w-full gap-2 sm:w-auto">
                             <Filter className="w-4 h-4" />
                             Filter
                             {activeFilterCount > 0 && (
@@ -272,7 +272,7 @@ export function FilterPanel({ filterConfig, onFilterChange, persons, relationshi
                             )}
                         </Button>
                     </SheetTrigger>
-                    <SheetContent side="right" className="w-[300px] sm:w-[400px] overflow-y-auto">
+                    <SheetContent side="bottom" className="max-h-[85vh] rounded-t-3xl overflow-y-auto px-4 pb-8">
                         <SheetHeader>
                             <SheetTitle>Filter Anggota</SheetTitle>
                             <SheetDescription>Sesuaikan tampilan data anggota keluarga</SheetDescription>

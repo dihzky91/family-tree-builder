@@ -32,23 +32,23 @@ export function FamilyUnitAccordion({
       collapsible
       defaultValue={defaultOpen ? family.id : undefined}
     >
-      <AccordionItem value={family.id} className="border rounded-lg bg-card">
-        <AccordionTrigger className="px-3 py-2 hover:no-underline hover:bg-accent/50 rounded-t-lg [&[data-state=open]]:rounded-b-none">
+      <AccordionItem value={family.id} className="rounded-2xl border bg-card px-0">
+        <AccordionTrigger className="rounded-t-2xl px-4 py-3 hover:bg-accent/50 hover:no-underline [&[data-state=open]]:rounded-b-none">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {/* Family Icon */}
-            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Users className="w-4 h-4" />
             </div>
 
             {/* Family Info */}
             <div className="flex-1 min-w-0 text-left">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold truncate text-sm">{family.familyName}</span>
-                <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
+                <span className="truncate text-sm font-semibold md:text-base">{family.familyName}</span>
+                <Badge variant="secondary" className="h-5 shrink-0 text-[10px]">
                   Gen {family.generation}
                 </Badge>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Heart className="w-3 h-3" />
                 <span>{family.parents.length} orang tua</span>
                 <span>•</span>
@@ -58,7 +58,7 @@ export function FamilyUnitAccordion({
           </div>
         </AccordionTrigger>
 
-        <AccordionContent className="px-3 pb-3 pt-1">
+        <AccordionContent className="px-4 pb-4 pt-1">
           <div className="space-y-3">
             {/* Parents Section */}
             <div>

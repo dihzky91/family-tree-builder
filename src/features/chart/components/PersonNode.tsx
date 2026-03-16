@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { User, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -11,6 +12,7 @@ interface PersonNodeProps {
   showAddButton?: boolean;
   onAdd?: () => void;
   layoutId?: string;
+  reduceMotion?: boolean;
 }
 
 function truncateName(name: string, maxLength: number): string {
@@ -30,14 +32,15 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export function PersonNode({
+export const PersonNode = memo(function PersonNode({
   person,
   isSelected,
   onClick,
   size = 'normal',
   showAddButton,
   onAdd,
-  layoutId
+  layoutId,
+  reduceMotion = false,
 }: PersonNodeProps) {
   const yearBirth = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
   const yearDeath = person.deathDate ? new Date(person.deathDate).getFullYear() : null;
@@ -50,6 +53,7 @@ export function PersonNode({
 
   const config = sizeConfig[size];
   const displayName = truncateName(person.fullName, config.maxChars);
+  const compactNode = reduceMotion;
 
   const genderColors = {
     male: {
@@ -70,48 +74,71 @@ export function PersonNode({
   };
 
   const colors = genderColors[person.gender];
+  const cardLayoutId = reduceMotion ? undefined : (layoutId || `person-${person.id}`);
+  const wrapperAnimation = reduceMotion
+    ? undefined
+    : {
+        opacity: 1,
+        scale: 1,
+        transition: { type: 'spring' as const, stiffness: 300, damping: 25 },
+      };
+  const buttonAnimation = reduceMotion
+    ? undefined
+    : {
+        scale: isSelected ? 1.05 : 1,
+        boxShadow: isSelected
+          ? '0 8px 25px -5px rgba(0, 0, 0, 0.2)'
+          : '0 2px 10px -3px rgba(0, 0, 0, 0.1)',
+      };
 
   return (
     <motion.div
       className="relative group"
-      layoutId={layoutId || `person-${person.id}`}
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{
-        opacity: 1,
-        scale: 1,
-        transition: { type: "spring", stiffness: 300, damping: 25 }
-      }}
-      exit={{ opacity: 0, scale: 0.8 }}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+      layoutId={cardLayoutId}
+      initial={reduceMotion ? false : { opacity: 0, scale: 0.8 }}
+      animate={wrapperAnimation}
+      exit={reduceMotion ? undefined : { opacity: 0, scale: 0.8 }}
+      whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.98 }}
     >
       <motion.button
         onClick={onClick}
         data-person-id={person.id}
         className={cn(
-          "flex flex-col items-center rounded-lg border-2",
+          'relative flex flex-col items-center overflow-hidden rounded-2xl text-foreground',
           config.card,
-          colors.border,
-          colors.bg,
-          isSelected && "ring-2 ring-offset-2 ring-accent shadow-warm"
+          compactNode
+            ? 'border border-border/70 bg-background/92 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.7)]'
+            : 'border-2 shadow-[0_14px_32px_-24px_rgba(15,23,42,0.7)]',
+          !compactNode && colors.border,
+          !compactNode && colors.bg,
+          isSelected && 'ring-2 ring-offset-2 ring-accent shadow-warm'
         )}
-        animate={{
-          scale: isSelected ? 1.05 : 1,
-          boxShadow: isSelected
-            ? "0 8px 25px -5px rgba(0, 0, 0, 0.2)"
-            : "0 2px 10px -3px rgba(0, 0, 0, 0.1)"
-        }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        animate={buttonAnimation}
+        transition={reduceMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 400, damping: 25 }}
       >
+        {compactNode && (
+          <span
+            className={cn(
+              'absolute inset-x-0 top-0 h-1.5',
+              person.gender === 'male'
+                ? 'bg-node-male/80'
+                : person.gender === 'female'
+                  ? 'bg-node-female/80'
+                  : 'bg-node-unknown/80'
+            )}
+          />
+        )}
+
         {/* Avatar */}
         <motion.div
           className={cn(
-            "rounded-full flex items-center justify-center mb-1.5",
+            'mb-1.5 flex items-center justify-center rounded-full',
             config.avatar,
-            colors.avatar
+            compactNode ? 'bg-muted text-foreground' : colors.avatar
           )}
-          animate={{ scale: isSelected ? 1.1 : 1 }}
-          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          animate={reduceMotion ? undefined : { scale: isSelected ? 1.1 : 1 }}
+          transition={reduceMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 400, damping: 25 }}
         >
           {person.photoUrl ? (
             <img
@@ -151,7 +178,7 @@ export function PersonNode({
         </span>
 
         {/* Years */}
-        <span className={cn("text-muted-foreground", config.yearSize)}>
+        <span className={cn('text-muted-foreground', config.yearSize)}>
           {yearBirth || '?'}{yearDeath ? ` - ${yearDeath}` : ''}
         </span>
 
@@ -175,10 +202,10 @@ export function PersonNode({
         {isSelected && (
           <motion.div
             className="absolute inset-0 rounded-lg bg-accent/20 -z-10"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1.1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.8 }}
+            animate={reduceMotion ? { opacity: 1, scale: 1 } : { opacity: 1, scale: 1.1 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.8 }}
+            transition={reduceMotion ? { duration: 0 } : { type: 'spring' as const, stiffness: 300, damping: 25 }}
           />
         )}
       </AnimatePresence>
@@ -190,11 +217,11 @@ export function PersonNode({
             onClick={(e) => { e.stopPropagation(); onAdd(); }}
             className="absolute -right-2 -top-2 w-6 h-6 rounded-full bg-primary text-primary-foreground 
               flex items-center justify-center hover:bg-primary/80 shadow-md"
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0 }}
+            animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0 }}
+            whileHover={reduceMotion ? undefined : { scale: 1.1 }}
+            whileTap={reduceMotion ? undefined : { scale: 0.9 }}
           >
             <Plus className="w-3 h-3" />
           </motion.button>
@@ -202,7 +229,9 @@ export function PersonNode({
       </AnimatePresence>
     </motion.div>
   );
-}
+});
+
+PersonNode.displayName = 'PersonNode';
 
 interface PlaceholderNodeProps {
   label: string;

@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 const tabs = [
-  { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'overview', label: 'Ringkasan', icon: BarChart3 },
   { id: 'relationships', label: 'Relasi', icon: GitBranch },
   { id: 'places', label: 'Tempat', icon: MapPin },
   { id: 'ages', label: 'Usia', icon: Clock },

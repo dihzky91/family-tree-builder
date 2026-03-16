@@ -257,6 +257,46 @@
   .search-highlight {
     @apply bg-accent/30 rounded px-0.5;
   }
+
+  .soft-scroll {
+    scrollbar-width: none;
+    scrollbar-color: transparent transparent;
+  }
+
+  .soft-scroll:hover,
+  .soft-scroll:focus-within {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--sidebar-foreground) / 0.26) transparent;
+  }
+
+  .soft-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .soft-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .soft-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--sidebar-foreground) / 0);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 180ms ease;
+  }
+
+  .soft-scroll:hover::-webkit-scrollbar-thumb,
+  .soft-scroll:focus-within::-webkit-scrollbar-thumb {
+    background: hsl(var(--sidebar-foreground) / 0.26);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .scroll-fade-mask {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
+  }
 }
 
 @layer utilities {

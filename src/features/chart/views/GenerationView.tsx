@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { Person, Relationship } from '@/types';
 import { PersonNode } from '../components/PersonNode';
 import { Heart } from 'lucide-react';
@@ -16,39 +16,47 @@ interface FamilyUnitData {
   children: Person[];
 }
 
-export function GenerationView({ persons, relationships, selectedPersonId, onSelectPerson }: GenerationViewProps) {
+function getYear(date?: string) {
+  return date ? new Date(date).getFullYear() : null;
+}
+
+function getRangeLabel(people: Person[]) {
+  const years = people
+    .map((person) => getYear(person.birthDate))
+    .filter((year): year is number => year !== null)
+    .sort((a, b) => a - b);
+
+  if (years.length === 0) return 'Tahun tidak diketahui';
+  if (years.length === 1) return `${years[0]}`;
+  return `${years[0]} - ${years[years.length - 1]}`;
+}
+
+export const GenerationView = memo(function GenerationView({ persons, relationships, selectedPersonId, onSelectPerson }: GenerationViewProps) {
   // Build hierarchical family structure by generation
   const generationData = useMemo(() => {
     if (persons.length === 0) return [];
+
+    const personById = new Map(persons.map((person) => [person.id, person]));
 
     // Build maps for relationships
     const childToParents = new Map<string, Set<string>>();
     const parentToChildren = new Map<string, Set<string>>();
     const spouseMap = new Map<string, Set<string>>();
 
+    const addToSetMap = (map: Map<string, Set<string>>, key: string, value: string) => {
+      if (!map.has(key)) {
+        map.set(key, new Set());
+      }
+      map.get(key)!.add(value);
+    };
+
     relationships.forEach(r => {
       if (r.type === 'PARENT_CHILD') {
-        // Child -> Parents
-        if (!childToParents.has(r.toPersonId)) {
-          childToParents.set(r.toPersonId, new Set());
-        }
-        childToParents.get(r.toPersonId)!.add(r.fromPersonId);
-
-        // Parent -> Children
-        if (!parentToChildren.has(r.fromPersonId)) {
-          parentToChildren.set(r.fromPersonId, new Set());
-        }
-        parentToChildren.get(r.fromPersonId)!.add(r.toPersonId);
+        addToSetMap(childToParents, r.toPersonId, r.fromPersonId);
+        addToSetMap(parentToChildren, r.fromPersonId, r.toPersonId);
       } else if (r.type === 'SPOUSE') {
-        if (!spouseMap.has(r.fromPersonId)) {
-          spouseMap.set(r.fromPersonId, new Set());
-        }
-        spouseMap.get(r.fromPersonId)!.add(r.toPersonId);
-        
-        if (!spouseMap.has(r.toPersonId)) {
-          spouseMap.set(r.toPersonId, new Set());
-        }
-        spouseMap.get(r.toPersonId)!.add(r.fromPersonId);
+        addToSetMap(spouseMap, r.fromPersonId, r.toPersonId);
+        addToSetMap(spouseMap, r.toPersonId, r.fromPersonId);
       }
     });
 
@@ -107,7 +115,7 @@ export function GenerationView({ persons, relationships, selectedPersonId, onSel
 
           // Get spouses in same generation
           const spouses = Array.from(spouseMap.get(person.id) || [])
-            .map(id => persons.find(p => p.id === id))
+            .map(id => personById.get(id))
             .filter((p): p is Person => !!p && personGeneration.get(p.id) === gen);
 
           const parents = [person];
@@ -130,7 +138,7 @@ export function GenerationView({ persons, relationships, selectedPersonId, onSel
           });
 
           const children = Array.from(childrenIds)
-            .map(id => persons.find(p => p.id === id))
+            .map(id => personById.get(id))
             .filter((p): p is Person => !!p)
             .sort((a, b) => {
               const da = a.birthDate ? new Date(a.birthDate).getTime() : 0;
@@ -158,22 +166,36 @@ export function GenerationView({ persons, relationships, selectedPersonId, onSel
   }
 
   return (
-    <div className="p-6 space-y-10">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-8 px-6 py-8">
       {generationData.map(({ generation, familyUnits }) => (
-        <div key={generation}>
-          {/* Generation Header */}
-          <div className="flex items-center gap-3 mb-4">
-            <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-              {generation}
-            </span>
-            <h3 className="font-display font-semibold text-lg">Generasi {generation}</h3>
-            <span className="text-sm text-muted-foreground">
-              ({familyUnits.reduce((acc, u) => acc + u.parents.length, 0)} orang)
-            </span>
+        <section
+          key={generation}
+          className="rounded-[28px] border border-border/60 bg-background/88 p-5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.45)] backdrop-blur-sm"
+        >
+          <div className="mb-5 flex flex-col gap-4 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-sm">
+                G{generation}
+              </span>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Cluster generasi</p>
+                <h3 className="mt-1 font-display text-xl font-semibold text-foreground">Generasi {generation}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {familyUnits.reduce((acc, unit) => acc + unit.parents.length + unit.children.length, 0)} anggota terlihat dalam {familyUnits.length} unit keluarga.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span className="rounded-full border border-border/70 bg-muted/50 px-3 py-1.5">
+                {familyUnits.reduce((acc, unit) => acc + unit.parents.length, 0)} orang tua/pasangan
+              </span>
+              <span className="rounded-full border border-border/70 bg-muted/50 px-3 py-1.5">
+                {familyUnits.reduce((acc, unit) => acc + unit.children.length, 0)} anak terhubung
+              </span>
+            </div>
           </div>
 
-          {/* Family Units */}
-          <div className="flex flex-wrap gap-6 pl-11">
+          <div className="grid gap-5 pl-0 md:grid-cols-2 2xl:grid-cols-3">
             {familyUnits.map((unit, idx) => (
               <FamilyUnitCard
                 key={idx}
@@ -183,11 +205,13 @@ export function GenerationView({ persons, relationships, selectedPersonId, onSel
               />
             ))}
           </div>
-        </div>
+        </section>
       ))}
     </div>
   );
-}
+});
+
+GenerationView.displayName = 'GenerationView';
 
 interface FamilyUnitCardProps {
   unit: FamilyUnitData;
@@ -195,43 +219,86 @@ interface FamilyUnitCardProps {
   onSelectPerson: (id: string) => void;
 }
 
-function FamilyUnitCard({ unit, selectedPersonId, onSelectPerson }: FamilyUnitCardProps) {
+const FamilyUnitCard = memo(function FamilyUnitCard({ unit, selectedPersonId, onSelectPerson }: FamilyUnitCardProps) {
   const hasChildren = unit.children.length > 0;
+  const familyRange = getRangeLabel([...unit.parents, ...unit.children]);
+  const selectedInsideUnit = [...unit.parents, ...unit.children].some((person) => person.id === selectedPersonId);
 
   return (
-    <div className="flex flex-col items-center bg-card/50 rounded-xl p-4 border border-border/50">
-      {/* Parents */}
-      <div className="flex items-center gap-2">
-        {unit.parents.map((parent, idx) => (
-          <div key={parent.id} className="flex items-center gap-2">
-            {idx > 0 && <Heart className="w-4 h-4 text-accent fill-accent" />}
-            <PersonNode
-              person={parent}
-              isSelected={selectedPersonId === parent.id}
-              onClick={() => onSelectPerson(parent.id)}
-            />
-          </div>
-        ))}
+    <article
+      className={cn(
+        'relative overflow-hidden rounded-[24px] border bg-card/88 p-4 shadow-[0_14px_36px_-28px_rgba(15,23,42,0.55)] transition-colors',
+        selectedInsideUnit ? 'border-primary/50 bg-primary/[0.04]' : 'border-border/70'
+      )}
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,hsl(var(--primary)/0.08),transparent)]" />
+      <div className="relative flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Unit keluarga</p>
+          <h4 className="mt-1 text-sm font-semibold text-foreground">
+            {unit.parents.map((parent) => parent.fullName.split(' ')[0]).join(' & ')}
+          </h4>
+        </div>
+        <div className="flex flex-col items-end gap-2 text-[11px] text-muted-foreground">
+          <span className="rounded-full border border-border/70 bg-background/80 px-2.5 py-1">
+            {hasChildren ? `${unit.children.length} anak` : 'Belum ada anak'}
+          </span>
+          <span>{familyRange}</span>
+        </div>
       </div>
 
-      {/* Connector & Children */}
+      <div className="relative mt-4 rounded-2xl border border-border/60 bg-background/70 p-3">
+        <div className="mb-3 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span>Pasangan inti</span>
+          {unit.parents.length > 1 && <Heart className="h-3.5 w-3.5 fill-accent text-accent" />}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {unit.parents.map((parent, idx) => (
+            <div key={parent.id} className="flex items-center gap-2">
+              {idx > 0 && <Heart className="h-4 w-4 text-accent/80 fill-accent/80" />}
+              <PersonNode
+                person={parent}
+                isSelected={selectedPersonId === parent.id}
+                onClick={() => onSelectPerson(parent.id)}
+                reduceMotion
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
       {hasChildren && (
         <>
-          <div className="w-px h-4 bg-border mt-3" />
-          <div className="text-xs text-muted-foreground mb-2">Anak:</div>
-          <div className="flex flex-wrap gap-2 justify-center max-w-md">
-            {unit.children.map(child => (
-              <PersonNode
-                key={child.id}
-                person={child}
-                isSelected={selectedPersonId === child.id}
-                onClick={() => onSelectPerson(child.id)}
-                size="small"
-              />
-            ))}
+          <div className="mx-auto my-3 flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background text-xs font-semibold text-muted-foreground">
+            {unit.children.length}
+          </div>
+          <div className="rounded-2xl border border-dashed border-border/70 bg-muted/25 p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium text-foreground">Anak dalam unit ini</p>
+                <p className="text-[11px] text-muted-foreground">Tampilan dipadatkan agar mudah discan.</p>
+              </div>
+              <span className="rounded-full bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
+                {getRangeLabel(unit.children)}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-start">
+              {unit.children.map(child => (
+                <PersonNode
+                  key={child.id}
+                  person={child}
+                  isSelected={selectedPersonId === child.id}
+                  onClick={() => onSelectPerson(child.id)}
+                  size="small"
+                  reduceMotion
+                />
+              ))}
+            </div>
           </div>
         </>
       )}
-    </div>
+    </article>
   );
-}
+});
+
+FamilyUnitCard.displayName = 'FamilyUnitCard';

@@ -24,6 +24,13 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
   ZoomIn,
   ZoomOut,
   Search,
@@ -40,7 +47,6 @@ import {
   Network,
   TreePine,
   Printer,
-  Move,
   RotateCcw,
   ChevronDown,
   MoreHorizontal,
@@ -49,6 +55,7 @@ import {
   Map,
   PieChart,
   Dna,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { Person } from '@/types';
 import { GenerationView } from '@/features/chart/views/GenerationView';
@@ -67,6 +74,7 @@ import { NetworkGraphView } from '@/features/chart/views/NetworkGraphView';
 import { GeoMapView } from '@/features/chart/views/GeoMapView';
 import { SunburstView } from '@/features/chart/views/SunburstView';
 import { InheritanceTreeView } from '@/features/chart/views/InheritanceTreeView';
+import { cn } from '@/lib/utils';
 
 
 // Animation variants
@@ -91,6 +99,8 @@ const panelVariants = {
   }
 };
 
+const MINIMAP_PERSON_THRESHOLD = 24;
+
 type ViewMode = 'family' | 'pedigree' | 'tree' | 'timeline' | 'stats' | 'main-chart' | 'network' | 'map' | 'sunburst' | 'dna';
 
 export default function ChartPage() {
@@ -102,6 +112,8 @@ export default function ChartPage() {
   const [pedigreeGenerations, setPedigreeGenerations] = useState(4);
   const [showAddRelationship, setShowAddRelationship] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showMobileControls, setShowMobileControls] = useState(false);
   const [addRelationshipContext, setAddRelationshipContext] = useState<{
     personId?: string;
     suggestedType?: 'parent' | 'spouse' | 'child';
@@ -112,7 +124,6 @@ export default function ChartPage() {
   const maxScale = 2;
   const minScale = viewMode === 'pedigree' ? 0.5 : 0.3;
   const {
-    state: panZoomState,
     isDragging,
     handlers: panZoomHandlers,
     zoomIn,
@@ -121,6 +132,7 @@ export default function ChartPage() {
     panBy,
     setTransform,
     containerRef: panZoomContainerRef,
+    setContentRef,
   } = usePanZoom({
     minScale,
     maxScale,
@@ -199,8 +211,14 @@ export default function ChartPage() {
     const results = fuse.search(searchQuery);
     if (results.length > 0) {
       setSelectedPerson(results[0].item.id);
+      setShowMobileSearch(false);
     }
   }, [searchQuery, fuse, setSelectedPerson]);
+
+  const quickSearchResults = useMemo(
+    () => (searchQuery ? fuse.search(searchQuery).slice(0, 6) : []),
+    [fuse, searchQuery]
+  );
 
   useEffect(() => {
     if (viewMode !== 'family') return;
@@ -241,6 +259,11 @@ export default function ChartPage() {
 
     panBy(containerCenterX - targetCenterX, containerCenterY - targetCenterY);
   }, [selectedPersonId, panBy, panZoomContainerRef]);
+
+  const handleChartRef = useCallback((node: HTMLDivElement | null) => {
+    chartRef.current = node;
+    setContentRef(node);
+  }, [setContentRef]);
 
   const autoFitToContent = useCallback(() => {
     if (!chartRef.current || !panZoomContainerRef.current) return;
@@ -307,7 +330,6 @@ export default function ChartPage() {
     paletteOverrides?: PremiumPaletteOverrides
   ) => {
     if (!chartRef.current) return;
-    const stats = getStats();
     const subtitle = selectedPerson
       ? `Fokus: ${selectedPerson.fullName}`
       : `${persons.length} anggota`;
@@ -333,47 +355,69 @@ export default function ChartPage() {
     });
   };
 
-  const handleAddRelationship = (personId: string, type: 'parent' | 'spouse' | 'child') => {
+  const handleAddRelationship = useCallback((personId: string, type: 'parent' | 'spouse' | 'child') => {
     setAddRelationshipContext({ personId, suggestedType: type });
     setShowAddRelationship(true);
-  };
+  }, []);
 
-  // Calculate timeline data
-  const getTimelineData = () => {
+  const timelineData = useMemo(() => {
+    const parentsByChild = new globalThis.Map<string, string[]>();
+
+    relationships.forEach((relationship) => {
+      if (relationship.type !== 'PARENT_CHILD') return;
+
+      const currentParents = parentsByChild.get(relationship.toPersonId);
+      if (currentParents) {
+        currentParents.push(relationship.fromPersonId);
+      } else {
+        parentsByChild.set(relationship.toPersonId, [relationship.fromPersonId]);
+      }
+    });
+
+    const generationCache = new globalThis.Map<string, number>();
     const byGeneration: Record<number, Person[]> = {};
 
-    const getGen = (personId: string, visited = new Set<string>()): number => {
-      if (visited.has(personId)) return 0;
-      visited.add(personId);
+    const getGeneration = (personId: string, visited = new Set<string>()): number => {
+      const cached = generationCache.get(personId);
+      if (cached) return cached;
+      if (visited.has(personId)) return 1;
 
-      const parentRels = relationships.filter(
-        r => r.type === 'PARENT_CHILD' && r.toPersonId === personId
-      );
+      const nextVisited = new Set(visited);
+      nextVisited.add(personId);
 
-      if (parentRels.length === 0) return 1;
-      return Math.max(...parentRels.map(r => getGen(r.fromPersonId, visited))) + 1;
+      const parentIds = parentsByChild.get(personId) || [];
+      if (parentIds.length === 0) {
+        generationCache.set(personId, 1);
+        return 1;
+      }
+
+      const generation = Math.max(
+        ...parentIds.map((parentId) => getGeneration(parentId, nextVisited))
+      ) + 1;
+
+      generationCache.set(personId, generation);
+      return generation;
     };
 
-    persons.forEach(p => {
-      const gen = getGen(p.id);
-      if (!byGeneration[gen]) byGeneration[gen] = [];
-      byGeneration[gen].push(p);
+    persons.forEach((person) => {
+      const generation = getGeneration(person.id);
+      if (!byGeneration[generation]) {
+        byGeneration[generation] = [];
+      }
+      byGeneration[generation].push(person);
     });
 
     return Object.entries(byGeneration)
       .sort(([a], [b]) => Number(a) - Number(b))
-      .map(([gen, people]) => ({ generation: Number(gen), people }));
-  };
+      .map(([generation, people]) => ({ generation: Number(generation), people }));
+  }, [persons, relationships]);
 
-  // Calculate stats
-  const getStats = () => {
+  const stats = useMemo(() => {
     const maleCount = persons.filter(p => p.gender === 'male').length;
     const femaleCount = persons.filter(p => p.gender === 'female').length;
     const unknownCount = persons.filter(p => p.gender === 'unknown').length;
     const livingCount = persons.filter(p => !p.deathDate).length;
     const verifiedCount = persons.filter(p => p.tags.includes('verified')).length;
-
-    const timeline = getTimelineData();
 
     return {
       total: persons.length,
@@ -381,108 +425,254 @@ export default function ChartPage() {
       living: livingCount,
       deceased: persons.length - livingCount,
       verified: verifiedCount,
-      generations: timeline.length,
-      generationData: timeline,
+      generations: timelineData.length,
+      generationData: timelineData,
     };
-  };
+  }, [persons, timelineData]);
 
   const viewModeOptions = [
-    { value: 'family', label: 'Family', icon: Users, description: 'Fokus pada satu orang' },
-    { value: 'pedigree', label: 'Pedigree', icon: TreePine, description: 'Silsilah leluhur' },
-    { value: 'tree', label: 'Tree', icon: Network, description: 'Semua per generasi' },
-    { value: 'timeline', label: 'Timeline', icon: Calendar, description: 'Urutan waktu' },
-    { value: 'network', label: 'Network', icon: Share2, description: 'Grafik Jaringan' },
+    { value: 'family', label: 'Keluarga', icon: Users, description: 'Fokus pada satu orang' },
+    { value: 'pedigree', label: 'Leluhur', icon: TreePine, description: 'Silsilah leluhur' },
+    { value: 'tree', label: 'Generasi', icon: Network, description: 'Semua per generasi' },
+    { value: 'timeline', label: 'Linimasa', icon: Calendar, description: 'Urutan waktu' },
+    { value: 'network', label: 'Jaringan', icon: Share2, description: 'Grafik hubungan' },
     { value: 'map', label: 'Peta', icon: Map, description: 'Peta Sebaran' },
     { value: 'sunburst', label: 'Sunburst', icon: PieChart, description: 'Diagram Keturunan' },
-    { value: 'dna', label: 'DNA Tree', icon: Dna, description: 'Warisan Genetik' },
-    { value: 'stats', label: 'Stats', icon: GitBranch, description: 'Statistik keluarga' },
-    { value: 'main-chart', label: 'Main Chart', icon: Network, description: 'Tampilan Utama' },
+    { value: 'dna', label: 'Pohon DNA', icon: Dna, description: 'Warisan Genetik' },
+    { value: 'stats', label: 'Statistik', icon: GitBranch, description: 'Statistik keluarga' },
+    { value: 'main-chart', label: 'Chart Utama', icon: Network, description: 'Tampilan utama' },
   ];
 
   const currentViewOption = viewModeOptions.find(opt => opt.value === viewMode) || viewModeOptions[0];
   const CurrentViewIcon = currentViewOption.icon;
+  const isZoomableView = viewMode === 'tree' || viewMode === 'family' || viewMode === 'pedigree';
+  const primaryViewModes = viewModeOptions.slice(0, 5);
+  const secondaryViewModes = viewModeOptions.slice(5);
+  const showMiniMap = !isMobile && viewMode === 'tree' && persons.length >= MINIMAP_PERSON_THRESHOLD;
+  const chartFocusLabel = selectedPerson ? selectedPerson.fullName : 'Belum ada fokus anggota';
+  const mainChartRootPerson = selectedPerson || persons[0] || null;
+  const chartContextItems = [
+    `${stats.total} anggota`,
+    `${stats.generations} generasi`,
+    selectedPerson ? 'Fokus aktif' : currentViewOption.description,
+  ];
+
+  const selectPersonFromSearch = useCallback((personId: string) => {
+    setSelectedPerson(personId);
+    setShowMobileSearch(false);
+  }, [setSelectedPerson]);
 
   return (
     <div className="flex h-[calc(100vh-0px)] animate-fade-in">
       {/* Main Chart Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center justify-between p-2 sm:p-4 border-b bg-card gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-            <h1 className="text-lg sm:text-xl font-display font-bold shrink-0 hidden md:block">Silsilah</h1>
+        <div className="border-b bg-card">
+          {isMobile ? (
+            <>
+              <div className="flex items-center justify-between gap-3 px-3 pt-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Tampilan</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <h1 className="text-base font-display font-semibold">Silsilah</h1>
+                    <Badge variant="secondary" className="max-w-[140px] truncate">
+                      {currentViewOption.label}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {selectedPerson ? `Fokus: ${selectedPerson.fullName}` : currentViewOption.description}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10"
+                    aria-label="Cari anggota"
+                    onClick={() => setShowMobileSearch(true)}
+                  >
+                    <Search className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10"
+                    aria-label="Buka kontrol chart"
+                    onClick={() => setShowMobileControls(true)}
+                  >
+                    <SlidersHorizontal className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
 
-            {/* Search - Now prominent on the left */}
-            <div className="relative flex-1 max-w-[200px] sm:max-w-xs">
-              <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Cari..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="pl-8 sm:pl-9 w-full h-8 sm:h-9 text-sm"
-              />
+              <div className="flex items-center gap-2 px-3 pb-3 pt-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-10 flex-1 justify-between" title={currentViewOption.description}>
+                      <span className="flex items-center gap-2 truncate">
+                        <CurrentViewIcon className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{currentViewOption.label}</span>
+                      </span>
+                      <ChevronDown className="w-4 h-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="bg-popover w-56">
+                    {viewModeOptions.map(opt => {
+                      const Icon = opt.icon;
+                      const isActive = viewMode === opt.value;
+                      return (
+                        <DropdownMenuItem
+                          key={opt.value}
+                          onClick={() => setViewMode(opt.value as ViewMode)}
+                          className="flex items-start gap-3 py-2"
+                        >
+                          <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className={`font-medium ${isActive ? 'text-primary' : ''}`}>{opt.label}</div>
+                            <div className="text-xs text-muted-foreground">{opt.description}</div>
+                          </div>
+                          {isActive && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {selectedPerson && (
+                  <Button
+                    variant="secondary"
+                    className="h-10 shrink-0"
+                    onClick={() => setSelectedPerson(null)}
+                  >
+                    Lepas Fokus
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3 p-3 sm:p-4">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                    <CurrentViewIcon className="h-3.5 w-3.5" />
+                    <span>Workspace chart</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <h1 className="font-display text-xl font-semibold text-foreground sm:text-2xl">{currentViewOption.label}</h1>
+                    <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.16em]">
+                      Tampilan aktif
+                    </Badge>
+                  </div>
+                  <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                    {currentViewOption.description}. Fokus saat ini: <span className="font-medium text-foreground">{chartFocusLabel}</span>
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {chartContextItems.map((item) => (
+                      <span
+                        key={item}
+                        className="rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="relative w-full xl:max-w-xs">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Cari anggota atau ID..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    className="h-10 rounded-2xl border-border/70 bg-background/80 pl-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-muted/35 p-2">
+            <div className="flex flex-1 flex-wrap gap-2">
+              {primaryViewModes.map((opt) => {
+                const Icon = opt.icon;
+                const isActive = viewMode === opt.value;
+                return (
+                  <Button
+                    key={opt.value}
+                    variant={isActive ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn(
+                      'h-9 rounded-xl px-3',
+                      isActive
+                        ? 'shadow-sm'
+                        : 'border-border/70 bg-background/85 text-muted-foreground hover:text-foreground'
+                    )}
+                    title={opt.description}
+                    onClick={() => setViewMode(opt.value as ViewMode)}
+                  >
+                    <Icon className="mr-2 h-4 w-4" />
+                    {opt.label}
+                  </Button>
+                );
+              })}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 gap-2 rounded-xl border-border/70 bg-background/90 px-3" title={currentViewOption.description}>
+                    <CurrentViewIcon className="w-4 h-4" />
+                    <span>Lainnya</span>
+                    <ChevronDown className="hidden h-3 w-3 opacity-50 sm:block" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="bg-popover w-56">
+                  {secondaryViewModes.map(opt => {
+                    const Icon = opt.icon;
+                    const isActive = viewMode === opt.value;
+                    return (
+                      <DropdownMenuItem
+                        key={opt.value}
+                        onClick={() => setViewMode(opt.value as ViewMode)}
+                        className="flex items-start gap-3 py-2"
+                      >
+                        <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-medium ${isActive ? 'text-primary' : ''}`}>{opt.label}</div>
+                          <div className="text-xs text-muted-foreground">{opt.description}</div>
+                        </div>
+                        {isActive && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </div>
-
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* View Mode Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3" title={currentViewOption.description}>
-                  <CurrentViewIcon className="w-4 h-4" />
-                  <span className="hidden lg:inline">{currentViewOption.label}</span>
-                  <ChevronDown className="w-3 h-3 opacity-50 hidden sm:block" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover w-56">
-                {viewModeOptions.map(opt => {
-                  const Icon = opt.icon;
-                  const isActive = viewMode === opt.value;
-                  return (
-                    <DropdownMenuItem
-                      key={opt.value}
-                      onClick={() => setViewMode(opt.value as ViewMode)}
-                      className="flex items-start gap-3 py-2"
-                    >
-                      <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className={`font-medium ${isActive ? 'text-primary' : ''}`}>{opt.label}</div>
-                        <div className="text-xs text-muted-foreground">{opt.description}</div>
-                      </div>
-                      {isActive && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
 
             {/* Pedigree Generation Slider - Hidden on mobile */}
             {viewMode === 'pedigree' && (
-              <div className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-md bg-muted/50 border">
-                <span className="text-xs text-muted-foreground whitespace-nowrap hidden md:inline">Gen:</span>
+              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-border/70 bg-background/70 px-3 py-1.5">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Kedalaman</span>
                 <input
                   type="range"
                   min={2}
                   max={6}
                   value={pedigreeGenerations}
                   onChange={(e) => setPedigreeGenerations(Number(e.target.value))}
-                  className="w-12 sm:w-16 h-1.5 accent-primary cursor-pointer"
+                  className="h-1.5 w-16 accent-primary cursor-pointer"
                 />
                 <span className="text-sm font-medium w-4 text-center">{pedigreeGenerations}</span>
               </div>
             )}
 
             {/* Zoom Controls - Compact on mobile */}
-            {(viewMode === 'tree' || viewMode === 'family' || viewMode === 'pedigree') && (
-              <div className="flex items-center border rounded-md">
-                <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-r-none" onClick={() => handleZoom('out')} title="Zoom Out">
+            {isZoomableView && (
+              <div className="flex items-center rounded-xl border border-border/70 bg-background/70">
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-r-none" onClick={() => handleZoom('out')} title="Zoom Out" aria-label="Perkecil chart">
                   <ZoomOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-none border-x hidden sm:flex" onClick={reset} title="Reset View">
+                <Button variant="ghost" size="icon" className="hidden h-9 w-9 rounded-none border-x sm:flex" onClick={reset} title="Reset View" aria-label="Reset posisi chart">
                   <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 rounded-l-none" onClick={() => handleZoom('in')} title="Zoom In">
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-l-none" onClick={() => handleZoom('in')} title="Zoom In" aria-label="Perbesar chart">
                   <ZoomIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </Button>
               </div>
@@ -491,9 +681,9 @@ export default function ChartPage() {
             {/* Actions Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3" title="Aksi">
+                <Button variant="outline" size="sm" className="h-9 gap-2 rounded-xl border-border/70 bg-background/90 px-3" title="Aksi" aria-label="Buka menu aksi">
                   <MoreHorizontal className="w-4 h-4" />
-                  <span className="hidden md:inline">Aksi</span>
+                  <span>Aksi</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-popover w-48">
@@ -553,14 +743,28 @@ export default function ChartPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+
+            {selectedPerson && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-9 rounded-xl px-3"
+                onClick={() => setSelectedPerson(null)}
+              >
+                Lepas Fokus
+              </Button>
+            )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-auto bg-muted/30">
+        <div className="relative flex-1 overflow-auto bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.10),transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.38))]">
+          <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)] [background-size:36px_36px]" />
           {persons.length === 0 ? (
             <motion.div
-              className="empty-state h-full"
+              className="empty-state relative h-full"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
@@ -573,18 +777,20 @@ export default function ChartPage() {
             </motion.div>
           ) : (
             <div
-              className={`w-full h-full overflow-hidden touch-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              className={cn(
+                'relative w-full h-full overflow-hidden',
+                isZoomableView ? 'touch-none' : 'overflow-auto',
+                isZoomableView && (isDragging ? 'cursor-grabbing' : 'cursor-grab')
+              )}
               ref={panZoomContainerRef}
-              {...panZoomHandlers}
+              {...(isZoomableView ? panZoomHandlers : {})}
             >
               <div
-                ref={chartRef}
-                className="w-full h-full"
+                ref={handleChartRef}
+                className={cn('w-full', isZoomableView ? 'h-full' : 'min-h-full')}
                 style={{
-                  transform: `translate(${panZoomState.x}px, ${panZoomState.y}px) scale(${panZoomState.scale})`,
-                  transformOrigin: 'center center',
                   minHeight: '100%',
-                  transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                  willChange: 'transform',
                 }}
               >
                 <AnimatePresence mode="wait">
@@ -703,7 +909,6 @@ export default function ChartPage() {
                       className="p-6 space-y-6"
                     >
                       {(() => {
-                        const stats = getStats();
                         return (
                           <>
                             {/* Overview Stats */}
@@ -781,7 +986,7 @@ export default function ChartPage() {
                       })()}
                     </motion.div>
                   )}
-                  {viewMode === 'main-chart' && (
+                  {viewMode === 'main-chart' && mainChartRootPerson && (
                     <motion.div
                       key="main-chart"
                       {...viewTransition}
@@ -789,7 +994,8 @@ export default function ChartPage() {
                     >
                       <FamilyMainView
                         data={transformToFamilyChartData(persons, relationships)}
-                        rootId={selectedPersonId || (persons.length > 0 ? persons[0].id : '')}
+                        rootId={mainChartRootPerson.id}
+                        rootPerson={mainChartRootPerson}
                         onSelectPerson={setSelectedPerson}
                         onAddRelationship={(id) => handleAddRelationship(id, 'child')}
                       />
@@ -819,18 +1025,24 @@ export default function ChartPage() {
       <AnimatePresence>
         {selectedPerson && (
           <motion.div
-            className="fixed md:relative inset-y-0 right-0 w-full md:w-96 border-l bg-card overflow-y-auto z-50 md:z-auto"
-            variants={panelVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            className={isMobile
+              ? 'fixed inset-x-0 bottom-0 max-h-[78vh] rounded-t-3xl border-x border-t bg-card overflow-y-auto z-50 shadow-2xl'
+              : 'fixed md:relative inset-y-0 right-0 w-full md:w-96 border-l bg-card overflow-y-auto z-50 md:z-auto'
+            }
+            variants={isMobile ? undefined : panelVariants}
+            initial={isMobile ? { opacity: 0, y: 48 } : 'hidden'}
+            animate={isMobile ? { opacity: 1, y: 0 } : 'visible'}
+            exit={isMobile ? { opacity: 0, y: 48 } : 'exit'}
+            transition={isMobile ? { duration: 0.2 } : undefined}
           >
+            {isMobile && <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted" />}
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="font-display font-semibold">Detail Anggota</h2>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setSelectedPerson(null)}
+                aria-label="Tutup detail anggota"
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -1032,7 +1244,7 @@ export default function ChartPage() {
       />
 
       {/* Mini Map for navigation */}
-      {(viewMode === 'family' || viewMode === 'pedigree' || viewMode === 'tree') && (
+      {showMiniMap && (
         <MiniMap
           persons={persons}
           relationships={relationships}
@@ -1041,6 +1253,143 @@ export default function ChartPage() {
           onCenterSelected={handleCenterOnSelected}
         />
       )}
+
+      <Sheet open={showMobileSearch} onOpenChange={setShowMobileSearch}>
+        <SheetContent side="top" className="rounded-b-3xl px-4 pb-6" title="Cari anggota keluarga">
+          <SheetHeader className="text-left">
+            <SheetTitle>Cari anggota</SheetTitle>
+            <SheetDescription>Pilih anggota untuk memusatkan tampilan chart.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                autoFocus
+                type="search"
+                placeholder="Cari nama anggota..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="h-11 pl-10"
+              />
+            </div>
+
+            {quickSearchResults.length > 0 ? (
+              <div className="space-y-2">
+                {quickSearchResults.map(({ item }) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => selectPersonFromSearch(item.id)}
+                    className="flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition-colors hover:bg-accent"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{item.fullName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.birthDate ? new Date(item.birthDate).getFullYear() : 'Tahun tidak diketahui'}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">Pilih</Badge>
+                  </button>
+                ))}
+              </div>
+            ) : searchQuery ? (
+              <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+                Tidak ada hasil untuk kata kunci ini.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+                Mulai ketik nama anggota untuk mencari fokus chart.
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showMobileControls} onOpenChange={setShowMobileControls}>
+        <SheetContent side="bottom" className="rounded-t-3xl px-4 pb-8" title="Kontrol chart mobile">
+          <SheetHeader className="text-left">
+            <SheetTitle>Kontrol chart</SheetTitle>
+            <SheetDescription>Atur mode tampilan dan aksi penting tanpa memenuhi toolbar.</SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-5 space-y-5">
+            {viewMode === 'pedigree' && (
+              <div className="rounded-2xl border bg-muted/30 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-medium">Jumlah generasi</span>
+                  <Badge variant="secondary">{pedigreeGenerations}</Badge>
+                </div>
+                <input
+                  type="range"
+                  min={2}
+                  max={6}
+                  value={pedigreeGenerations}
+                  onChange={(e) => setPedigreeGenerations(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+            )}
+
+            {isZoomableView && (
+              <div className="grid grid-cols-3 gap-2">
+                <Button variant="outline" className="h-11" onClick={() => handleZoom('out')}>
+                  <ZoomOut className="w-4 h-4" />
+                  Zoom Out
+                </Button>
+                <Button variant="outline" className="h-11" onClick={reset}>
+                  <RotateCcw className="w-4 h-4" />
+                  Reset
+                </Button>
+                <Button variant="outline" className="h-11" onClick={() => handleZoom('in')}>
+                  <ZoomIn className="w-4 h-4" />
+                  Zoom In
+                </Button>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="h-11 w-full justify-start"
+                onClick={() => {
+                  setShowPrintDialog(true);
+                  setShowMobileControls(false);
+                }}
+                disabled={persons.length === 0}
+              >
+                <Printer className="w-4 h-4" />
+                Cetak chart
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 w-full justify-start"
+                onClick={() => {
+                  setShowMobileControls(false);
+                  void handleExport('png');
+                }}
+                disabled={persons.length === 0}
+              >
+                <Download className="w-4 h-4" />
+                Export PNG
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 w-full justify-start"
+                onClick={() => {
+                  setAddRelationshipContext({});
+                  setShowAddRelationship(true);
+                  setShowMobileControls(false);
+                }}
+                disabled={persons.length < 2}
+              >
+                <Link2 className="w-4 h-4" />
+                Tambah relasi
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

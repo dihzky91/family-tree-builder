@@ -4,16 +4,8 @@ import { FamilyUnitAccordion } from './FamilyUnitAccordion';
 import { FamilyUnitGridCard } from './FamilyUnitGridCard';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious
-} from '@/components/ui/pagination';
 import type { NuclearFamily, Person } from '@/types';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface FamilyUnitsViewProps {
   families: NuclearFamily[];
@@ -28,9 +20,10 @@ type ViewType = 'list' | 'grid';
  * Supports List (Accordion) and Grid views with pagination
  */
 export function FamilyUnitsView({ families, onEditPerson }: FamilyUnitsViewProps) {
+  const isMobile = useIsMobile();
   const [viewType, setViewType] = useState<ViewType>('grid'); // Default to grid for density
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 12; // Increased for higher density (divisible by 2, 3, 4)
+  const itemsPerPage = isMobile ? 6 : 12;
 
   if (families.length === 0) {
     return (
@@ -70,31 +63,33 @@ export function FamilyUnitsView({ families, onEditPerson }: FamilyUnitsViewProps
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Controls: View Toggle & Summary */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20 p-3 rounded-lg border">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">Tampilan:</span>
-          <ToggleGroup type="single" value={viewType} onValueChange={(v) => v && setViewType(v as ViewType)}>
-            <ToggleGroupItem value="list" aria-label="List view" size="sm">
+      <div className="rounded-2xl border bg-muted/20 p-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <span className="text-sm font-medium text-muted-foreground">Tampilan keluarga:</span>
+            <ToggleGroup type="single" value={viewType} onValueChange={(v) => v && setViewType(v as ViewType)} className="w-full sm:w-auto">
+            <ToggleGroupItem value="list" aria-label="Tampilan daftar" size="sm" className="flex-1 sm:flex-none">
               <List className="h-4 w-4 mr-2" />
-              List
+              Daftar
             </ToggleGroupItem>
-            <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
+            <ToggleGroupItem value="grid" aria-label="Tampilan grid" size="sm" className="flex-1 sm:flex-none">
               <LayoutGrid className="h-4 w-4 mr-2" />
               Grid
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
 
-        <div className="text-sm text-muted-foreground text-right">
+        <div className="text-sm text-muted-foreground sm:text-right">
           Menampilkan <span className="font-medium text-foreground">{startIndex + 1}-{Math.min(endIndex, families.length)}</span> dari <span className="font-medium text-foreground">{families.length}</span> keluarga
+        </div>
         </div>
       </div>
 
       {/* Grid View */}
       {viewType === 'grid' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {currentFamilies.map((family) => (
             <FamilyUnitGridCard
               key={family.id}
@@ -107,15 +102,15 @@ export function FamilyUnitsView({ families, onEditPerson }: FamilyUnitsViewProps
 
       {/* List View (Accordion) */}
       {viewType === 'list' && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-5 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {generations.map(gen => (
             <div key={gen}>
-              <div className="flex items-center gap-2 mb-3">
+              <div className="mb-3 flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                   Generasi {gen}
                 </h3>
                 <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                   {familiesByGeneration[gen].length} keluarga
                 </span>
               </div>
@@ -137,27 +132,29 @@ export function FamilyUnitsView({ families, onEditPerson }: FamilyUnitsViewProps
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="flex justify-center mt-8 pt-4 border-t">
-          <div className="flex items-center gap-2">
+        <div className="mt-6 border-t pt-4">
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-muted/20 p-3">
             <Button
               variant="outline"
-              size="icon"
+              className="h-10 px-3"
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
             >
               <ChevronLeft className="h-4 w-4" />
+              Sebelumnya
             </Button>
 
-            <div className="text-sm font-medium">
+            <div className="text-center text-sm font-medium">
               Halaman {currentPage} dari {totalPages}
             </div>
 
             <Button
               variant="outline"
-              size="icon"
+              className="h-10 px-3"
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
             >
+              Berikutnya
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

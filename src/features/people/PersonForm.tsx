@@ -37,6 +37,7 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
   const [newTag, setNewTag] = useState('');
   const [duplicates, setDuplicates] = useState<Person[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -78,6 +79,7 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
 
   const onSubmit = async (data: PersonFormData) => {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       if (person) {
         await updatePerson(person.id, { ...data, tags });
@@ -87,6 +89,11 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
       onSuccess?.();
     } catch (error) {
       console.error('Failed to save person:', error);
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : 'Gagal menyimpan data anggota. Silakan coba lagi.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -118,6 +125,13 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
               ))}
             </ul>
           </AlertDescription>
+        </Alert>
+      )}
+
+      {submitError && (
+        <Alert variant="destructive">
+          <AlertTitle>Penyimpanan gagal</AlertTitle>
+          <AlertDescription>{submitError}</AlertDescription>
         </Alert>
       )}
 

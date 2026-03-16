@@ -1,7 +1,11 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { Person, Relationship } from '@/types';
 import { PersonNode, PlaceholderNode } from '../components/PersonNode';
 import { cn } from '@/lib/utils';
+
+function getYearLabel(date?: string) {
+  return date ? `${new Date(date).getFullYear()}` : 'Tahun tidak diketahui';
+}
 
 interface PedigreeViewProps {
   persons: Person[];
@@ -45,7 +49,7 @@ const getSubtreeHeight = (
   return Math.max(baseRowHeight * 2, fatherHeight + motherHeight);
 };
 
-export function PedigreeView({
+export const PedigreeView = memo(function PedigreeView({
   persons,
   relationships,
   selectedPersonId,
@@ -58,38 +62,58 @@ export function PedigreeView({
   const ancestorTree = useMemo(() => {
     if (!selectedPerson) return null;
 
+    const personById = new globalThis.Map(persons.map((person) => [person.id, person]));
+    const parentsByChild = new globalThis.Map<string, Person[]>();
+
+    relationships.forEach((relationship) => {
+      if (relationship.type !== 'PARENT_CHILD') return;
+
+      const parent = personById.get(relationship.fromPersonId);
+      if (!parent) return;
+
+      const currentParents = parentsByChild.get(relationship.toPersonId);
+      if (currentParents) {
+        currentParents.push(parent);
+      } else {
+        parentsByChild.set(relationship.toPersonId, [parent]);
+      }
+    });
+
+    const treeCache = new globalThis.Map<string, AncestorNode>();
+
     const buildAncestorTree = (personId: string, depth: number): AncestorNode => {
-      const person = persons.find(p => p.id === personId) || null;
+      const person = personById.get(personId) || null;
 
       if (depth >= maxGenerations || !person) {
         return { person, father: null, mother: null };
       }
 
-      const parentRels = relationships.filter(
-        r => r.type === 'PARENT_CHILD' && r.toPersonId === personId
-      );
+      const cacheKey = `${personId}:${depth}`;
+      const cachedTree = treeCache.get(cacheKey);
+      if (cachedTree) return cachedTree;
+
+      const parentCandidates = parentsByChild.get(personId) || [];
 
       let father: AncestorNode | null = null;
       let mother: AncestorNode | null = null;
 
-      parentRels.forEach(rel => {
-        const parent = persons.find(p => p.id === rel.fromPersonId);
-        if (parent) {
-          if (parent.gender === 'male') {
+      parentCandidates.forEach((parent) => {
+        if (parent.gender === 'male') {
+          father = buildAncestorTree(parent.id, depth + 1);
+        } else if (parent.gender === 'female') {
+          mother = buildAncestorTree(parent.id, depth + 1);
+        } else {
+          if (!father) {
             father = buildAncestorTree(parent.id, depth + 1);
-          } else if (parent.gender === 'female') {
+          } else if (!mother) {
             mother = buildAncestorTree(parent.id, depth + 1);
-          } else {
-            if (!father) {
-              father = buildAncestorTree(parent.id, depth + 1);
-            } else if (!mother) {
-              mother = buildAncestorTree(parent.id, depth + 1);
-            }
           }
         }
       });
 
-      return { person, father, mother };
+      const node = { person, father, mother };
+      treeCache.set(cacheKey, node);
+      return node;
     };
 
     return buildAncestorTree(selectedPerson.id, 0);
@@ -107,18 +131,60 @@ export function PedigreeView({
   }
 
   return (
-    <div className="flex items-center p-8 overflow-auto min-h-full">
-      <PedigreeColumn
-        node={ancestorTree}
-        generation={0}
-        selectedPersonId={selectedPersonId}
-        onSelectPerson={onSelectPerson}
-        onAddParent={onAddRelationship}
-        maxGenerations={maxGenerations}
-      />
+    <div className="mx-auto flex min-h-full w-full max-w-[1700px] flex-col gap-6 px-6 py-8">
+      <section className="rounded-[28px] border border-border/60 bg-background/88 p-5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.45)] backdrop-blur-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Jalur leluhur</p>
+            <h2 className="mt-1 font-display text-2xl font-semibold text-foreground">Pedigree {selectedPerson.fullName}</h2>
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+              Baca alur dari kiri ke kanan. Jalur ayah berada di bagian atas, jalur ibu di bagian bawah, dan slot kosong menandai leluhur yang belum tercatat.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="rounded-full border border-border/70 bg-muted/50 px-3 py-1.5">Kedalaman {maxGenerations} generasi</span>
+            <span className="rounded-full border border-border/70 bg-muted/50 px-3 py-1.5">Lahir {getYearLabel(selectedPerson.birthDate)}</span>
+            <span className="rounded-full border border-border/70 bg-muted/50 px-3 py-1.5">Fokus aktif</span>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-border/60 bg-muted/25 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Subjek utama</p>
+            <p className="mt-2 text-sm font-medium text-foreground">{selectedPerson.fullName}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Node awal yang menjadi pusat seluruh pembacaan pedigree.</p>
+          </div>
+          <div className="rounded-2xl border border-node-male/40 bg-node-male/10 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-node-male">Cabang ayah</p>
+            <p className="mt-2 text-sm text-foreground">Muncul di lane atas dengan konektor bernuansa biru.</p>
+          </div>
+          <div className="rounded-2xl border border-node-female/40 bg-node-female/10 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-node-female">Cabang ibu</p>
+            <p className="mt-2 text-sm text-foreground">Muncul di lane bawah dengan konektor bernuansa merah muda.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-auto rounded-[30px] border border-border/60 bg-background/80 p-6 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.55)] backdrop-blur-sm">
+        <div className="mb-5 flex items-center justify-between gap-3 border-b border-border/60 pb-4 text-xs text-muted-foreground">
+          <span className="rounded-full border border-border/70 bg-muted/40 px-3 py-1.5">Lane atas: garis ayah</span>
+          <span className="rounded-full border border-border/70 bg-muted/40 px-3 py-1.5">Lane bawah: garis ibu</span>
+        </div>
+        <div className="flex items-center">
+          <PedigreeColumn
+            node={ancestorTree}
+            generation={0}
+            selectedPersonId={selectedPersonId}
+            onSelectPerson={onSelectPerson}
+            onAddParent={onAddRelationship}
+            maxGenerations={maxGenerations}
+          />
+        </div>
+      </section>
     </div>
   );
-}
+});
+
+PedigreeView.displayName = 'PedigreeView';
 
 interface PedigreeColumnProps {
   node: AncestorNode;
@@ -129,7 +195,7 @@ interface PedigreeColumnProps {
   maxGenerations: number;
 }
 
-function PedigreeColumn({
+const PedigreeColumn = memo(function PedigreeColumn({
   node,
   generation,
   selectedPersonId,
@@ -164,13 +230,28 @@ function PedigreeColumn({
   return (
     <div className="flex items-center">
       {/* Current person column */}
-      <div className="flex flex-col items-center justify-center" style={{ minHeight: `${totalHeight}px` }}>
+      <div className="flex min-w-[180px] flex-col items-center justify-center" style={{ minHeight: `${totalHeight}px` }}>
+        {node.person && (
+          <div
+            className={cn(
+              'mb-2 rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em]',
+              generation === 0
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : generation % 2 === 0
+                  ? 'border-node-female/30 bg-node-female/10 text-node-female'
+                  : 'border-node-male/30 bg-node-male/10 text-node-male'
+            )}
+          >
+            {generation === 0 ? 'Subjek' : `Generasi +${generation}`}
+          </div>
+        )}
         {node.person ? (
           <PersonNode
             person={node.person}
             isSelected={node.person.id === selectedPersonId}
             onClick={() => onSelectPerson(node.person!.id)}
             size={size}
+            reduceMotion
           />
         ) : (
           <PlaceholderNode
@@ -232,7 +313,7 @@ function PedigreeColumn({
                   Q ${connectorWidth * 0.5} ${fatherCenterY}, 
                     ${connectorWidth * 0.7} ${fatherCenterY}
                   L ${connectorWidth} ${fatherCenterY}`}
-              stroke={node.father ? "hsl(var(--node-male))" : "hsl(var(--border))"}
+              stroke={node.father ? 'hsl(var(--node-male))' : 'hsl(var(--border))'}
               strokeWidth="2"
               strokeDasharray={node.father ? "none" : "4 3"}
               fill="none"
@@ -249,7 +330,7 @@ function PedigreeColumn({
                   Q ${connectorWidth * 0.5} ${motherCenterY}, 
                     ${connectorWidth * 0.7} ${motherCenterY}
                   L ${connectorWidth} ${motherCenterY}`}
-              stroke={node.mother ? "hsl(var(--node-female))" : "hsl(var(--border))"}
+              stroke={node.mother ? 'hsl(var(--node-female))' : 'hsl(var(--border))'}
               strokeWidth="2"
               strokeDasharray={node.mother ? "none" : "4 3"}
               fill="none"
@@ -327,4 +408,6 @@ function PedigreeColumn({
       )}
     </div>
   );
-}
+});
+
+PedigreeColumn.displayName = 'PedigreeColumn';

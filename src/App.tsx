@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,29 +7,36 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import DashboardPage from "./pages/DashboardPage";
-import OnThisDayPage from "./pages/OnThisDayPage";
-import RelationshipCheckPage from "./pages/RelationshipCheckPage";
-import DataQualityPage from "./pages/DataQualityPage";
-import StoriesPage from "./pages/StoriesPage";
-import GalleryPage from "./pages/GalleryPage";
-import PeoplePage from "./pages/PeoplePage";
-import ChartPage from "./pages/ChartPage";
-import EvidencePage from "./pages/EvidencePage";
-import DataPage from "./pages/DataPage";
-import SettingsPage from "./pages/SettingsPage";
-import DuplicatesPage from "./pages/DuplicatesPage";
-import AuditLogPage from "./pages/AuditLogPage";
-import StatsPage from "./pages/StatsPage";
-import AuthPage from "./pages/AuthPage";
-import ProfilePage from "./pages/ProfilePage";
-import NotFound from "./pages/NotFound";
-import PublicSubmitPage from "./pages/PublicSubmitPage";
-import BranchManagementPage from "./pages/BranchManagementPage";
-import SubmissionReviewPage from "./pages/SubmissionReviewPage";
-import BirthdayCalendar from "./pages/BirthdayCalendar";
+
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const OnThisDayPage = lazy(() => import("./pages/OnThisDayPage"));
+const RelationshipCheckPage = lazy(() => import("./pages/RelationshipCheckPage"));
+const DataQualityPage = lazy(() => import("./pages/DataQualityPage"));
+const StoriesPage = lazy(() => import("./pages/StoriesPage"));
+const GalleryPage = lazy(() => import("./pages/GalleryPage"));
+const PeoplePage = lazy(() => import("./pages/PeoplePage"));
+const ChartPage = lazy(() => import("./pages/ChartPage"));
+const EvidencePage = lazy(() => import("./pages/EvidencePage"));
+const DataPage = lazy(() => import("./pages/DataPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const DuplicatesPage = lazy(() => import("./pages/DuplicatesPage"));
+const AuditLogPage = lazy(() => import("./pages/AuditLogPage"));
+const StatsPage = lazy(() => import("./pages/StatsPage"));
+const AuthPage = lazy(() => import("./pages/AuthPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const PublicSubmitPage = lazy(() => import("./pages/PublicSubmitPage"));
+const BranchManagementPage = lazy(() => import("./pages/BranchManagementPage"));
+const SubmissionReviewPage = lazy(() => import("./pages/SubmissionReviewPage"));
+const BirthdayCalendar = lazy(() => import("./pages/BirthdayCalendar"));
 
 const queryClient = new QueryClient();
+
+const RouteFallback = () => (
+  <div className="flex h-full min-h-[40vh] items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+  </div>
+);
 
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
   <motion.div
@@ -38,7 +46,7 @@ const PageTransition = ({ children }: { children: React.ReactNode }) => (
     transition={{ duration: 0.2 }}
     className="h-full"
   >
-    {children}
+    <Suspense fallback={<RouteFallback />}>{children}</Suspense>
   </motion.div>
 );
 
@@ -79,8 +87,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           {/* Public routes (no auth) */}
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/submit/:branchCode" element={<PublicSubmitPage />} />
+          <Route path="/auth" element={<Suspense fallback={<RouteFallback />}><AuthPage /></Suspense>} />
+          <Route path="/submit/:branchCode" element={<Suspense fallback={<RouteFallback />}><PublicSubmitPage /></Suspense>} />
           <Route
             path="/*"
             element={

@@ -24,7 +24,7 @@ const routeMap: Record<string, { label: string; parent?: string }> = {
   '/duplicates': { label: 'Duplikat' },
   '/data-quality': { label: 'Kesehatan Data' },
   '/branches': { label: 'Cabang' },
-  '/submissions': { label: 'Submissions' },
+  '/submissions': { label: 'Submisi' },
   '/audit': { label: 'Audit Log' },
   '/data': { label: 'Import/Export' },
   '/settings': { label: 'Pengaturan' },
@@ -120,11 +120,11 @@ export function Breadcrumbs() {
     <nav 
       aria-label="Breadcrumb"
       className={cn(
-        "sticky top-0 z-30 w-full border-b bg-muted/30 backdrop-blur",
-        "py-2 px-4 md:px-6"
+        "sticky top-14 md:top-0 z-30 w-full border-b bg-muted/30 backdrop-blur",
+        "py-1.5 px-3 md:rounded-t-[1.75rem] md:border-b md:border-border/70 md:bg-card/85 md:px-6"
       )}
     >
-      <ol className="flex items-center flex-wrap gap-1.5 text-sm max-w-7xl mx-auto">
+      <ol className="mx-auto flex max-w-7xl items-center flex-wrap gap-1.5 text-sm md:min-h-[3.25rem]">
         {breadcrumbs.map((item, index) => {
           const isLast = index === breadcrumbs.length - 1;
           

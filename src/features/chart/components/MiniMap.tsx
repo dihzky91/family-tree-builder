@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { memo, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LocateFixed, Map, Maximize2, Minimize2, X } from 'lucide-react';
 import type { Person, Relationship } from '@/types';
@@ -20,7 +20,7 @@ interface TreeNode {
   y: number;
 }
 
-export function MiniMap({
+export const MiniMap = memo(function MiniMap({
   persons,
   relationships,
   selectedPersonId,
@@ -31,27 +31,60 @@ export function MiniMap({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
-  // Calculate generation for each person
-  const getGeneration = useCallback((personId: string, visited = new Set<string>()): number => {
-    if (visited.has(personId)) return 0;
-    visited.add(personId);
-    
-    const parentRels = relationships.filter(
-      r => r.type === 'PARENT_CHILD' && r.toPersonId === personId
-    );
-    
-    if (parentRels.length === 0) return 1;
-    return Math.max(...parentRels.map(r => getGeneration(r.fromPersonId, new Set(visited)))) + 1;
+  const personById = useMemo(
+    () => new globalThis.Map(persons.map((person) => [person.id, person])),
+    [persons]
+  );
+
+  const childToParents = useMemo(() => {
+    const map = new globalThis.Map<string, string[]>();
+
+    relationships.forEach((relationship) => {
+      if (relationship.type !== 'PARENT_CHILD') return;
+
+      const currentParents = map.get(relationship.toPersonId);
+      if (currentParents) {
+        currentParents.push(relationship.fromPersonId);
+      } else {
+        map.set(relationship.toPersonId, [relationship.fromPersonId]);
+      }
+    });
+
+    return map;
   }, [relationships]);
+
+  // Calculate generation for each person
+  const getGeneration = useCallback((personId: string, cache: Map<string, number>, visited = new Set<string>()): number => {
+    const cached = cache.get(personId);
+    if (cached) return cached;
+    if (visited.has(personId)) return 1;
+
+    const nextVisited = new Set(visited);
+    nextVisited.add(personId);
+
+    const parentIds = childToParents.get(personId) || [];
+    if (parentIds.length === 0) {
+      cache.set(personId, 1);
+      return 1;
+    }
+
+    const generation = Math.max(
+      ...parentIds.map((parentId) => getGeneration(parentId, cache, nextVisited))
+    ) + 1;
+
+    cache.set(personId, generation);
+    return generation;
+  }, [childToParents]);
 
   // Build tree structure for mini map
   const treeNodes = useMemo(() => {
     if (persons.length === 0) return [];
+    const generationCache = new globalThis.Map<string, number>();
 
     // Group by generation
     const byGeneration: Record<number, Person[]> = {};
     persons.forEach(p => {
-      const gen = getGeneration(p.id);
+      const gen = getGeneration(p.id, generationCache);
       if (!byGeneration[gen]) byGeneration[gen] = [];
       byGeneration[gen].push(p);
     });
@@ -61,7 +94,6 @@ export function MiniMap({
       .sort((a, b) => a - b);
 
     const nodes: TreeNode[] = [];
-    const maxPerGen = Math.max(...generations.map(g => byGeneration[g]?.length || 0));
     
     generations.forEach((gen, genIndex) => {
       const people = byGeneration[gen] || [];
@@ -132,6 +164,7 @@ export function MiniMap({
             <div className="flex items-center gap-1">
               <button
                 onClick={onCenterSelected}
+                aria-label="Pusatkan ke anggota terpilih"
                 className={cn(
                   "p-1 rounded transition-colors",
                   canCenter ? "hover:bg-muted" : "opacity-40 cursor-not-allowed"
@@ -143,6 +176,7 @@ export function MiniMap({
               </button>
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
+                aria-label={isExpanded ? 'Perkecil mini map' : 'Perbesar mini map'}
                 className="p-1 hover:bg-muted rounded transition-colors"
                 title={isExpanded ? "Perkecil" : "Perbesar"}
               >
@@ -154,6 +188,7 @@ export function MiniMap({
               </button>
               <button
                 onClick={() => setIsMinimized(true)}
+                aria-label="Tutup mini map"
                 className="p-1 hover:bg-muted rounded transition-colors"
                 title="Tutup"
               >
@@ -196,6 +231,7 @@ export function MiniMap({
                   animate={{ scale: 1 }}
                   whileHover={{ scale: 1.5 }}
                   onClick={() => onSelectPerson(node.person.id)}
+                  aria-label={`Fokus ke ${node.person.fullName}`}
                   className={cn(
                     "absolute rounded-full transition-all cursor-pointer",
                     "hover:ring-2 hover:ring-primary/50",
@@ -223,10 +259,10 @@ export function MiniMap({
               <div className="absolute bottom-1 left-1 right-1">
                 <div className="bg-card/90 backdrop-blur-sm rounded px-2 py-1 border shadow-sm">
                   <p className="text-[10px] font-medium truncate text-center">
-                    {persons.find(p => p.id === selectedPersonId)?.fullName || '—'}
-                  </p>
+                      {personById.get(selectedPersonId)?.fullName || '—'}
+                    </p>
+                  </div>
                 </div>
-              </div>
             )}
           </div>
         </motion.div>
@@ -236,6 +272,7 @@ export function MiniMap({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
           onClick={() => setIsMinimized(false)}
+          aria-label="Buka mini map"
           className={cn(
             "fixed bottom-4 right-4 z-50 p-3 bg-card/95 backdrop-blur-sm",
             "border rounded-full shadow-lg hover:shadow-xl transition-all",
@@ -248,4 +285,6 @@ export function MiniMap({
       )}
     </AnimatePresence>
   );
-}
+});
+
+MiniMap.displayName = 'MiniMap';

@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { calculateGeneration } from '@/lib/familyUnits';
 import type { Person, Relationship } from '@/types';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface GenerationViewProps {
   persons: Person[];
@@ -26,6 +27,7 @@ const GENERATION_GAP_YEARS = 25;
  * Uses relationship-based calculation with birth year fallback for orphan nodes
  */
 export function GenerationView({ persons, relationships, onEditPerson }: GenerationViewProps) {
+  const isMobile = useIsMobile();
   // Calculate generation for each person and group them
   const generationGroups = useMemo(() => {
     // Step 1: Calculate relationship-based generations
@@ -153,15 +155,6 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
     return groups;
   }, [persons, relationships]);
 
-  const formatDate = (date: string | null | undefined) => {
-    if (!date) return null;
-    return new Date(date).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
   if (persons.length === 0) {
     return (
       <div className="empty-state py-20">
@@ -179,7 +172,7 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
       {/* Timeline line */}
       <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary via-primary/50 to-primary/20 hidden md:block" />
 
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {generationGroups.map((group, groupIndex) => (
           <div key={group.generation} className="relative animate-fade-in" style={{ animationDelay: `${groupIndex * 100}ms` }}>
             {/* Timeline node */}
@@ -188,16 +181,16 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
             </div>
 
             {/* Generation header */}
-            <div className="md:ml-14 mb-3">
+            <div className="mb-3 rounded-2xl border bg-muted/20 p-3 md:ml-14 md:border-0 md:bg-transparent md:p-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="default" className="text-xs px-2 py-0.5">
+                <Badge variant="default" className="px-2 py-0.5 text-xs">
                   {group.label}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   {group.persons.length} anggota
                 </span>
                 {group.yearRange.min && (
-                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full border">
+                  <span className="rounded-full border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                     {group.yearRange.min === group.yearRange.max
                       ? `${group.yearRange.min}`
                       : `${group.yearRange.min} - ${group.yearRange.max}`
@@ -208,18 +201,18 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
             </div>
 
             {/* Persons in this generation */}
-            <div className="md:ml-14 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+            <div className="grid grid-cols-1 gap-2 md:ml-14 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {group.persons.map((person) => (
                 <Card
                   key={person.id}
-                  className="p-2 hover:shadow-md hover:bg-accent/50 transition-all cursor-pointer animate-scale-in flex items-center gap-2"
+                  className="animate-scale-in flex cursor-pointer items-center gap-3 rounded-2xl p-3 transition-all hover:bg-accent/50 hover:shadow-md"
                   onClick={() => onEditPerson?.(person)}
                   title={person.fullName}
                 >
                   {/* Avatar */}
                   <div className="relative shrink-0">
                     <div className={`
-                      w-8 h-8 rounded-full flex items-center justify-center overflow-hidden
+                      w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
                       ${person.photoUrl ? 'border shadow-sm' : ''}
                       ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
                         person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
@@ -245,12 +238,12 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-xs truncate leading-tight">{person.fullName}</p>
-                    {person.birthDate && (
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5 leading-none">
+                    <p className="truncate text-sm font-medium leading-tight">{person.fullName}</p>
+                    {(person.birthDate || !isMobile) && (
+                      <div className="mt-0.5 flex items-center gap-1 text-[11px] leading-none text-muted-foreground">
                         <Calendar className="w-2.5 h-2.5" />
                         <span>
-                          {new Date(person.birthDate).getFullYear()}
+                          {person.birthDate ? new Date(person.birthDate).getFullYear() : 'Tahun tidak diketahui'}
                         </span>
                       </div>
                     )}

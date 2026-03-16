@@ -46,9 +46,11 @@ import { FilterPanel } from '@/components/filter/FilterPanel';
 import { applyAllFilters, getGenerationLabel } from '@/lib/filterUtils';
 import { PersonCardSkeletonGrid } from '@/components/skeletons/PersonCardSkeleton';
 import { smartSearch } from '@/lib/smartSearchUtils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function PeoplePage() {
   const { persons, deletePerson, undoStack, undo, searchQuery, setSearchQuery, relationships, isLoading } = useFamilyStore();
+  const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -94,6 +96,8 @@ export default function PeoplePage() {
     (filters.ageRange ? 1 : 0) +
     (filters.completeness !== 'all' ? 1 : 0);
 
+  const hasActiveQuery = Boolean(localSearch || activeFilterCount > 0);
+
   const removeFilter = (type: 'generation' | 'verification' | 'age' | 'completeness', value?: any) => {
     switch (type) {
       case 'generation':
@@ -131,22 +135,23 @@ export default function PeoplePage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
+    <div className="space-y-5 p-4 pb-24 pt-4 md:space-y-6 md:p-6 lg:p-8 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Data Keluarga</p>
+          <h1 className="mt-1 text-2xl font-display font-bold text-foreground md:text-3xl">
             Anggota Keluarga
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="mt-1 text-sm text-muted-foreground md:text-base">
             Kelola data anggota keluarga Anda
           </p>
         </div>
         <div className="flex items-center gap-2">
           {undoStack.length > 0 && (
-            <Button variant="outline" onClick={undo} className="gap-2">
+            <Button variant="outline" onClick={undo} className="gap-2 shrink-0">
               <Undo2 className="w-4 h-4" />
-              Undo
+              <span className={isMobile ? 'sr-only' : ''}>Undo</span>
             </Button>
           )}
           <FilterPanel
@@ -157,7 +162,7 @@ export default function PeoplePage() {
           />
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2 flex-1 sm:flex-none">
                 <Plus className="w-4 h-4" />
                 Tambah Anggota
               </Button>
@@ -174,98 +179,114 @@ export default function PeoplePage() {
 
       {/* Active Filters */}
       {activeFilterCount > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Filter Aktif:</span>
-          {filters.generations.map(gen => (
-            <Badge key={`gen-${gen}`} variant="secondary" className="gap-1">
-              {getGenerationLabel(gen)}
-              <button
-                type="button"
-                onClick={() => removeFilter('generation', gen)}
-                className="ml-1 hover:text-destructive"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </Badge>
-          ))}
-          {filters.verificationStatuses.map(status => (
-            <Badge key={`status-${status}`} variant="secondary" className="gap-1">
-              {status}
-              <button
-                type="button"
-                onClick={() => removeFilter('verification', status)}
-                className="ml-1 hover:text-destructive"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </Badge>
-          ))}
-          {filters.ageRange && (
-            <Badge variant="secondary" className="gap-1">
-              {filters.ageRange.min} - {filters.ageRange.max}
-              <button
-                type="button"
-                onClick={() => removeFilter('age')}
-                className="ml-1 hover:text-destructive"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </Badge>
-          )}
-          {filters.completeness !== 'all' && (
-            <Badge variant="secondary" className="gap-1">
-              {filters.completeness === 'complete' ? 'Lengkap' : filters.completeness === 'partial' ? 'Sebagian' : 'Minimal'}
-              <button
-                type="button"
-                onClick={() => removeFilter('completeness')}
-                className="ml-1 hover:text-destructive"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </Badge>
-          )}
+        <div className="rounded-2xl border bg-muted/30 p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-foreground">Filter Aktif</span>
+            <span className="text-xs text-muted-foreground">{activeFilterCount} filter</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {filters.generations.map(gen => (
+              <Badge key={`gen-${gen}`} variant="secondary" className="gap-1">
+                {getGenerationLabel(gen)}
+                <button
+                  type="button"
+                  onClick={() => removeFilter('generation', gen)}
+                  className="ml-1 hover:text-destructive"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            ))}
+            {filters.verificationStatuses.map(status => (
+              <Badge key={`status-${status}`} variant="secondary" className="gap-1">
+                {status}
+                <button
+                  type="button"
+                  onClick={() => removeFilter('verification', status)}
+                  className="ml-1 hover:text-destructive"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            ))}
+            {filters.ageRange && (
+              <Badge variant="secondary" className="gap-1">
+                {filters.ageRange.min} - {filters.ageRange.max}
+                <button
+                  type="button"
+                  onClick={() => removeFilter('age')}
+                  className="ml-1 hover:text-destructive"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {filters.completeness !== 'all' && (
+              <Badge variant="secondary" className="gap-1">
+                {filters.completeness === 'complete' ? 'Lengkap' : filters.completeness === 'partial' ? 'Sebagian' : 'Minimal'}
+                <button
+                  type="button"
+                  onClick={() => removeFilter('completeness')}
+                  className="ml-1 hover:text-destructive"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Search */}
-      <form onSubmit={handleSearch} className="flex gap-2 max-w-md">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Cari nama, catatan, tag..."
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Button type="submit" variant="secondary">Cari</Button>
-      </form>
+      {/* Search and View Controls */}
+      <div className="rounded-2xl border bg-card p-3 shadow-sm">
+        <form onSubmit={handleSearch} className="flex flex-col gap-3 md:max-w-2xl">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Cari nama, catatan, tag..."
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                className="h-11 pl-10"
+              />
+            </div>
+            <Button type="submit" variant="secondary" className="h-11 sm:w-auto">Cari</Button>
+          </div>
 
-      {/* Result Count */}
-      {(localSearch || activeFilterCount > 0) && (
-        <p className="text-sm text-muted-foreground">
-          Menampilkan <span className="font-semibold">{filteredPersons.length}</span> dari <span className="font-semibold">{persons.length}</span> anggota
-        </p>
-      )}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm text-muted-foreground">
+              {hasActiveQuery ? (
+                <>
+                  Menampilkan <span className="font-semibold text-foreground">{filteredPersons.length}</span> dari{' '}
+                  <span className="font-semibold text-foreground">{persons.length}</span> anggota
+                </>
+              ) : (
+                <>
+                  Total <span className="font-semibold text-foreground">{persons.length}</span> anggota keluarga
+                </>
+              )}
+            </div>
 
-      {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'nuclear' | 'generation' | 'all')}>
-        <TabsList className="grid w-full max-w-md grid-cols-3">
-          <TabsTrigger value="nuclear" className="gap-2">
-            <UsersIcon className="w-4 h-4" />
-            Keluarga Inti
-          </TabsTrigger>
-          <TabsTrigger value="generation" className="gap-2">
-            <ListTree className="w-4 h-4" />
-            Generation
-          </TabsTrigger>
-          <TabsTrigger value="all" className="gap-2">
-            <LayoutGrid className="w-4 h-4" />
-            All List
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'nuclear' | 'generation' | 'all')}>
+              <TabsList className="grid h-auto w-full grid-cols-3 rounded-xl bg-muted p-1 md:w-[420px]">
+                <TabsTrigger value="nuclear" className="gap-2 py-2 text-xs md:text-sm">
+                  <UsersIcon className="w-4 h-4" />
+                  <span>{isMobile ? 'Inti' : 'Keluarga Inti'}</span>
+                </TabsTrigger>
+                <TabsTrigger value="generation" className="gap-2 py-2 text-xs md:text-sm">
+                  <ListTree className="w-4 h-4" />
+                  <span>{isMobile ? 'Generasi' : 'Per Generasi'}</span>
+                </TabsTrigger>
+                <TabsTrigger value="all" className="gap-2 py-2 text-xs md:text-sm">
+                  <LayoutGrid className="w-4 h-4" />
+                  <span>{isMobile ? 'Semua' : 'Semua Anggota'}</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </form>
+      </div>
 
       {/* Content based on view mode */}
       {viewMode === 'nuclear' ? (
@@ -303,14 +324,14 @@ export default function PeoplePage() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {filteredPersons.map((person) => (
-                <Card key={person.id} className="p-2.5 hover:shadow-md hover:bg-accent/50 transition-all cursor-pointer animate-slide-up flex flex-col gap-2">
-                  <div className="flex items-start gap-2.5">
+                <Card key={person.id} className="animate-slide-up flex cursor-pointer flex-col gap-3 p-3 transition-all hover:bg-accent/50 hover:shadow-md">
+                  <div className="flex items-start gap-3">
                     {/* Avatar */}
                     <div className="relative shrink-0">
                       <div className={`
-                        w-10 h-10 rounded-full flex items-center justify-center overflow-hidden
+                        w-12 h-12 rounded-full flex items-center justify-center overflow-hidden
                         ${person.photoUrl ? 'border shadow-sm' : ''}
                         ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
                           person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
@@ -347,54 +368,56 @@ export default function PeoplePage() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-1">
-                        <h3 className="font-semibold text-sm truncate leading-tight" title={person.fullName}>{person.fullName}</h3>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-semibold leading-tight md:text-base" title={person.fullName}>{person.fullName}</h3>
+                          <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground md:text-xs">
+                            <Calendar className="w-3 h-3" />
+                            <span className="truncate">
+                              {person.birthDate ? new Date(person.birthDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short' }) : 'Tahun tidak diketahui'}
+                              {person.deathDate && ` - ${new Date(person.deathDate).getFullYear()}`}
+                            </span>
+                          </div>
+                        </div>
 
                         {/* Actions (Compact) */}
-                        <div className="flex gap-0.5 shrink-0 -mt-1 -mr-1">
+                        <div className="flex gap-1 shrink-0">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                            aria-label={`Edit ${person.fullName}`}
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             onClick={(e) => {
                               e.stopPropagation();
                               setEditingPerson(person);
                             }}
                           >
-                            <Edit className="w-3 h-3" />
+                            <Edit className="w-3.5 h-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            aria-label={`Hapus ${person.fullName}`}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteConfirm(person);
                             }}
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       </div>
 
-                      {/* Dates */}
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-                        <Calendar className="w-3 h-3" />
-                        <span className="truncate">
-                          {person.birthDate ? new Date(person.birthDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'short' }) : '?'}
-                          {person.deathDate && ` - ${new Date(person.deathDate).getFullYear()}`}
-                        </span>
-                      </div>
-
                       {/* Tags (Compact) */}
                       {person.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
+                        <div className="mt-2 flex flex-wrap gap-1">
                           {person.tags.slice(0, 2).map((tag) => (
                             <Badge
                               key={tag}
                               variant="secondary"
                               className={`
-                                text-[10px] px-1 h-4 font-normal
+                                h-5 px-1.5 text-[10px] font-normal
                                 ${tag === 'verified' ? 'hidden' : ''} 
                                 ${tag === 'needs review' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : ''}
                               `}
@@ -411,13 +434,15 @@ export default function PeoplePage() {
                   </div>
 
                   {/* Keyakinan Bar (Slim) */}
-                  <div className="mt-1 flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
+                  <div className="mt-1 flex items-center gap-2 transition-opacity hover:opacity-100 md:opacity-60">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Keyakinan</span>
                     <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary/70 rounded-full"
                         style={{ width: `${person.confidenceScore}%` }}
                       />
                     </div>
+                    <span className="text-[10px] font-medium text-muted-foreground">{person.confidenceScore}%</span>
                   </div>
                 </Card>
               ))}

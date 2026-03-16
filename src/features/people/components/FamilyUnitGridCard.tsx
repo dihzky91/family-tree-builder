@@ -26,9 +26,19 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
         flex items-center gap-2 p-1.5 rounded-md hover:bg-accent/50 cursor-pointer transition-colors
         ${role === 'parent' ? 'bg-primary/5' : ''}
       `}
+            role="button"
+            tabIndex={0}
+            aria-label={`Edit ${person.fullName}`}
             onClick={(e) => {
                 e.stopPropagation();
                 onEditPerson?.(person);
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onEditPerson?.(person);
+                }
             }}
             title={person.fullName}
         >
@@ -62,25 +72,25 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
     );
 
     return (
-        <Card className="flex flex-col h-full overflow-hidden hover:shadow-md transition-shadow">
+        <Card className="flex h-full flex-col overflow-hidden rounded-2xl border hover:shadow-md transition-shadow">
             {/* Header - Simpler and more compact */}
-            <div className="p-2 bg-muted/40 border-b flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 border-b bg-muted/40 p-3">
                 <div className="flex items-center gap-2 min-w-0">
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1 shrink-0 font-normal text-muted-foreground bg-muted-foreground/10">
+                        <Badge variant="secondary" className="h-5 shrink-0 bg-muted-foreground/10 px-1.5 text-[10px] font-normal text-muted-foreground">
                         Gen {family.generation}
                     </Badge>
                     <h4 className="text-xs font-semibold text-foreground/80 truncate" title={family.familyName}>
                         {family.familyName.replace('Keluarga ', '')}
                     </h4>
                 </div>
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 bg-background/50 px-1.5 py-0.5 rounded-full border">
+                    <div className="flex shrink-0 items-center gap-1 rounded-full border bg-background/50 px-2 py-0.5 text-[10px] text-muted-foreground">
                     <Users className="w-2.5 h-2.5" />
                     <span>{family.parents.length + childCount}</span>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="p-2 flex-1 flex flex-col justify-between gap-2">
+            <div className="flex flex-1 flex-col justify-between gap-3 p-3">
                 <div className="space-y-2">
                     {/* Parents Grid */}
                     <div>
@@ -88,7 +98,7 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
                             <Heart className="w-2.5 h-2.5 text-rose-400" />
                             Orang Tua
                         </div>
-                        <div className={`grid gap-1 ${family.parents.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            <div className={`grid gap-2 ${family.parents.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
                             {family.parents.map(parent => (
                                 <MiniPerson key={parent.id} person={parent} role="parent" />
                             ))}
@@ -102,7 +112,7 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
                                 <Users className="w-2.5 h-2.5" />
                                 Anak ({childCount})
                             </div>
-                            <div className="grid grid-cols-2 gap-1">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 {family.children.slice(0, 6).map(child => (
                                     <MiniPerson key={child.id} person={child} role="child" />
                                 ))}

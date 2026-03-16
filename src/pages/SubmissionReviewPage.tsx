@@ -74,7 +74,20 @@ export default function SubmissionReviewPage() {
 
     const getBranchName = (branchId: string) => {
         const branch = branches.find(b => b.id === branchId);
-        return branch?.name || 'Unknown';
+        return branch?.name || 'Tidak diketahui';
+    };
+
+    const getStatusLabel = (status: Submission['status']) => {
+        switch (status) {
+            case 'pending':
+                return 'Menunggu';
+            case 'approved':
+                return 'Disetujui';
+            case 'rejected':
+                return 'Ditolak';
+            default:
+                return status;
+        }
     };
 
     const handleApprove = async (submission: Submission) => {
@@ -166,8 +179,8 @@ export default function SubmissionReviewPage() {
         <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-display font-bold">Review Submissions</h1>
-                <p className="text-muted-foreground">Tinjau dan setujui data yang disubmit oleh anggota keluarga</p>
+                <h1 className="text-2xl font-display font-bold">Tinjau Submisi</h1>
+                <p className="text-muted-foreground">Tinjau dan setujui data yang dikirim oleh anggota keluarga</p>
             </div>
 
             {/* Stats */}
@@ -175,7 +188,7 @@ export default function SubmissionReviewPage() {
                 <Card className="p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Pending</p>
+                            <p className="text-sm text-muted-foreground">Menunggu</p>
                             <p className="text-2xl font-bold">{pendingCount}</p>
                         </div>
                         <Clock className="w-8 h-8 text-warning" />
@@ -184,7 +197,7 @@ export default function SubmissionReviewPage() {
                 <Card className="p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Approved</p>
+                            <p className="text-sm text-muted-foreground">Disetujui</p>
                             <p className="text-2xl font-bold text-success">{approvedCount}</p>
                         </div>
                         <CheckCircle className="w-8 h-8 text-success" />
@@ -193,7 +206,7 @@ export default function SubmissionReviewPage() {
                 <Card className="p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Rejected</p>
+                            <p className="text-sm text-muted-foreground">Ditolak</p>
                             <p className="text-2xl font-bold text-destructive">{rejectedCount}</p>
                         </div>
                         <XCircle className="w-8 h-8 text-destructive" />
@@ -223,9 +236,9 @@ export default function SubmissionReviewPage() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Semua Status</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="pending">Menunggu</SelectItem>
+                        <SelectItem value="approved">Disetujui</SelectItem>
+                        <SelectItem value="rejected">Ditolak</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -238,7 +251,7 @@ export default function SubmissionReviewPage() {
             ) : submissions.length === 0 ? (
                 <Card className="p-12 text-center">
                     <FileCheck className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-muted-foreground">Tidak ada submission</p>
+                    <p className="text-muted-foreground">Belum ada submisi</p>
                 </Card>
             ) : (
                 <div className="space-y-4">
@@ -266,7 +279,7 @@ export default function SubmissionReviewPage() {
                                             submission.status === 'rejected' ? 'destructive' : 'secondary'
                                     }
                                 >
-                                    {submission.status}
+                                    {getStatusLabel(submission.status)}
                                 </Badge>
                             </div>
 
@@ -299,12 +312,12 @@ export default function SubmissionReviewPage() {
                                         <AlertDialogTrigger asChild>
                                             <Button variant="default" className="flex-1">
                                                 <Check className="w-4 h-4 mr-2" />
-                                                Approve
+                                                Setujui
                                             </Button>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
                                             <AlertDialogHeader>
-                                                <AlertDialogTitle>Approve Submission?</AlertDialogTitle>
+                                                <AlertDialogTitle>Setujui submisi ini?</AlertDialogTitle>
                                                 <AlertDialogDescription>
                                                     Data "{submission.fullName}" akan ditambahkan ke silsilah keluarga.
                                                 </AlertDialogDescription>
@@ -312,7 +325,7 @@ export default function SubmissionReviewPage() {
                                             <AlertDialogFooter>
                                                 <AlertDialogCancel>Batal</AlertDialogCancel>
                                                 <AlertDialogAction onClick={() => handleApprove(submission)}>
-                                                    Ya, Approve
+                                                    Ya, setujui
                                                 </AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
@@ -322,12 +335,12 @@ export default function SubmissionReviewPage() {
                                         <AlertDialogTrigger asChild>
                                             <Button variant="destructive" className="flex-1">
                                                 <X className="w-4 h-4 mr-2" />
-                                                Reject
+                                                Tolak
                                             </Button>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
                                             <AlertDialogHeader>
-                                                <AlertDialogTitle>Reject Submission?</AlertDialogTitle>
+                                                <AlertDialogTitle>Tolak submisi ini?</AlertDialogTitle>
                                                 <AlertDialogDescription>
                                                     Data "{submission.fullName}" tidak akan ditambahkan.
                                                 </AlertDialogDescription>
@@ -335,7 +348,7 @@ export default function SubmissionReviewPage() {
                                             <AlertDialogFooter>
                                                 <AlertDialogCancel>Batal</AlertDialogCancel>
                                                 <AlertDialogAction onClick={() => handleReject(submission)}>
-                                                    Ya, Reject
+                                                    Ya, tolak
                                                 </AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>

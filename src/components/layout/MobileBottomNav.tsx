@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  House,
   GitBranch,
   Users,
-  Calendar,
   BookOpen,
   Menu,
   Copy,
@@ -41,6 +41,11 @@ export function MobileBottomNav() {
 
   const navItems: NavItem[] = [
     {
+      title: 'Beranda',
+      url: '/',
+      icon: House,
+    },
+    {
       title: 'Silsilah',
       url: '/chart',
       icon: GitBranch,
@@ -49,11 +54,6 @@ export function MobileBottomNav() {
       title: 'Anggota',
       url: '/people',
       icon: Users,
-    },
-    {
-      title: 'Kalender',
-      url: '/calendar',
-      icon: Calendar,
     },
     {
       title: 'Kisah',
@@ -109,7 +109,7 @@ export function MobileBottomNav() {
       <div className="flex items-center justify-around h-16">
         {navItems.map((item) => {
           const isActive = location.pathname === item.url || 
-                          (item.url !== '#' && location.pathname.startsWith(item.url));
+                          (item.url !== '/' && item.url !== '#' && location.pathname.startsWith(item.url));
           const badgeCount = item.badge ? item.badge() : null;
           const Icon = item.icon;
 
@@ -117,6 +117,7 @@ export function MobileBottomNav() {
             <button
               key={item.title}
               onClick={() => handleNavClick(item.url)}
+              aria-label={item.title}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 h-full px-2 py-1 transition-colors",
                 "active:scale-95",

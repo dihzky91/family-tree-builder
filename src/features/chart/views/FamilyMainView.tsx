@@ -1,31 +1,46 @@
 import { useEffect, useRef } from 'react'
 import * as f3 from 'family-chart'
 import type { FamilyChartDatum } from '../utils/familyChartMapper'
+import type { Person } from '@/types'
 import 'family-chart/styles/family-chart.css'
 import './family-chart.css'
 
 interface FamilyMainViewProps {
     data: FamilyChartDatum[]
     rootId: string
+    rootPerson: Person
     onSelectPerson: (id: string) => void
     onAddRelationship: (id: string) => void
+}
+
+interface FamilyChartApi {
+    setCardHtml: (render: (datum: FamilyChartDatum) => string) => FamilyChartApi
+    setCardDisplay: (fields: string[][]) => FamilyChartApi
+    setCardXSpacing: (value: number) => FamilyChartApi
+    setCardYSpacing: (value: number) => FamilyChartApi
+    updateMainId: (id: string) => void
+    updateTree: (options: { initial: boolean }) => void
+    setOnCardClick?: (handler: (e: MouseEvent, d: FamilyChartDatum) => void) => void
+    onCardClickDefault?: (e: MouseEvent, d: FamilyChartDatum) => void
 }
 
 export function FamilyMainView({
     data,
     rootId,
+    rootPerson,
     onSelectPerson,
     onAddRelationship,
 }: FamilyMainViewProps) {
     const containerRef = useRef<HTMLDivElement>(null)
-    const chartRef = useRef<any>(null)
+    const chartRef = useRef<FamilyChartApi | null>(null)
 
     useEffect(() => {
-        if (!containerRef.current || !data.length || !rootId) return
+        const container = containerRef.current
+        if (!container || !data.length || !rootId) return
 
-        containerRef.current.innerHTML = ''
+        container.innerHTML = ''
 
-        const chart: any = f3.createChart(containerRef.current, data)
+        const chart = f3.createChart(container, data) as unknown as FamilyChartApi
         chartRef.current = chart
 
         chart
@@ -38,7 +53,7 @@ export function FamilyMainView({
 
                 return `
         <div
-          class="f3-card ${d.data.gender === 'M' ? 'male' : 'female'}"
+          class="f3-card ${d.data.gender === 'M' ? 'male' : 'female'} ${d.id === rootId ? 'is-root' : ''}"
           data-person-id="${d.id}"
           data-action="select"
           data-id="${d.id}"
@@ -125,7 +140,7 @@ export function FamilyMainView({
 
         if (chartRef.current?.setOnCardClick) {
             chartRef.current.setOnCardClick(handleCardClick)
-        } else if (containerRef.current) {
+        } else {
             fallbackListener = (e: MouseEvent) => {
                 const target = e.target as HTMLElement
                 const card = target.closest('[data-action="select"]') as HTMLElement
@@ -133,24 +148,41 @@ export function FamilyMainView({
                     handleCardClick(e, { id: card.dataset.personId } as FamilyChartDatum)
                 }
             }
-            containerRef.current.addEventListener('click', fallbackListener)
+            container.addEventListener('click', fallbackListener)
         }
 
         return () => {
-            if (fallbackListener && containerRef.current) {
-                containerRef.current.removeEventListener('click', fallbackListener)
+            if (fallbackListener) {
+                container.removeEventListener('click', fallbackListener)
             }
-            if (containerRef.current) {
-                containerRef.current.innerHTML = ''
-            }
+            container.innerHTML = ''
         }
     }, [data, rootId, onSelectPerson, onAddRelationship])
 
     return (
-        <div
-            ref={containerRef}
-            className="f3"
-            style={{ width: '100%', height: '900px' }}
-        />
+        <div className="space-y-4">
+            <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Figur pusat</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/12 text-sm font-semibold text-primary">
+                        {rootPerson.fullName
+                            .split(/\s+/)
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((part) => part[0]?.toUpperCase())
+                            .join('') || '?'}
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-foreground">{rootPerson.fullName}</p>
+                        <p className="text-xs text-muted-foreground">Klik anggota lain untuk memindahkan pusat keluarga ke orang tersebut.</p>
+                    </div>
+                </div>
+            </div>
+            <div
+                ref={containerRef}
+                className="f3 family-stage"
+                style={{ width: '100%', height: '900px' }}
+            />
+        </div>
     )
 }

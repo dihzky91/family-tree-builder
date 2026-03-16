@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
+  House,
   Users,
   GitBranch,
   FileText,
@@ -82,8 +83,9 @@ export function MobileNav() {
 
   const navGroups: NavGroup[] = [
     {
-      label: 'Overview',
+      label: 'Ringkasan',
       items: [
+        { title: 'Beranda', url: '/', icon: House },
         { title: 'Hari Ini', url: '/on-this-day', icon: CalendarHeart },
         { title: 'Kalender Ulang Tahun', url: '/calendar', icon: Cake },
       ]
@@ -127,7 +129,7 @@ export function MobileNav() {
       items: [
         { title: 'Cabang', url: '/branches', icon: FolderTree },
         {
-          title: 'Submissions',
+          title: 'Submisi',
           url: '/submissions',
           icon: FileCheck,
           badge: () => submissionCount > 0 ? submissionCount : null
@@ -178,6 +180,7 @@ export function MobileNav() {
               variant="ghost"
               size="icon"
               onClick={() => setShowAddPersonDialog(true)}
+              aria-label="Tambah anggota"
               className="h-9 w-9"
             >
               <Plus className="h-5 w-5" />
@@ -185,7 +188,7 @@ export function MobileNav() {
             <UserMenu />
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Buka menu navigasi">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
