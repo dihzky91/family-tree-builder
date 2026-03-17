@@ -121,6 +121,32 @@ export function useAuth() {
     return { data, error };
   };
 
+  const requestPasswordReset = async (email: string) => {
+    if (!hasSupabaseConfig) {
+      return { data: null, error: new Error('Supabase is not configured') };
+    }
+
+    const supabase = getSupabaseClient();
+    const redirectUrl = `${window.location.origin}/auth`;
+
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
+
+    return { data, error };
+  };
+
+  const updatePassword = async (password: string) => {
+    if (!hasSupabaseConfig) {
+      return { data: null, error: new Error('Supabase is not configured') };
+    }
+
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.auth.updateUser({ password });
+
+    return { data, error };
+  };
+
   const signOut = async () => {
     if (!hasSupabaseConfig) {
       return { error: new Error('Supabase is not configured') };
@@ -159,6 +185,8 @@ export function useAuth() {
     isAuthenticated: !!state.session,
     signUp,
     signIn,
+    requestPasswordReset,
+    updatePassword,
     signOut,
     updateProfile,
   };

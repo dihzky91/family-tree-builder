@@ -25,6 +25,15 @@ const passwordSchema = z.string()
 
 const nameSchema = z.string().min(2, 'Nama minimal 2 karakter').optional();
 
+function hasRecoveryToken() {
+  if (typeof window === 'undefined') return false;
+  const hash = window.location.hash.startsWith('#')
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+
+  return new URLSearchParams(hash).get('type') === 'recovery';
+}
+
 export default function AuthPage() {
   const navigate = useNavigate();
   const { loadDemoData } = useFamilyStore();
@@ -36,22 +45,27 @@ export default function AuthPage() {
     loadDemoData();
     navigate('/');
   };
-  const { signIn, signUp, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { signIn, signUp, requestPasswordReset, updatePassword, isAuthenticated, isLoading: authLoading } = useAuth();
   const { isLocked, remainingAttempts, recordAttempt, resetAttempts, formatRemainingTime } = useRateLimit('login');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hasExistingUser, setHasExistingUser] = useState<boolean | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(hasRecoveryToken());
 
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
 
   // Register form
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerName, setRegisterName] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   // Check if user already exists (Single User Mode)
   useEffect(() => {
@@ -70,10 +84,21 @@ export default function AuthPage() {
   }, [hasSupabaseConfig]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    const syncRecoveryState = () => {
+      setIsRecoveryMode(hasRecoveryToken());
+    };
+
+    syncRecoveryState();
+    window.addEventListener('hashchange', syncRecoveryState);
+
+    return () => window.removeEventListener('hashchange', syncRecoveryState);
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && !isRecoveryMode) {
       navigate('/', { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isRecoveryMode, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +185,73 @@ export default function AuthPage() {
     setIsLoading(false);
   };
 
+  const handleForgotPassword = async (e: React.FormEvent | React.MouseEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setIsLoading(true);
+
+    try {
+      emailSchema.parse(resetEmail);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message);
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    const { error } = await requestPasswordReset(resetEmail);
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess('Link reset password sudah dikirim. Silakan cek email Anda.');
+      setResetEmail('');
+      setShowForgotPassword(false);
+    }
+
+    setIsLoading(false);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setIsLoading(true);
+
+    try {
+      passwordSchema.parse(newPassword);
+      if (newPassword !== confirmNewPassword) {
+        throw new Error('Konfirmasi password baru tidak cocok');
+      }
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    const { error } = await updatePassword(newPassword);
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess('Password berhasil diperbarui. Silakan masuk dengan password baru Anda.');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setIsRecoveryMode(false);
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, document.title, '/auth');
+      }
+    }
+
+    setIsLoading(false);
+  };
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -194,6 +286,92 @@ export default function AuthPage() {
         </div>
 
         <Card className="border-border/50 shadow-xl">
+          {isRecoveryMode ? (
+            <form onSubmit={handleResetPassword}>
+              <CardHeader>
+                <CardTitle>Buat Password Baru</CardTitle>
+                <CardDescription>
+                  Gunakan password baru yang memenuhi kombinasi keamanan terbaru.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                {success && (
+                  <Alert className="border-primary/50 bg-primary/5">
+                    <AlertDescription className="text-primary">
+                      {success}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">Password Baru</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="new-password"
+                      type="password"
+                      placeholder="Minimal 8 karakter"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-new-password">Konfirmasi Password Baru</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="confirm-new-password"
+                      type="password"
+                      placeholder="Ulangi password baru"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+                  Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 huruf kecil, 1 angka, dan 1 karakter khusus.
+                </div>
+              </CardContent>
+              <CardFooter className="flex-col gap-3">
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    'Simpan Password Baru'
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setIsRecoveryMode(false);
+                    setError(null);
+                    if (typeof window !== 'undefined') {
+                      window.history.replaceState({}, document.title, '/auth');
+                    }
+                  }}
+                >
+                  Kembali ke login
+                </Button>
+              </CardFooter>
+            </form>
+          ) : (
           <Tabs defaultValue="login" className="w-full">
             {!hasExistingUser && (
               <TabsList className="grid w-full grid-cols-2">
@@ -215,6 +393,13 @@ export default function AuthPage() {
                   {error && (
                     <Alert variant="destructive">
                       <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  {success && (
+                    <Alert className="border-primary/50 bg-primary/5">
+                      <AlertDescription className="text-primary">
+                        {success}
+                      </AlertDescription>
                     </Alert>
                   )}
 
@@ -249,8 +434,62 @@ export default function AuthPage() {
                       />
                     </div>
                   </div>
+
+                  {showForgotPassword && (
+                    <div className="rounded-lg border border-border/70 bg-muted/20 p-4 space-y-4">
+                      <div>
+                        <p className="font-medium text-sm text-foreground">Reset password via email</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Masukkan email akun Anda. Kami akan kirim link untuk membuat password baru.
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="reset-email">Email untuk reset</Label>
+                          <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input
+                              id="reset-email"
+                              type="email"
+                              placeholder="nama@email.com"
+                              value={resetEmail}
+                              onChange={(e) => setResetEmail(e.target.value)}
+                              className="pl-10"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button type="button" className="flex-1" disabled={isLoading} onClick={handleForgotPassword}>
+                            {isLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Mengirim...
+                              </>
+                            ) : (
+                              'Kirim Link Reset'
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setShowForgotPassword(false);
+                              setResetEmail('');
+                              setError(null);
+                            }}
+                          >
+                            Batal
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex-col gap-3">
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (
                       <>
@@ -260,6 +499,18 @@ export default function AuthPage() {
                     ) : (
                       'Masuk'
                     )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 text-sm"
+                    onClick={() => {
+                      setShowForgotPassword((prev) => !prev);
+                      setSuccess(null);
+                      setError(null);
+                    }}
+                  >
+                    {showForgotPassword ? 'Tutup reset password' : 'Lupa password?'}
                   </Button>
                 </CardFooter>
               </form>
@@ -352,6 +603,7 @@ export default function AuthPage() {
               </TabsContent>
             )}
           </Tabs>
+          )}
         </Card>
 
         {/* Demo Button */}
