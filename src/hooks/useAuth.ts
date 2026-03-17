@@ -18,6 +18,15 @@ interface AuthState {
   isLoading: boolean;
 }
 
+function getAuthRedirectBaseUrl() {
+  const configuredUrl = import.meta.env.VITE_APP_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/$/, '');
+  }
+
+  return window.location.origin;
+}
+
 export function useAuth() {
   const hasSupabaseConfig = Boolean(
     import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -92,7 +101,7 @@ export function useAuth() {
       return { data: null, error: new Error('Supabase is not configured') };
     }
     const supabase = getSupabaseClient();
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = `${getAuthRedirectBaseUrl()}/`;
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -127,7 +136,7 @@ export function useAuth() {
     }
 
     const supabase = getSupabaseClient();
-    const redirectUrl = `${window.location.origin}/auth`;
+    const redirectUrl = `${getAuthRedirectBaseUrl()}/auth`;
 
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,

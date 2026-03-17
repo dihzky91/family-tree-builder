@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, TreeDeciduous, Mail, Lock, User, Sparkles } from 'lucide-react';
+import { Loader2, TreeDeciduous, Mail, Lock, User, Sparkles, Eye, EyeOff, CheckCircle2, Circle } from 'lucide-react';
 import { z } from 'zod';
 import { useFamilyStore } from '@/store/familyStore';
+import { cn } from '@/lib/utils';
 
 const emailSchema = z.string().email('Email tidak valid');
 
@@ -34,6 +35,89 @@ function hasRecoveryToken() {
   return new URLSearchParams(hash).get('type') === 'recovery';
 }
 
+function getPasswordChecks(password: string) {
+  return [
+    { label: 'Minimal 8 karakter', valid: password.length >= 8 },
+    { label: 'Memiliki huruf besar', valid: /[A-Z]/.test(password) },
+    { label: 'Memiliki huruf kecil', valid: /[a-z]/.test(password) },
+    { label: 'Memiliki angka', valid: /[0-9]/.test(password) },
+    { label: 'Memiliki karakter khusus', valid: /[^A-Za-z0-9]/.test(password) },
+  ];
+}
+
+interface PasswordFieldProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+}
+
+function PasswordField({ id, label, value, onChange, placeholder, autoFocus }: PasswordFieldProps) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="relative">
+        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          id={id}
+          type={isVisible ? 'text' : 'password'}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="pl-10 pr-11"
+          autoFocus={autoFocus}
+          required
+        />
+        <button
+          type="button"
+          onClick={() => setIsVisible((prev) => !prev)}
+          aria-label={isVisible ? 'Sembunyikan password' : 'Tampilkan password'}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PasswordRequirements({ password }: { password: string }) {
+  const checks = getPasswordChecks(password);
+  const hasStarted = password.length > 0;
+
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/25 p-3">
+      <p className="mb-2 text-xs font-medium text-foreground">Syarat password</p>
+      <div className="grid gap-2">
+        {checks.map((check) => {
+          const Icon = check.valid ? CheckCircle2 : Circle;
+
+          return (
+            <div
+              key={check.label}
+              className={cn(
+                'flex items-center gap-2 text-xs transition-colors',
+                check.valid
+                  ? 'text-emerald-600'
+                  : hasStarted
+                    ? 'text-rose-600'
+                    : 'text-muted-foreground'
+              )}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span>{check.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function AuthPage() {
   const navigate = useNavigate();
   const { loadDemoData } = useFamilyStore();
@@ -54,6 +138,7 @@ export default function AuthPage() {
   const [hasExistingUser, setHasExistingUser] = useState<boolean | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [isRecoveryMode, setIsRecoveryMode] = useState(hasRecoveryToken());
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
 
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
@@ -287,7 +372,7 @@ export default function AuthPage() {
 
         <Card className="border-border/50 shadow-xl">
           {isRecoveryMode ? (
-            <form onSubmit={handleResetPassword}>
+            <form onSubmit={handleResetPassword} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               <CardHeader>
                 <CardTitle>Buat Password Baru</CardTitle>
                 <CardDescription>
@@ -308,41 +393,24 @@ export default function AuthPage() {
                   </Alert>
                 )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">Password Baru</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="new-password"
-                      type="password"
-                      placeholder="Minimal 8 karakter"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
+                <PasswordField
+                  id="new-password"
+                  label="Password Baru"
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  placeholder="Minimal 8 karakter"
+                  autoFocus
+                />
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-new-password">Konfirmasi Password Baru</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="confirm-new-password"
-                      type="password"
-                      placeholder="Ulangi password baru"
-                      value={confirmNewPassword}
-                      onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
+                <PasswordField
+                  id="confirm-new-password"
+                  label="Konfirmasi Password Baru"
+                  value={confirmNewPassword}
+                  onChange={setConfirmNewPassword}
+                  placeholder="Ulangi password baru"
+                />
 
-                <div className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
-                  Password harus mengandung minimal 8 karakter, 1 huruf besar, 1 huruf kecil, 1 angka, dan 1 karakter khusus.
-                </div>
+                <PasswordRequirements password={newPassword} />
               </CardContent>
               <CardFooter className="flex-col gap-3">
                 <Button type="submit" className="w-full" disabled={isLoading}>
@@ -372,7 +440,7 @@ export default function AuthPage() {
               </CardFooter>
             </form>
           ) : (
-          <Tabs defaultValue="login" className="w-full">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'login' | 'register')} className="w-full">
             {!hasExistingUser && (
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Masuk</TabsTrigger>
@@ -381,7 +449,7 @@ export default function AuthPage() {
             )}
 
             {/* Login Tab */}
-            <TabsContent value="login">
+            <TabsContent value="login" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
               <form onSubmit={handleLogin}>
                 <CardHeader>
                   <CardTitle>Selamat Datang</CardTitle>
@@ -414,29 +482,22 @@ export default function AuthPage() {
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
                         className="pl-10"
+                        autoFocus={activeTab === 'login'}
                         required
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="login-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
+                  <PasswordField
+                    id="login-password"
+                    label="Password"
+                    value={loginPassword}
+                    onChange={setLoginPassword}
+                    placeholder="••••••••"
+                  />
 
                   {showForgotPassword && (
-                    <div className="rounded-lg border border-border/70 bg-muted/20 p-4 space-y-4">
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 rounded-lg border border-border/70 bg-muted/20 p-4 space-y-4">
                       <div>
                         <p className="font-medium text-sm text-foreground">Reset password via email</p>
                         <p className="text-xs text-muted-foreground mt-1">
@@ -518,7 +579,7 @@ export default function AuthPage() {
 
             {/* Register Tab - Hidden in Single User Mode */}
             {!hasExistingUser && (
-              <TabsContent value="register">
+              <TabsContent value="register" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <form onSubmit={handleRegister}>
                   <CardHeader>
                     <CardTitle>Buat Akun</CardTitle>
@@ -551,6 +612,7 @@ export default function AuthPage() {
                           value={registerName}
                           onChange={(e) => setRegisterName(e.target.value)}
                           className="pl-10"
+                          autoFocus={activeTab === 'register'}
                         />
                       </div>
                     </div>
@@ -571,21 +633,15 @@ export default function AuthPage() {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="register-password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="register-password"
-                          type="password"
-                          placeholder="Minimal 8 karakter"
-                          value={registerPassword}
-                          onChange={(e) => setRegisterPassword(e.target.value)}
-                          className="pl-10"
-                          required
-                        />
-                      </div>
-                    </div>
+                    <PasswordField
+                      id="register-password"
+                      label="Password"
+                      value={registerPassword}
+                      onChange={setRegisterPassword}
+                      placeholder="Minimal 8 karakter"
+                    />
+
+                    <PasswordRequirements password={registerPassword} />
                   </CardContent>
                   <CardFooter>
                     <Button type="submit" className="w-full" disabled={isLoading}>
