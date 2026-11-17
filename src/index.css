@@ -259,14 +259,14 @@
   }
 
   .soft-scroll {
-    scrollbar-width: none;
-    scrollbar-color: transparent transparent;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--sidebar-foreground) / 0.28) transparent;
   }
 
   .soft-scroll:hover,
   .soft-scroll:focus-within {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--sidebar-foreground) / 0.26) transparent;
+    scrollbar-color: hsl(var(--sidebar-foreground) / 0.48) transparent;
   }
 
   .soft-scroll::-webkit-scrollbar {
@@ -278,7 +278,7 @@
   }
 
   .soft-scroll::-webkit-scrollbar-thumb {
-    background: hsl(var(--sidebar-foreground) / 0);
+    background: hsl(var(--sidebar-foreground) / 0.28);
     border-radius: 9999px;
     border: 2px solid transparent;
     background-clip: padding-box;
@@ -287,7 +287,7 @@
 
   .soft-scroll:hover::-webkit-scrollbar-thumb,
   .soft-scroll:focus-within::-webkit-scrollbar-thumb {
-    background: hsl(var(--sidebar-foreground) / 0.26);
+    background: hsl(var(--sidebar-foreground) / 0.48);
     border-radius: 9999px;
     border: 2px solid transparent;
     background-clip: padding-box;

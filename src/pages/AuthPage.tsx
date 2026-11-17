@@ -13,16 +13,9 @@ import { Loader2, TreeDeciduous, Mail, Lock, User, Sparkles, Eye, EyeOff, CheckC
 import { z } from 'zod';
 import { useFamilyStore } from '@/store/familyStore';
 import { cn } from '@/lib/utils';
+import { passwordSchema, getPasswordChecks } from '@/lib/password';
 
 const emailSchema = z.string().email('Email tidak valid');
-
-// Enhanced password policy: min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
-const passwordSchema = z.string()
-  .min(8, 'Password minimal 8 karakter')
-  .regex(/[A-Z]/, 'Password harus mengandung minimal 1 huruf besar')
-  .regex(/[a-z]/, 'Password harus mengandung minimal 1 huruf kecil')
-  .regex(/[0-9]/, 'Password harus mengandung minimal 1 angka')
-  .regex(/[^A-Za-z0-9]/, 'Password harus mengandung minimal 1 karakter khusus (!@#$%^&*)');
 
 const nameSchema = z.string().min(2, 'Nama minimal 2 karakter').optional();
 
@@ -33,16 +26,6 @@ function hasRecoveryToken() {
     : window.location.hash;
 
   return new URLSearchParams(hash).get('type') === 'recovery';
-}
-
-function getPasswordChecks(password: string) {
-  return [
-    { label: 'Minimal 8 karakter', valid: password.length >= 8 },
-    { label: 'Memiliki huruf besar', valid: /[A-Z]/.test(password) },
-    { label: 'Memiliki huruf kecil', valid: /[a-z]/.test(password) },
-    { label: 'Memiliki angka', valid: /[0-9]/.test(password) },
-    { label: 'Memiliki karakter khusus', valid: /[^A-Za-z0-9]/.test(password) },
-  ];
 }
 
 interface PasswordFieldProps {
@@ -170,14 +153,30 @@ export default function AuthPage() {
 
   useEffect(() => {
     const syncRecoveryState = () => {
-      setIsRecoveryMode(hasRecoveryToken());
+      if (hasRecoveryToken()) {
+        setIsRecoveryMode(true);
+      }
     };
 
     syncRecoveryState();
     window.addEventListener('hashchange', syncRecoveryState);
 
-    return () => window.removeEventListener('hashchange', syncRecoveryState);
-  }, []);
+    if (!hasSupabaseConfig) {
+      return () => window.removeEventListener('hashchange', syncRecoveryState);
+    }
+
+    const supabase = getSupabaseClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveryMode(true);
+      }
+    });
+
+    return () => {
+      window.removeEventListener('hashchange', syncRecoveryState);
+      subscription.unsubscribe();
+    };
+  }, [hasSupabaseConfig]);
 
   useEffect(() => {
     if (isAuthenticated && !isRecoveryMode) {

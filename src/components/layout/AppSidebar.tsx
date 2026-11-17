@@ -228,7 +228,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "sticky top-5 flex max-h-[calc(100vh-2.5rem)] flex-col overflow-hidden rounded-[1.75rem] border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg shadow-black/20 transition-all duration-300 sidebar-gradient",
+        "sticky top-5 flex h-[calc(100vh-2.5rem)] flex-col overflow-hidden rounded-[1.75rem] border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg shadow-black/20 transition-all duration-300 sidebar-gradient",
         collapsed ? "w-16" : "w-64"
       )}
     >
@@ -291,33 +291,29 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
 
       {/* Quick Actions */}
       {!collapsed && (
-        <div className="px-3 pb-3 pt-3 space-y-2">
+        <div className="grid grid-cols-2 gap-1.5 px-3 pb-1 pt-2.5">
           <Button
-            className="w-full justify-start gap-2 rounded-xl bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
+            size="sm"
+            className="h-9 justify-center gap-1.5 rounded-xl bg-sidebar-primary px-2.5 text-xs font-medium text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
             onClick={() => setShowAddPersonDialog(true)}
           >
-            <Plus className="w-4 h-4" />
-            Tambah Anggota
+            <Plus className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Anggota</span>
           </Button>
           <Button
+            size="sm"
             variant="sidebarOutline"
-            className="w-full justify-start gap-2 rounded-xl border-sidebar-border/80 bg-sidebar-accent/30 hover:bg-sidebar-accent"
+            className="h-9 justify-center gap-1.5 rounded-xl border-sidebar-border/80 bg-sidebar-accent/30 px-2.5 text-xs font-medium hover:bg-sidebar-accent"
             onClick={() => navigate('/data')}
           >
-            <Upload className="w-4 h-4" />
-            Import Data
+            <Upload className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Import</span>
           </Button>
-          {hasNavOverflow && (
-            <div className="flex items-center gap-2 px-1 pt-1 text-[11px] text-sidebar-foreground/45">
-            <Mouse className="h-3.5 w-3.5 shrink-0" />
-              <span>Gunakan trackpad dua jari atau tombol panah untuk menelusuri menu</span>
-            </div>
-          )}
         </div>
       )}
 
       {/* Navigation */}
-      <div className="relative flex-1 min-h-0 px-2 py-3">
+      <div className="relative flex flex-1 min-h-0 flex-col px-2 py-3">
         <div className="pointer-events-none absolute inset-x-2 top-3 z-10 h-6 rounded-t-2xl bg-gradient-to-b from-sidebar via-sidebar/85 to-transparent" />
         <div className="pointer-events-none absolute inset-x-2 bottom-3 z-10 h-8 rounded-b-2xl bg-gradient-to-t from-sidebar via-sidebar/85 to-transparent" />
         <nav
@@ -325,7 +321,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           tabIndex={hasNavOverflow ? 0 : -1}
           aria-label="Navigasi sidebar"
           onKeyDown={handleNavKeyDown}
-          className="soft-scroll scroll-fade-mask h-full space-y-4 overflow-y-auto rounded-2xl px-0.5 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+          className="soft-scroll scroll-fade-mask flex-1 min-h-0 space-y-4 overflow-y-auto rounded-2xl px-0.5 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
         >
         {navGroups.map((group, groupIndex) => (
           <div key={group.label} className="space-y-1.5">

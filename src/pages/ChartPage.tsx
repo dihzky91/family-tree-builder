@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Fuse from 'fuse.js';
 import { useFamilyStore } from '@/store/familyStore';
@@ -66,15 +66,16 @@ import { RelationshipInspector } from '@/features/relationships/RelationshipInsp
 import { MiniMap } from '@/features/chart/components/MiniMap';
 import { exportTreeAsImage, type ExportFormat } from '@/features/chart/utils/exportTreeAsImage';
 import { exportTreePremiumDigital, type PremiumTheme, type PremiumPaletteOverrides } from '@/features/chart/utils/premiumExport';
-import { PrintDialog } from '@/features/chart/components/PrintDialog';
 import { FamilyMainView } from '@/features/chart/views/FamilyMainView';
 import { transformToFamilyChartData } from '@/features/chart/utils/familyChartMapper';
-import { TimelineView } from '@/features/chart/views/TimelineView';
-import { NetworkGraphView } from '@/features/chart/views/NetworkGraphView';
-import { GeoMapView } from '@/features/chart/views/GeoMapView';
-import { SunburstView } from '@/features/chart/views/SunburstView';
-import { InheritanceTreeView } from '@/features/chart/views/InheritanceTreeView';
 import { cn } from '@/lib/utils';
+
+const PrintDialog = lazy(() => import('@/features/chart/components/PrintDialog').then(m => ({ default: m.PrintDialog })));
+const TimelineView = lazy(() => import('@/features/chart/views/TimelineView').then(m => ({ default: m.TimelineView })));
+const NetworkGraphView = lazy(() => import('@/features/chart/views/NetworkGraphView').then(m => ({ default: m.NetworkGraphView })));
+const GeoMapView = lazy(() => import('@/features/chart/views/GeoMapView').then(m => ({ default: m.GeoMapView })));
+const SunburstView = lazy(() => import('@/features/chart/views/SunburstView').then(m => ({ default: m.SunburstView })));
+const InheritanceTreeView = lazy(() => import('@/features/chart/views/InheritanceTreeView').then(m => ({ default: m.InheritanceTreeView })));
 
 
 // Animation variants
@@ -463,11 +464,11 @@ export default function ChartPage() {
   }, [setSelectedPerson]);
 
   return (
-    <div className="flex h-[calc(100vh-0px)] animate-fade-in">
+    <div className="flex h-[calc(100vh-3.5rem)] animate-fade-in">
       {/* Main Chart Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="border-b bg-card">
+        <div className="border-b bg-card/95 backdrop-blur-sm">
           {isMobile ? (
             <>
               <div className="flex items-center justify-between gap-3 px-3 pt-3">
@@ -550,210 +551,221 @@ export default function ChartPage() {
               </div>
             </>
           ) : (
-            <div className="space-y-3 p-3 sm:p-4">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                    <CurrentViewIcon className="h-3.5 w-3.5" />
-                    <span>Workspace chart</span>
+            <div className="space-y-2 px-4 py-2.5">
+              {/* Row 1: Title + Inline Stats + Focus Pill + Search */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <CurrentViewIcon className="h-4 w-4" />
+                    </span>
+                    <h1 className="font-display text-lg font-semibold text-foreground leading-none">
+                      {currentViewOption.label}
+                    </h1>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <h1 className="font-display text-xl font-semibold text-foreground sm:text-2xl">{currentViewOption.label}</h1>
-                    <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.16em]">
-                      Tampilan aktif
-                    </Badge>
-                  </div>
-                  <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-                    {currentViewOption.description}. Fokus saat ini: <span className="font-medium text-foreground">{chartFocusLabel}</span>
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {chartContextItems.map((item) => (
-                      <span
-                        key={item}
-                        className="rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground"
-                      >
-                        {item}
+
+                  <span className="hidden text-muted-foreground/40 sm:inline">·</span>
+
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5">
+                      {stats.total} anggota
+                    </span>
+                    <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5">
+                      {stats.generations} generasi
+                    </span>
+                    {selectedPerson ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 pl-2.5 pr-1.5 py-0.5 font-medium text-foreground">
+                        <span className="truncate max-w-[160px]">Fokus: {selectedPerson.fullName}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPerson(null)}
+                          className="rounded-full p-0.5 hover:bg-primary/20 text-muted-foreground hover:text-foreground"
+                          title="Lepas fokus"
+                          aria-label="Lepas fokus"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </span>
-                    ))}
+                    ) : (
+                      <span className="hidden lg:inline text-muted-foreground">
+                        {currentViewOption.description}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="relative w-full xl:max-w-xs">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     type="search"
                     placeholder="Cari anggota atau ID..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    className="h-10 rounded-2xl border-border/70 bg-background/80 pl-9 text-sm"
+                    className="h-8 rounded-xl border-border/70 bg-background/80 pl-8 text-xs"
                   />
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-muted/35 p-2">
-            <div className="flex flex-1 flex-wrap gap-2">
-              {primaryViewModes.map((opt) => {
-                const Icon = opt.icon;
-                const isActive = viewMode === opt.value;
-                return (
-                  <Button
-                    key={opt.value}
-                    variant={isActive ? 'default' : 'outline'}
-                    size="sm"
-                    className={cn(
-                      'h-9 rounded-xl px-3',
-                      isActive
-                        ? 'shadow-sm'
-                        : 'border-border/70 bg-background/85 text-muted-foreground hover:text-foreground'
-                    )}
-                    title={opt.description}
-                    onClick={() => setViewMode(opt.value as ViewMode)}
-                  >
-                    <Icon className="mr-2 h-4 w-4" />
-                    {opt.label}
-                  </Button>
-                );
-              })}
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 gap-2 rounded-xl border-border/70 bg-background/90 px-3" title={currentViewOption.description}>
-                    <CurrentViewIcon className="w-4 h-4" />
-                    <span>Lainnya</span>
-                    <ChevronDown className="hidden h-3 w-3 opacity-50 sm:block" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="bg-popover w-56">
-                  {secondaryViewModes.map(opt => {
+              {/* Row 2: View Switcher + Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-muted/30 px-2 py-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {primaryViewModes.map((opt) => {
                     const Icon = opt.icon;
                     const isActive = viewMode === opt.value;
                     return (
-                      <DropdownMenuItem
+                      <Button
                         key={opt.value}
+                        variant={isActive ? 'default' : 'ghost'}
+                        size="sm"
+                        className={cn(
+                          'h-8 rounded-lg px-2.5 text-xs',
+                          isActive
+                            ? 'shadow-sm'
+                            : 'text-muted-foreground hover:bg-background/80 hover:text-foreground'
+                        )}
+                        title={opt.description}
                         onClick={() => setViewMode(opt.value as ViewMode)}
-                        className="flex items-start gap-3 py-2"
                       >
-                        <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className={`font-medium ${isActive ? 'text-primary' : ''}`}>{opt.label}</div>
-                          <div className="text-xs text-muted-foreground">{opt.description}</div>
-                        </div>
-                        {isActive && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
-                      </DropdownMenuItem>
+                        <Icon className="mr-1.5 h-3.5 w-3.5" />
+                        {opt.label}
+                      </Button>
                     );
                   })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
 
-            {/* Pedigree Generation Slider - Hidden on mobile */}
-            {viewMode === 'pedigree' && (
-              <div className="hidden sm:flex items-center gap-2 rounded-xl border border-border/70 bg-background/70 px-3 py-1.5">
-                <span className="text-xs text-muted-foreground whitespace-nowrap">Kedalaman</span>
-                <input
-                  type="range"
-                  min={2}
-                  max={6}
-                  value={pedigreeGenerations}
-                  onChange={(e) => setPedigreeGenerations(Number(e.target.value))}
-                  className="h-1.5 w-16 accent-primary cursor-pointer"
-                />
-                <span className="text-sm font-medium w-4 text-center">{pedigreeGenerations}</span>
-              </div>
-            )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant={secondaryViewModes.some((o) => o.value === viewMode) ? 'default' : 'ghost'}
+                        size="sm"
+                        className="h-8 gap-1.5 rounded-lg px-2.5 text-xs"
+                        title={currentViewOption.description}
+                      >
+                        <span>Lainnya</span>
+                        <ChevronDown className="h-3 w-3 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="bg-popover w-56">
+                      {secondaryViewModes.map(opt => {
+                        const Icon = opt.icon;
+                        const isActive = viewMode === opt.value;
+                        return (
+                          <DropdownMenuItem
+                            key={opt.value}
+                            onClick={() => setViewMode(opt.value as ViewMode)}
+                            className="flex items-start gap-3 py-2"
+                          >
+                            <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className={`font-medium ${isActive ? 'text-primary' : ''}`}>{opt.label}</div>
+                              <div className="text-xs text-muted-foreground">{opt.description}</div>
+                            </div>
+                            {isActive && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
-            {/* Zoom Controls - Compact on mobile */}
-            {isZoomableView && (
-              <div className="flex items-center rounded-xl border border-border/70 bg-background/70">
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-r-none" onClick={() => handleZoom('out')} title="Zoom Out" aria-label="Perkecil chart">
-                  <ZoomOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="hidden h-9 w-9 rounded-none border-x sm:flex" onClick={reset} title="Reset View" aria-label="Reset posisi chart">
-                  <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-l-none" onClick={() => handleZoom('in')} title="Zoom In" aria-label="Perbesar chart">
-                  <ZoomIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </Button>
-              </div>
-            )}
+                <div className="flex items-center gap-1.5">
+                  {/* Pedigree Generation Slider */}
+                  {viewMode === 'pedigree' && (
+                    <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border/70 bg-background/80 px-2.5 py-1">
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">Kedalaman</span>
+                      <input
+                        type="range"
+                        min={2}
+                        max={6}
+                        value={pedigreeGenerations}
+                        onChange={(e) => setPedigreeGenerations(Number(e.target.value))}
+                        className="h-1.5 w-14 accent-primary cursor-pointer"
+                      />
+                      <span className="text-xs font-medium w-3 text-center">{pedigreeGenerations}</span>
+                    </div>
+                  )}
 
-            {/* Actions Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-2 rounded-xl border-border/70 bg-background/90 px-3" title="Aksi" aria-label="Buka menu aksi">
-                  <MoreHorizontal className="w-4 h-4" />
-                  <span>Aksi</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover w-48">
-                <DropdownMenuItem
-                  onClick={() => setShowPrintDialog(true)}
-                  disabled={persons.length === 0}
-                >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Cetak
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleExport('png')}
-                  disabled={persons.length === 0}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export PNG
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleExport('svg')}
-                  disabled={persons.length === 0}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export SVG
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => { void handlePremiumExport('modern'); }}
-                  disabled={persons.length === 0}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Premium Modern (PNG + PDF)
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => { void handlePremiumExport('classic'); }}
-                  disabled={persons.length === 0}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Premium Classic (PNG + PDF)
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => { void handlePremiumExport('modern', customPalette); }}
-                  disabled={persons.length === 0}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Premium Custom (PNG + PDF)
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setAddRelationshipContext({});
-                    setShowAddRelationship(true);
-                  }}
-                  disabled={persons.length < 2}
-                >
-                  <Link2 className="w-4 h-4 mr-2" />
-                  Tambah Relasi
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {/* Zoom Controls */}
+                  {isZoomableView && (
+                    <div className="flex items-center rounded-lg border border-border/70 bg-background/80">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-r-none" onClick={() => handleZoom('out')} title="Zoom Out" aria-label="Perkecil chart">
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="hidden h-8 w-8 rounded-none border-x sm:flex" onClick={reset} title="Reset View" aria-label="Reset posisi chart">
+                        <RotateCcw className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-l-none" onClick={() => handleZoom('in')} title="Zoom In" aria-label="Perbesar chart">
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
 
-            {selectedPerson && (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-9 rounded-xl px-3"
-                onClick={() => setSelectedPerson(null)}
-              >
-                Lepas Fokus
-              </Button>
-            )}
+                  {/* Actions Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg border-border/70 bg-background/90 px-2.5 text-xs" title="Aksi" aria-label="Buka menu aksi">
+                        <MoreHorizontal className="w-3.5 h-3.5" />
+                        <span>Aksi</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-popover w-48">
+                      <DropdownMenuItem
+                        onClick={() => setShowPrintDialog(true)}
+                        disabled={persons.length === 0}
+                      >
+                        <Printer className="w-4 h-4 mr-2" />
+                        Cetak
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleExport('png')}
+                        disabled={persons.length === 0}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export PNG
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleExport('svg')}
+                        disabled={persons.length === 0}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export SVG
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => { void handlePremiumExport('modern'); }}
+                        disabled={persons.length === 0}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Premium Modern (PNG + PDF)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => { void handlePremiumExport('classic'); }}
+                        disabled={persons.length === 0}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Premium Classic (PNG + PDF)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => { void handlePremiumExport('modern', customPalette); }}
+                        disabled={persons.length === 0}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Premium Custom (PNG + PDF)
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setAddRelationshipContext({});
+                          setShowAddRelationship(true);
+                        }}
+                        disabled={persons.length < 2}
+                      >
+                        <Link2 className="w-4 h-4 mr-2" />
+                        Tambah Relasi
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
           )}
@@ -793,6 +805,13 @@ export default function ChartPage() {
                   willChange: 'transform',
                 }}
               >
+                <Suspense
+                  fallback={
+                    <div className="flex h-full min-h-[240px] items-center justify-center text-sm text-muted-foreground">
+                      Memuat tampilan...
+                    </div>
+                  }
+                >
                 <AnimatePresence mode="wait">
                   {viewMode === 'family' && (
                     <motion.div
@@ -1002,6 +1021,7 @@ export default function ChartPage() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+                </Suspense>
               </div>
             </div>
           )}
@@ -1027,7 +1047,7 @@ export default function ChartPage() {
           <motion.div
             className={isMobile
               ? 'fixed inset-x-0 bottom-0 max-h-[78vh] rounded-t-3xl border-x border-t bg-card overflow-y-auto z-50 shadow-2xl'
-              : 'fixed md:relative inset-y-0 right-0 w-full md:w-96 border-l bg-card overflow-y-auto z-50 md:z-auto'
+              : 'fixed md:relative inset-y-0 right-0 w-full md:w-80 lg:w-[340px] shrink-0 border-l bg-card overflow-y-auto z-50 md:z-auto'
             }
             variants={isMobile ? undefined : panelVariants}
             initial={isMobile ? { opacity: 0, y: 48 } : 'hidden'}
@@ -1036,11 +1056,12 @@ export default function ChartPage() {
             transition={isMobile ? { duration: 0.2 } : undefined}
           >
             {isMobile && <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted" />}
-            <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="font-display font-semibold">Detail Anggota</h2>
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h2 className="font-display font-semibold text-sm">Detail Anggota</h2>
               <Button
                 variant="ghost"
                 size="icon"
+                className="h-8 w-8"
                 onClick={() => setSelectedPerson(null)}
                 aria-label="Tutup detail anggota"
               >
@@ -1049,75 +1070,109 @@ export default function ChartPage() {
             </div>
 
             <div className="p-4 space-y-4">
-              {/* Avatar & Name */}
-              <div className="flex items-center gap-3">
+              {/* Avatar, Name & Tags */}
+              <div className="flex items-start gap-3">
                 <div className={`
-                w-16 h-16 rounded-full flex items-center justify-center
+                w-12 h-12 shrink-0 rounded-full flex items-center justify-center overflow-hidden
                 ${selectedPerson.gender === 'male' ? 'bg-node-male/20 text-node-male' :
                     selectedPerson.gender === 'female' ? 'bg-node-female/20 text-node-female' :
                       'bg-node-unknown/20 text-node-unknown'}
               `}>
-                  <User className="w-8 h-8" />
+                  {selectedPerson.photoUrl ? (
+                    <img
+                      src={selectedPerson.photoUrl}
+                      alt={selectedPerson.fullName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-6 h-6" />
+                  )}
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg">{selectedPerson.fullName}</h3>
-                  <p className="text-sm text-muted-foreground capitalize">{selectedPerson.gender}</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-base leading-tight truncate" title={selectedPerson.fullName}>
+                    {selectedPerson.fullName}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {selectedPerson.gender === 'male'
+                      ? 'Laki-laki'
+                      : selectedPerson.gender === 'female'
+                        ? 'Perempuan'
+                        : 'Tidak diketahui'}
+                  </p>
+                  {selectedPerson.tags.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {selectedPerson.tags.map(tag => (
+                        <Badge
+                          key={tag}
+                          variant={tag === 'verified' ? 'secondary' : 'outline'}
+                          className="text-[10px] px-2 py-0"
+                        >
+                          {tag === 'verified' ? 'Terverifikasi' : tag === 'needs review' ? 'Perlu Review' : tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Quick Actions Bar */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    setAddRelationshipContext({ personId: selectedPerson.id });
+                    setShowAddRelationship(true);
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
+                  Tambah Relasi
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setViewMode('family')}
+                >
+                  <Users className="w-3.5 h-3.5 mr-1.5" />
+                  Fokus Keluarga
+                </Button>
               </div>
 
               {/* Dates */}
-              <div className="space-y-2">
-                {selectedPerson.birthDate && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span>Lahir: {new Date(selectedPerson.birthDate).toLocaleDateString('id-ID')}</span>
-                  </div>
-                )}
-                {selectedPerson.deathDate && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span>Wafat: {new Date(selectedPerson.deathDate).toLocaleDateString('id-ID')}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Tags */}
-              {selectedPerson.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {selectedPerson.tags.map(tag => (
-                    <Badge key={tag} variant="outline" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
+              {(selectedPerson.birthDate || selectedPerson.deathDate) && (
+                <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5 space-y-1.5">
+                  {selectedPerson.birthDate && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span>Lahir: {new Date(selectedPerson.birthDate).toLocaleDateString('id-ID')}</span>
+                    </div>
+                  )}
+                  {selectedPerson.deathDate && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span>Wafat: {new Date(selectedPerson.deathDate).toLocaleDateString('id-ID')}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Notes */}
               {selectedPerson.notes && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Catatan</p>
-                  <p className="text-sm">{selectedPerson.notes}</p>
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-2.5">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Catatan</p>
+                  <p className="text-xs leading-relaxed">{selectedPerson.notes}</p>
                 </div>
               )}
 
-              {/* Relationship Inspector */}
-              <div className="pt-4 border-t">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Link2 className="w-4 h-4" />
-                    Relasi
+              {/* Relationship Inspector (Already includes clickable Parent, Spouse, and Child links) */}
+              <div className="pt-3 border-t">
+                <div className="flex items-center justify-between mb-2.5">
+                  <h4 className="text-sm font-medium flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5 text-primary" />
+                    Relasi Keluarga
                   </h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setAddRelationshipContext({ personId: selectedPerson.id });
-                      setShowAddRelationship(true);
-                    }}
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Tambah
-                  </Button>
                 </div>
                 <RelationshipInspector
                   personId={selectedPerson.id}
@@ -1125,86 +1180,23 @@ export default function ChartPage() {
                 />
               </div>
 
-              {/* Quick Navigate */}
-              {relatives && (
-                <div className="space-y-4 pt-4 border-t">
-                  <h4 className="font-medium text-sm text-muted-foreground">Navigasi Cepat</h4>
-
-                  {relatives.parents.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                        <Users className="w-4 h-4" /> Orang Tua
-                      </p>
-                      <div className="space-y-1">
-                        {relatives.parents.map(p => (
-                          <button
-                            key={p.id}
-                            onClick={() => setSelectedPerson(p.id)}
-                            className="w-full text-left text-sm p-2 rounded hover:bg-muted transition-colors"
-                          >
-                            {p.fullName}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {relatives.spouses.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                        <Heart className="w-4 h-4" /> Pasangan
-                      </p>
-                      <div className="space-y-1">
-                        {relatives.spouses.map(p => (
-                          <button
-                            key={p.id}
-                            onClick={() => setSelectedPerson(p.id)}
-                            className="w-full text-left text-sm p-2 rounded hover:bg-muted transition-colors"
-                          >
-                            {p.fullName}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {relatives.children.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                        <Baby className="w-4 h-4" /> Anak
-                      </p>
-                      <div className="space-y-1">
-                        {relatives.children.map(p => (
-                          <button
-                            key={p.id}
-                            onClick={() => setSelectedPerson(p.id)}
-                            className="w-full text-left text-sm p-2 rounded hover:bg-muted transition-colors"
-                          >
-                            {p.fullName}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {relatives.siblings.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                        <Users className="w-4 h-4" /> Saudara
-                      </p>
-                      <div className="space-y-1">
-                        {relatives.siblings.map(p => (
-                          <button
-                            key={p.id}
-                            onClick={() => setSelectedPerson(p.id)}
-                            className="w-full text-left text-sm p-2 rounded hover:bg-muted transition-colors"
-                          >
-                            {p.fullName}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+              {/* Siblings (Only shown if person has siblings, avoiding duplicate Parent/Spouse/Child lists) */}
+              {relatives && relatives.siblings.length > 0 && (
+                <div className="space-y-2 pt-3 border-t">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" /> Saudara Kandung ({relatives.siblings.length})
+                  </p>
+                  <div className="space-y-1">
+                    {relatives.siblings.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => setSelectedPerson(p.id)}
+                        className="w-full text-left text-xs px-2.5 py-1.5 rounded-lg border border-border/50 bg-background/60 hover:bg-muted transition-colors"
+                      >
+                        {p.fullName}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1236,12 +1228,16 @@ export default function ChartPage() {
       </Dialog>
 
       {/* Print Dialog */}
-      <PrintDialog
-        open={showPrintDialog}
-        onOpenChange={setShowPrintDialog}
-        elementRef={chartRef}
-        title="Silsilah Keluarga"
-      />
+      {showPrintDialog && (
+        <Suspense fallback={null}>
+          <PrintDialog
+            open={showPrintDialog}
+            onOpenChange={setShowPrintDialog}
+            elementRef={chartRef}
+            title="Silsilah Keluarga"
+          />
+        </Suspense>
+      )}
 
       {/* Mini Map for navigation */}
       {showMiniMap && (
