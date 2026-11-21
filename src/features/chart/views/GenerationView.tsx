@@ -7,6 +7,7 @@ interface GenerationViewProps {
   persons: Person[];
   relationships: Relationship[];
   selectedPersonId: string | null;
+  highlightedPersonIds?: Set<string> | null;
   onSelectPerson: (id: string) => void;
 }
 
@@ -50,6 +51,7 @@ export const GenerationView = memo(function GenerationView({
   persons,
   relationships,
   selectedPersonId,
+  highlightedPersonIds,
   onSelectPerson,
 }: GenerationViewProps) {
   // Build hierarchical family structure by generation
@@ -234,6 +236,7 @@ export const GenerationView = memo(function GenerationView({
                   key={idx}
                   unit={unit}
                   selectedPersonId={selectedPersonId}
+                  highlightedPersonIds={highlightedPersonIds}
                   onSelectPerson={onSelectPerson}
                 />
               ))}
@@ -250,6 +253,8 @@ GenerationView.displayName = 'GenerationView';
 interface CompactPersonItemProps {
   person: Person;
   isSelected: boolean;
+  isHighlighted?: boolean;
+  isDimmed?: boolean;
   onClick: () => void;
   variant?: 'parent' | 'child';
 }
@@ -257,6 +262,8 @@ interface CompactPersonItemProps {
 const CompactPersonItem = memo(function CompactPersonItem({
   person,
   isSelected,
+  isHighlighted = false,
+  isDimmed = false,
   onClick,
   variant = 'parent',
 }: CompactPersonItemProps) {
@@ -288,7 +295,10 @@ const CompactPersonItem = memo(function CompactPersonItem({
         variant === 'parent' ? 'p-2.5' : 'p-2',
         isSelected
           ? 'border-primary bg-primary/10 ring-2 ring-primary/30 shadow-sm'
-          : 'border-border/70 bg-background/95 hover:border-primary/40 hover:bg-accent/5'
+          : isHighlighted
+            ? 'border-amber-500/70 bg-amber-500/10 ring-1 ring-amber-500/35 shadow-sm'
+            : 'border-border/70 bg-background/95 hover:border-primary/40 hover:bg-accent/5',
+        isDimmed && 'opacity-30 hover:opacity-80'
       )}
     >
       <span className={cn('absolute inset-y-0 left-0 w-1', genderStyles.bar)} />
@@ -341,19 +351,23 @@ const CompactPersonItem = memo(function CompactPersonItem({
 interface FamilyUnitCardProps {
   unit: FamilyUnitData;
   selectedPersonId: string | null;
+  highlightedPersonIds?: Set<string> | null;
   onSelectPerson: (id: string) => void;
 }
 
 const FamilyUnitCard = memo(function FamilyUnitCard({
   unit,
   selectedPersonId,
+  highlightedPersonIds,
   onSelectPerson,
 }: FamilyUnitCardProps) {
   const hasChildren = unit.children.length > 0;
   const familyRange = getRangeLabel([...unit.parents, ...unit.children]);
-  const selectedInsideUnit = [...unit.parents, ...unit.children].some(
-    (person) => person.id === selectedPersonId
-  );
+  const allUnitMembers = [...unit.parents, ...unit.children];
+  const selectedInsideUnit = allUnitMembers.some((person) => person.id === selectedPersonId);
+  const spotlightActive = Boolean(highlightedPersonIds && highlightedPersonIds.size > 0);
+  const hasHighlightedInsideUnit =
+    spotlightActive && allUnitMembers.some((person) => highlightedPersonIds!.has(person.id));
 
   const familyTitle = unit.parents
     .map((parent) => parent.fullName.split(' ')[0])
@@ -362,8 +376,11 @@ const FamilyUnitCard = memo(function FamilyUnitCard({
   return (
     <article
       className={cn(
-        'relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card/90 p-3.5 shadow-sm transition-colors',
-        selectedInsideUnit ? 'border-primary/50 bg-primary/[0.03]' : 'border-border/70'
+        'relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card/90 p-3.5 shadow-sm transition-all',
+        selectedInsideUnit || hasHighlightedInsideUnit
+          ? 'border-primary/50 bg-primary/[0.03]'
+          : 'border-border/70',
+        spotlightActive && !hasHighlightedInsideUnit && 'opacity-45'
       )}
     >
       <div>
@@ -392,6 +409,8 @@ const FamilyUnitCard = memo(function FamilyUnitCard({
             <CompactPersonItem
               person={unit.parents[0]}
               isSelected={selectedPersonId === unit.parents[0].id}
+              isHighlighted={spotlightActive && highlightedPersonIds!.has(unit.parents[0].id)}
+              isDimmed={spotlightActive && !highlightedPersonIds!.has(unit.parents[0].id)}
               onClick={() => onSelectPerson(unit.parents[0].id)}
               variant="parent"
             />
@@ -404,6 +423,8 @@ const FamilyUnitCard = memo(function FamilyUnitCard({
             <CompactPersonItem
               person={unit.parents[1]}
               isSelected={selectedPersonId === unit.parents[1].id}
+              isHighlighted={spotlightActive && highlightedPersonIds!.has(unit.parents[1].id)}
+              isDimmed={spotlightActive && !highlightedPersonIds!.has(unit.parents[1].id)}
               onClick={() => onSelectPerson(unit.parents[1].id)}
               variant="parent"
             />
@@ -413,6 +434,8 @@ const FamilyUnitCard = memo(function FamilyUnitCard({
             <CompactPersonItem
               person={unit.parents[0]}
               isSelected={selectedPersonId === unit.parents[0].id}
+              isHighlighted={spotlightActive && highlightedPersonIds!.has(unit.parents[0].id)}
+              isDimmed={spotlightActive && !highlightedPersonIds!.has(unit.parents[0].id)}
               onClick={() => onSelectPerson(unit.parents[0].id)}
               variant="parent"
             />
@@ -424,6 +447,8 @@ const FamilyUnitCard = memo(function FamilyUnitCard({
                 key={parent.id}
                 person={parent}
                 isSelected={selectedPersonId === parent.id}
+                isHighlighted={spotlightActive && highlightedPersonIds!.has(parent.id)}
+                isDimmed={spotlightActive && !highlightedPersonIds!.has(parent.id)}
                 onClick={() => onSelectPerson(parent.id)}
                 variant="parent"
               />
@@ -453,6 +478,8 @@ const FamilyUnitCard = memo(function FamilyUnitCard({
                   key={child.id}
                   person={child}
                   isSelected={selectedPersonId === child.id}
+                  isHighlighted={spotlightActive && highlightedPersonIds!.has(child.id)}
+                  isDimmed={spotlightActive && !highlightedPersonIds!.has(child.id)}
                   onClick={() => onSelectPerson(child.id)}
                   variant="child"
                 />

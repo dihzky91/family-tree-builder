@@ -24,16 +24,27 @@ interface TreeNode {
 export function InheritanceTreeView({ persons, relationships, selectedPersonId, onSelectPerson }: InheritanceTreeViewProps) {
     const svgRef = useRef<SVGSVGElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const { theme } = useTheme();
-    const [rootPersonId, setRootPersonId] = useState<string | null>(selectedPersonId);
+    const { resolvedTheme } = useTheme();
+    const isDark = resolvedTheme === 'dark';
+    const [rootPersonId, setRootPersonId] = useState<string | null>(selectedPersonId || persons[0]?.id || null);
 
     // Mobile detection
     const isMobile = useIsMobile();
     const isTouch = useIsTouchDevice();
 
+    // Sync rootPersonId when external selectedPersonId changes
     useEffect(() => {
-        if (selectedPersonId && !rootPersonId) setRootPersonId(selectedPersonId);
-    }, [selectedPersonId, rootPersonId]);
+        if (selectedPersonId && persons.some(p => p.id === selectedPersonId)) {
+            setRootPersonId(selectedPersonId);
+        }
+    }, [selectedPersonId, persons]);
+
+    // Fallback to first person only if rootPersonId is empty/invalid
+    useEffect(() => {
+        if ((!rootPersonId || !persons.some(p => p.id === rootPersonId)) && persons.length > 0) {
+            setRootPersonId(persons[0].id);
+        }
+    }, [rootPersonId, persons]);
 
     const sortedPersons = useMemo(
         () => [...persons].sort((a, b) => a.fullName.localeCompare(b.fullName)),
@@ -233,22 +244,31 @@ export function InheritanceTreeView({ persons, relationships, selectedPersonId, 
             .text(d => d.data.person.fullName.length > 18 ? d.data.person.fullName.slice(0, 16) + '..' : d.data.person.fullName)
             .style('font-size', '12px')
             .style('font-weight', '500')
-            .style('fill', theme === 'dark' ? 'white' : 'black')
+            .style('fill', isDark ? 'hsl(40, 30%, 92%)' : 'hsl(25, 25%, 16%)')
             .style('pointer-events', 'none');
 
-    }, [treeData, theme, onSelectPerson, isMobile]);
+    }, [treeData, isDark, onSelectPerson, isMobile]);
 
     return (
-        <div className="w-full h-full flex flex-col relative" ref={containerRef}>
-            <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-background/80 p-2 rounded-lg backdrop-blur">
-                <span className="text-sm font-medium">Fokus:</span>
-                <Select value={rootPersonId || undefined} onValueChange={setRootPersonId}>
-                    <SelectTrigger className="w-[220px] h-9">
+        <div className="w-full h-full flex flex-col relative overflow-hidden" ref={containerRef}>
+            <div
+                data-export-ignore="true"
+                className="absolute top-3 left-3 z-10 flex items-center gap-2 rounded-xl border border-border/70 bg-background/88 px-3 py-1.5 shadow-sm backdrop-blur-md"
+            >
+                <span className="text-xs font-medium text-muted-foreground">Fokus:</span>
+                <Select
+                    value={rootPersonId || undefined}
+                    onValueChange={(id) => {
+                        setRootPersonId(id);
+                        onSelectPerson(id);
+                    }}
+                >
+                    <SelectTrigger className="w-[190px] sm:w-[220px] h-8 text-xs rounded-lg">
                         <SelectValue placeholder="Pilih Orang" />
                     </SelectTrigger>
                     <SelectContent>
                         {sortedPersons.map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.fullName}</SelectItem>
+                            <SelectItem key={p.id} value={p.id} className="text-xs">{p.fullName}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
@@ -256,34 +276,37 @@ export function InheritanceTreeView({ persons, relationships, selectedPersonId, 
 
             {/* Legend - hide on mobile to save space */}
             {!isMobile && (
-                <Card className="absolute top-4 right-4 z-10 bg-background/80 backdrop-blur p-3">
+                <Card className="absolute top-3 right-3 z-10 border-border/70 bg-background/88 backdrop-blur-md p-3 shadow-sm">
                     <h3 className="text-xs font-semibold mb-2">Garis Keturunan:</h3>
                     <div className="space-y-1 text-xs">
                         <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded" style={{ backgroundColor: ANCESTOR_COLORS.PATERNAL_GRANDFATHER }} />
+                            <div className="w-3.5 h-3.5 rounded" style={{ backgroundColor: ANCESTOR_COLORS.PATERNAL_GRANDFATHER }} />
                             <span>Kakek Ayah</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded" style={{ backgroundColor: ANCESTOR_COLORS.PATERNAL_GRANDMOTHER }} />
+                            <div className="w-3.5 h-3.5 rounded" style={{ backgroundColor: ANCESTOR_COLORS.PATERNAL_GRANDMOTHER }} />
                             <span>Nenek Ayah</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded" style={{ backgroundColor: ANCESTOR_COLORS.MATERNAL_GRANDFATHER }} />
+                            <div className="w-3.5 h-3.5 rounded" style={{ backgroundColor: ANCESTOR_COLORS.MATERNAL_GRANDFATHER }} />
                             <span>Kakek Ibu</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded" style={{ backgroundColor: ANCESTOR_COLORS.MATERNAL_GRANDMOTHER }} />
+                            <div className="w-3.5 h-3.5 rounded" style={{ backgroundColor: ANCESTOR_COLORS.MATERNAL_GRANDMOTHER }} />
                             <span>Nenek Ibu</span>
                         </div>
                     </div>
                 </Card>
             )}
 
-            <svg ref={svgRef} className="w-full h-full" />
+            <svg ref={svgRef} className="w-full h-full block" />
 
             {/* Hint */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-background/80 backdrop-blur px-3 py-1.5 rounded-full text-xs text-muted-foreground">
-                💡 Drag untuk geser • Scroll untuk zoom
+            <div
+                data-export-ignore="true"
+                className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-xl border border-border/60 bg-background/80 backdrop-blur-md px-3 py-1.5 text-[11px] text-muted-foreground shadow-sm"
+            >
+                Klik node untuk detail · Drag untuk geser · Scroll untuk zoom
             </div>
 
             {!rootPersonId && (

@@ -1,122 +1,287 @@
-.f3-card {
-  background: hsl(var(--card));
-  border-radius: 20px;
-  padding: 14px 16px;
-  min-width: 200px;
-  border: 1px solid hsl(var(--border));
-  text-align: center;
-  color: hsl(var(--foreground));
-  box-shadow: 0 14px 32px -22px rgba(15, 23, 42, 0.45);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  position: relative;
-  overflow: visible;
-}
-
-.f3-card.male {
-  border-color: hsl(var(--node-male));
-}
-
-.f3-card.female {
-  border-color: hsl(var(--node-female));
-}
-
-.f3-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 30px -18px rgba(15, 23, 42, 0.5);
-  border-color: hsl(var(--primary));
-}
-
-.f3-card.is-root {
-  border-color: hsl(var(--primary));
-  background: linear-gradient(180deg, hsl(var(--primary) / 0.1), hsl(var(--card)) 42%);
-  box-shadow: 0 18px 40px -24px rgba(15, 23, 42, 0.65);
-}
-
-.f3-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  margin-bottom: 10px;
-  border: 2px solid hsl(var(--border));
-}
-
-.f3-name {
-  font-weight: 600;
-  font-size: 14px;
-  letter-spacing: 0.2px;
-}
-
-.f3-meta {
-  font-size: 11px;
-  color: hsl(var(--muted-foreground));
-  white-space: nowrap;
-}
-
 .family-stage {
-  border-radius: 28px;
-  border: 1px solid hsl(var(--border) / 0.7);
-  background:
-    radial-gradient(circle at top, hsl(var(--primary) / 0.08), transparent 30%),
-    linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.35));
-  box-shadow: inset 0 1px 0 hsl(var(--background) / 0.6);
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: transparent !important;
+  font-family: var(--font-body), 'Inter', sans-serif !important;
+}
+
+.family-stage.f3 {
+  --background-color: transparent;
+  --text-color: hsl(var(--foreground));
+  --female-color: hsl(var(--node-female));
+  --male-color: hsl(var(--node-male));
+  --genderless-color: hsl(var(--node-unknown));
+}
+
+.family-stage svg.main_svg {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* Strip default donatso card-inner chrome so our modern card shines cleanly */
+.family-stage .card-inner,
+.family-stage .card-female .card-inner,
+.family-stage .card-male .card-inner,
+.family-stage .card-genderless .card-inner,
+.family-stage .card-main .card-inner {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
 }
 
 .family-stage .card_cont {
-  filter: drop-shadow(0 12px 18px rgba(15, 23, 42, 0.08));
+  overflow: visible !important;
 }
 
-.f3 .link {
-  stroke: hsl(var(--border));
-  stroke-width: 2px;
+/* Modern Warm Heritage Family Card */
+.ft-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 226px;
+  min-height: 78px;
+  padding: 11px 13px 11px 15px;
+  border-radius: 16px;
+  background: hsl(var(--card));
+  border: 1.5px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  text-align: left;
+  box-shadow:
+    0 4px 14px -6px rgba(38, 25, 14, 0.14),
+    0 1px 3px rgba(38, 25, 14, 0.06);
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  cursor: pointer;
+  overflow: visible;
 }
 
-.f3 .marriage {
-  stroke: hsl(var(--accent));
-  stroke-width: 2px;
-}
-
-.mini-root-switch {
+.ft-card::before {
+  content: '';
   position: absolute;
-  top: -10px;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3.5px;
+  border-radius: 0 4px 4px 0;
+  background: hsl(var(--node-unknown));
+}
+
+.ft-card.male::before {
+  background: hsl(var(--node-male));
+}
+
+.ft-card.female::before {
+  background: hsl(var(--node-female));
+}
+
+.ft-card:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.65);
+  box-shadow:
+    0 12px 24px -10px rgba(38, 25, 14, 0.22),
+    0 2px 6px rgba(38, 25, 14, 0.08);
+}
+
+/* Main / Root focused card highlight (opaque base + subtle warm golden tint) */
+.family-stage .card-main .ft-card,
+.ft-card.is-root {
+  border-color: hsl(var(--accent));
+  border-width: 2px;
+  background-color: hsl(var(--card));
+  background-image: linear-gradient(
+    135deg,
+    hsl(var(--accent) / 0.14) 0%,
+    hsl(var(--accent) / 0.03) 55%,
+    transparent 100%
+  );
+  box-shadow:
+    0 14px 30px -12px hsl(var(--primary) / 0.35),
+    0 0 0 3px hsl(var(--accent) / 0.16);
+}
+
+/* Hover lineage path highlight from donatso's setOnHoverPathToMain */
+.family-stage .f3-path-to-main .ft-card {
+  border-color: hsl(var(--accent));
+  box-shadow: 0 10px 22px -10px hsl(var(--accent) / 0.45);
+}
+
+.ft-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  border: 1.5px solid hsl(var(--border));
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.ft-card.male .ft-avatar {
+  background: hsl(var(--node-male) / 0.14);
+  color: hsl(var(--node-male));
+  border-color: hsl(var(--node-male) / 0.35);
+}
+
+.ft-card.female .ft-avatar {
+  background: hsl(var(--node-female) / 0.14);
+  color: hsl(var(--node-female));
+  border-color: hsl(var(--node-female) / 0.35);
+}
+
+.ft-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 9999px !important;
+  display: block;
+}
+
+.ft-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.ft-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ft-name {
+  font-family: var(--font-display), 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 13.5px;
+  line-height: 1.25;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ft-verified {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  color: #16a34a;
+}
+
+.ft-lifespan {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ft-submeta {
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: hsl(var(--muted-foreground) / 0.85);
+}
+
+.ft-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background: hsl(var(--muted) / 0.75);
+  padding: 1px 6px;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Subtle top-right ancestor badge */
+.ft-parents-dot {
+  position: absolute;
+  top: -6px;
+  right: 12px;
+  height: 12px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.ft-parents-dot span {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+}
+
+/* Floating Add Relative Button on Hover */
+.ft-add-btn {
+  position: absolute;
+  bottom: -9px;
   right: 12px;
   width: 22px;
-  height: 10px;
-  border-radius: 6px;
-  background: linear-gradient(to right,
-      hsl(var(--node-male)) 50%,
-      hsl(var(--node-female)) 50%);
-  border: 2px solid hsl(var(--card));
-  cursor: pointer;
-  z-index: 5;
-}
-
-.mini-root-switch:hover {
-  transform: scale(1.1);
-}
-
-.add-member-btn {
-  position: absolute;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  height: 22px;
+  border-radius: 9999px;
   background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
   border: 2px solid hsl(var(--card));
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  z-index: 5;
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1;
-  box-shadow: 0 8px 16px -12px rgba(15, 23, 42, 0.6);
+  cursor: pointer;
+  z-index: 6;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  box-shadow: 0 4px 10px -3px rgba(38, 25, 14, 0.45);
 }
 
-.add-member-btn:hover {
-  background: hsl(var(--primary));
-  transform: translateX(-50%) scale(1.08);
-  filter: brightness(0.95);
+.ft-card:hover .ft-add-btn,
+.family-stage .card-main .ft-add-btn,
+.ft-card.is-root .ft-add-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.ft-add-btn:hover {
+  transform: scale(1.14) !important;
+}
+
+/* Connector Links Styling */
+.family-stage path.link {
+  stroke: hsl(var(--muted-foreground) / 0.38) !important;
+  stroke-width: 2px !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.family-stage path.link.f3-path-to-main {
+  stroke: hsl(var(--accent)) !important;
+  stroke-width: 3px !important;
 }

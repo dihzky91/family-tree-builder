@@ -37,13 +37,15 @@ interface RelationshipFormProps {
   onCancel?: () => void;
   editingRelationship?: Relationship;
   preselectedPersonId?: string;
+  suggestedType?: 'parent' | 'spouse' | 'child';
 }
 
 export function RelationshipForm({ 
   onSuccess, 
   onCancel, 
   editingRelationship,
-  preselectedPersonId 
+  preselectedPersonId,
+  suggestedType,
 }: RelationshipFormProps) {
   const { addRelationship, updateRelationship, persons, relationships } = useFamilyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,6 +53,34 @@ export function RelationshipForm({
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
   const isEditing = !!editingRelationship;
+
+  const initialDefaults: FormData = editingRelationship
+    ? {
+        type: editingRelationship.type,
+        fromPersonId: editingRelationship.fromPersonId,
+        toPersonId: editingRelationship.toPersonId,
+        status: editingRelationship.meta?.status,
+        startDate: editingRelationship.meta?.startDate,
+        endDate: editingRelationship.meta?.endDate,
+      }
+    : suggestedType === 'spouse'
+      ? {
+          type: 'SPOUSE',
+          fromPersonId: preselectedPersonId || '',
+          toPersonId: '',
+          status: 'married',
+        }
+      : suggestedType === 'parent'
+        ? {
+            type: 'PARENT_CHILD',
+            fromPersonId: '',
+            toPersonId: preselectedPersonId || '',
+          }
+        : {
+            type: 'PARENT_CHILD',
+            fromPersonId: preselectedPersonId || '',
+            toPersonId: '',
+          };
 
   const {
     register,
@@ -60,18 +90,7 @@ export function RelationshipForm({
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(RelationshipFormSchema),
-    defaultValues: editingRelationship ? {
-      type: editingRelationship.type,
-      fromPersonId: editingRelationship.fromPersonId,
-      toPersonId: editingRelationship.toPersonId,
-      status: editingRelationship.meta?.status,
-      startDate: editingRelationship.meta?.startDate,
-      endDate: editingRelationship.meta?.endDate,
-    } : {
-      type: 'PARENT_CHILD',
-      fromPersonId: preselectedPersonId || '',
-      toPersonId: '',
-    },
+    defaultValues: initialDefaults,
   });
 
   const watchType = watch('type');

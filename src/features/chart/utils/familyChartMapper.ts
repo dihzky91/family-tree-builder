@@ -4,14 +4,19 @@ export interface FamilyChartDatum {
     id: string;
     data: {
         gender: 'M' | 'F';
+        rawGender: Person['gender'];
         'first name': string;
         'last name': string;
         birthday?: string;   // yyyy-mm-dd
         deathday?: string;   // yyyy-mm-dd (optional)
         birthYear?: string;
         deathYear?: string;
+        birthYearNum?: string;
+        deathYearNum?: string;
         avatar?: string;
         label?: string;
+        verified?: boolean;
+        residence?: string;
     };
     rels: {
         parents: string[];
@@ -52,6 +57,7 @@ export function transformToFamilyChartData(
             id: person.id,
             data: {
                 gender: person.gender === 'male' ? 'M' : 'F',
+                rawGender: person.gender,
                 'first name': firstName,
                 'last name': lastName,
 
@@ -60,9 +66,13 @@ export function transformToFamilyChartData(
                 deathday: person.deathDate || undefined,
                 birthYear: birthYear ? `* ${birthYear}` : undefined,
                 deathYear: deathYear ? `† ${deathYear}` : undefined,
+                birthYearNum: birthYear,
+                deathYearNum: deathYear,
 
                 avatar: person.photoUrl || undefined,
                 label: person.fullName,
+                verified: person.tags.includes('verified'),
+                residence: (person.residence || person.birthPlace || '').split(',')[0].trim() || undefined,
             },
             rels: {
                 parents: parentRels.map(r => r.fromPersonId),
