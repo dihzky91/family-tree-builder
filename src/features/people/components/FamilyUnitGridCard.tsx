@@ -1,6 +1,7 @@
-import { Users, Heart, User, Calendar } from 'lucide-react';
+import { Users, Heart } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getPersonInitials } from './PersonDetailSheet';
 import type { NuclearFamily, Person } from '@/types';
 
 interface FamilyUnitGridCardProps {
@@ -17,7 +18,7 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
 
     const formatDate = (date: string | null | undefined) => {
         if (!date) return null;
-        return new Date(date).getFullYear(); // Just year for compactness
+        return new Date(date).getFullYear();
     };
 
     const MiniPerson = ({ person, role }: { person: Person; role: 'parent' | 'child' }) => (
@@ -28,7 +29,7 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
       `}
             role="button"
             tabIndex={0}
-            aria-label={`Edit ${person.fullName}`}
+            aria-label={`Lihat detail ${person.fullName}`}
             onClick={(e) => {
                 e.stopPropagation();
                 onEditPerson?.(person);
@@ -43,7 +44,7 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
             title={person.fullName}
         >
             <div className={`
-        w-6 h-6 rounded-full flex items-center justify-center overflow-hidden shrink-0
+        w-6 h-6 rounded-full flex items-center justify-center overflow-hidden shrink-0 text-[10px] font-bold
         ${person.photoUrl ? 'border shadow-sm' : ''}
         ${person.gender === 'male' ? 'bg-node-male/20 text-node-male' :
                     person.gender === 'female' ? 'bg-node-female/20 text-node-female' :
@@ -57,7 +58,7 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
                         loading="lazy"
                     />
                 ) : (
-                    <User className="w-3 h-3" />
+                    getPersonInitials(person.fullName)
                 )}
             </div>
             <div className="min-w-0 flex-1">
@@ -76,14 +77,14 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
             {/* Header - Simpler and more compact */}
             <div className="flex items-center justify-between gap-2 border-b bg-muted/40 p-3">
                 <div className="flex items-center gap-2 min-w-0">
-                        <Badge variant="secondary" className="h-5 shrink-0 bg-muted-foreground/10 px-1.5 text-[10px] font-normal text-muted-foreground">
+                    <Badge variant="secondary" className="h-5 shrink-0 bg-muted-foreground/10 px-1.5 text-[10px] font-normal text-muted-foreground">
                         Gen {family.generation}
                     </Badge>
                     <h4 className="text-xs font-semibold text-foreground/80 truncate" title={family.familyName}>
                         {family.familyName.replace('Keluarga ', '')}
                     </h4>
                 </div>
-                    <div className="flex shrink-0 items-center gap-1 rounded-full border bg-background/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+                <div className="flex shrink-0 items-center gap-1 rounded-full border bg-background/50 px-2 py-0.5 text-[10px] text-muted-foreground">
                     <Users className="w-2.5 h-2.5" />
                     <span>{family.parents.length + childCount}</span>
                 </div>
@@ -98,7 +99,7 @@ export function FamilyUnitGridCard({ family, onEditPerson }: FamilyUnitGridCardP
                             <Heart className="w-2.5 h-2.5 text-rose-400" />
                             Orang Tua
                         </div>
-                            <div className={`grid gap-2 ${family.parents.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                        <div className={`grid gap-2 ${family.parents.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
                             {family.parents.map(parent => (
                                 <MiniPerson key={parent.id} person={parent} role="parent" />
                             ))}

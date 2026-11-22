@@ -33,9 +33,6 @@ const tabs = [
 export default function StatsPage() {
   const { isLoading, persons } = useFamilyStore();
 
-  // No need to call loadData here - data is already loaded globally
-  // when the app initializes or when other pages load it
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -46,7 +43,7 @@ export default function StatsPage() {
 
   if (persons.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-center">
+      <div className="flex flex-col items-center justify-center h-64 text-center px-4">
         <BarChart3 className="w-16 h-16 text-muted-foreground mb-4" />
         <h2 className="text-xl font-semibold mb-2">Belum Ada Data</h2>
         <p className="text-muted-foreground max-w-md">
@@ -57,24 +54,24 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
+    <div className="p-4 md:p-6 lg:p-8 space-y-5 md:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-display font-bold">Statistik Keluarga</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-display font-bold">Statistik Keluarga</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">
           Analisis dan visualisasi data silsilah keluarga
         </p>
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 mb-6">
+        <TabsList className="flex flex-nowrap sm:flex-wrap justify-start overflow-x-auto no-scrollbar h-auto w-full gap-1.5 bg-muted/50 p-1.5 mb-5 rounded-xl">
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.id}
               value={tab.id}
-              className="flex items-center gap-2 px-3 py-2 data-[state=active]:bg-background"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 py-2 shrink-0 rounded-lg text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-background data-[state=active]:shadow-sm"
             >
-              <tab.icon className="w-4 h-4" />
-              <span className="hidden sm:inline">{tab.label}</span>
+              <tab.icon className="w-4 h-4 shrink-0" />
+              <span>{tab.label}</span>
             </TabsTrigger>
           ))}
         </TabsList>

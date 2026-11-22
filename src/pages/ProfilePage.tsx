@@ -133,37 +133,39 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 animate-fade-in max-w-2xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Profil Saya</h1>
-        <p className="text-muted-foreground mt-2">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 animate-fade-in max-w-2xl">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Profil Saya</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">
           Kelola informasi profil dan foto Anda
         </p>
       </div>
 
       <form onSubmit={handleSubmit}>
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 sm:p-6">
             <CardTitle>Foto Profil</CardTitle>
             <CardDescription>
-              Klik foto untuk mengubah. Gunakan gambar JPG atau PNG (maks. 2MB)
+              Ketuk foto untuk mengubah. Gunakan gambar JPG atau PNG (maks. 2MB)
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-6">
-              <div className="relative group">
-                <Avatar className="h-24 w-24 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="relative group shrink-0">
+                <Avatar className="h-20 w-20 sm:h-24 sm:w-24 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                   <AvatarImage src={currentAvatar || undefined} alt={displayName || 'Avatar'} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-2xl font-medium">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xl sm:text-2xl font-medium">
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
-                <div 
-                  className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
+                  aria-label="Ubah foto profil"
+                  className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md border-2 border-background"
                 >
-                  <Camera className="h-6 w-6 text-white" />
-                </div>
+                  <Camera className="h-4 w-4" />
+                </button>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -172,17 +174,18 @@ export default function ProfilePage() {
                   className="hidden"
                 />
               </div>
-              <div className="flex-1">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+              <div className="flex-1 min-w-0">
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => fileInputRef.current?.click()}
+                  className="w-full sm:w-auto"
                 >
                   <Camera className="mr-2 h-4 w-4" />
                   Pilih Foto
                 </Button>
                 {avatarFile && (
-                  <p className="text-sm text-muted-foreground mt-2">
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-2 truncate">
                     File dipilih: {avatarFile.name}
                   </p>
                 )}
@@ -240,9 +243,10 @@ export default function ProfilePage() {
         </Card>
 
         <div className="mt-6 flex justify-end">
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={isSaving || !hasChanges}
+            className="w-full sm:w-auto h-11 sm:h-10"
           >
             {isSaving ? (
               <>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useFamilyStore } from '@/store/familyStore';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ const DAY_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 export default function BirthdayCalendar() {
     const { persons, setSelectedPerson } = useFamilyStore();
+    const navigate = useNavigate();
     const isMobile = useIsMobile();
 
     const today = new Date();
@@ -105,31 +107,34 @@ export default function BirthdayCalendar() {
         <div className="container mx-auto p-4 md:p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <Cake className="w-8 h-8 text-primary" />
-                    <h1 className="text-3xl font-bold">Kalender Ulang Tahun</h1>
+                <div className="flex items-center gap-2.5">
+                    <Cake className="w-7 h-7 text-primary shrink-0" />
+                    <h1 className="text-2xl sm:text-3xl font-display font-bold">Kalender Ulang Tahun</h1>
                 </div>
             </div>
 
             {/* Main Content Grid */}
-            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} gap-6`}>
+            <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} gap-5 sm:gap-6`}>
 
                 {/* Left Column: Upcoming Birthdays */}
-                <Card className="p-6 lg:col-span-1">
-                    <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                        <CalendarIcon className="w-5 h-5" />
+                <Card className="p-4 sm:p-6 rounded-2xl lg:col-span-1">
+                    <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center gap-2">
+                        <CalendarIcon className="w-5 h-5 text-primary" />
                         Ulang Tahun Terdekat
                     </h2>
 
                     {upcomingBirthdays.length === 0 ? (
                         <p className="text-muted-foreground text-sm">Tidak ada data tanggal lahir</p>
                     ) : (
-                        <div className="space-y-3">
-                            {upcomingBirthdays.map((birthday, idx) => (
+                        <div className="space-y-2.5">
+                            {upcomingBirthdays.map((birthday) => (
                                 <div
                                     key={birthday.person.id}
-                                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                                    onClick={() => setSelectedPerson(birthday.person.id)}
+                                    className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-accent/50 transition-colors cursor-pointer"
+                                    onClick={() => {
+                                        setSelectedPerson(birthday.person.id);
+                                        navigate(`/chart?focus=${birthday.person.id}`);
+                                    }}
                                 >
                                     {/* Age Badge */}
                                     <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -196,27 +201,27 @@ export default function BirthdayCalendar() {
                 <div className="lg:col-span-2 space-y-6">
 
                     {/* Calendar */}
-                    <Card className="p-6">
+                    <Card className="p-4 sm:p-6 rounded-2xl">
                         {/* Calendar Header */}
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-bold">
+                        <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
+                            <h2 className="text-lg sm:text-2xl font-display font-bold">
                                 {MONTH_NAMES[selectedMonth]} {selectedYear}
                             </h2>
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={goToToday}>
+                            <div className="flex items-center gap-1.5 sm:gap-2">
+                                <Button variant="outline" size="sm" onClick={goToToday} className="h-8 text-xs">
                                     Hari Ini
                                 </Button>
-                                <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
+                                <Button variant="outline" size="icon" onClick={goToPreviousMonth} className="h-8 w-8">
                                     <ChevronLeft className="w-4 h-4" />
                                 </Button>
-                                <Button variant="outline" size="icon" onClick={goToNextMonth}>
+                                <Button variant="outline" size="icon" onClick={goToNextMonth} className="h-8 w-8">
                                     <ChevronRight className="w-4 h-4" />
                                 </Button>
                             </div>
                         </div>
 
                         {/* Calendar Grid */}
-                        <div className="grid grid-cols-7 gap-2">
+                        <div className="grid grid-cols-7 gap-1 sm:gap-2">
                             {/* Day headers */}
                             {DAY_NAMES.map(day => (
                                 <div key={day} className="text-center font-semibold text-sm text-muted-foreground py-2">

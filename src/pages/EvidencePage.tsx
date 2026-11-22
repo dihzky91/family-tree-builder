@@ -110,25 +110,25 @@ export default function EvidencePage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
+    <div className="p-4 md:p-6 lg:p-8 space-y-5 md:space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
             Dokumen & Bukti
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-0.5">
             Kelola dokumen pendukung untuk verifikasi data
           </p>
         </div>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 w-full sm:w-auto">
               <Plus className="w-4 h-4" />
               Tambah Dokumen
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[88dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-display">Tambah Dokumen Baru</DialogTitle>
             </DialogHeader>
@@ -137,8 +137,8 @@ export default function EvidencePage() {
         </Dialog>
       </div>
 
-      {/* Status Tabs */}
-      <div className="flex flex-wrap gap-2">
+      {/* Status Tabs - horizontally scrollable on mobile */}
+      <div className="flex flex-nowrap sm:flex-wrap overflow-x-auto no-scrollbar gap-2 pb-0.5">
         {(['all', 'draft', 'under_review', 'verified', 'rejected'] as const).map((status) => {
           const config = status === 'all' 
             ? { icon: FileText, label: 'Semua' }
@@ -152,7 +152,7 @@ export default function EvidencePage() {
               variant={isActive ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilterStatus(status)}
-              className="gap-2"
+              className="gap-1.5 shrink-0 rounded-xl"
             >
               <Icon className="w-4 h-4" />
               {config.label}

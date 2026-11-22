@@ -306,11 +306,11 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
       </div>
 
       {/* Submit */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onSuccess}>
+      <div className="sticky bottom-0 -mx-4 px-4 py-3 bg-background/95 backdrop-blur border-t grid grid-cols-2 gap-2.5 sm:static sm:mx-0 sm:px-0 sm:py-0 sm:pt-4 sm:bg-transparent sm:flex sm:justify-end sm:gap-3">
+        <Button type="button" variant="outline" onClick={onSuccess} className="h-10">
           Batal
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting} className="h-10">
           {isSubmitting ? 'Menyimpan...' : person ? 'Simpan Perubahan' : 'Tambah Anggota'}
         </Button>
       </div>

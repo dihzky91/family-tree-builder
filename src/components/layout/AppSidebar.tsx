@@ -36,7 +36,8 @@ import { UserMenu } from '@/components/auth/UserMenu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PersonForm } from '@/features/people/PersonForm';
 import { checkDataQuality } from '@/lib/dataQuality';
-import { findAllDuplicates } from '@/lib/duplicateDetection';
+import { findAllDuplicates, IGNORED_DUPLICATES_EVENT } from '@/lib/duplicateDetection';
+import { usePendingSubmissionCount } from '@/hooks/usePendingSubmissionCount';
 
 interface NavItem {
   title: string;
@@ -93,15 +94,21 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
     };
   }, [collapsed, persons.length, relationships.length]);
 
+  const [ignoredVersion, setIgnoredVersion] = useState(0);
+
+  useEffect(() => {
+    const onIgnoredChanged = () => setIgnoredVersion((v) => v + 1);
+    window.addEventListener(IGNORED_DUPLICATES_EVENT, onIgnoredChanged);
+    return () => window.removeEventListener(IGNORED_DUPLICATES_EVENT, onIgnoredChanged);
+  }, []);
+
   // Calculate badge counts
   const duplicateCount = useMemo(() => {
-    return findAllDuplicates(persons).length;
-  }, [persons]);
+    void ignoredVersion;
+    return findAllDuplicates(persons, { relationships }).length;
+  }, [persons, relationships, ignoredVersion]);
 
-  const submissionCount = useMemo(() => {
-    // TODO: Add submissions to store when implementing submission feature
-    return 0;
-  }, []);
+  const submissionCount = usePendingSubmissionCount();
 
   const issueCount = useMemo(() => {
     const issues = checkDataQuality(persons, relationships);

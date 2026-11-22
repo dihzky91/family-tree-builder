@@ -37,32 +37,32 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background md:p-4 md:pt-5">
-      <div className="flex min-h-screen flex-col md:min-h-[calc(100vh-2.25rem)] md:flex-row md:gap-4">
+    <div className="min-h-[100dvh] w-full bg-background md:min-h-screen md:p-4 md:pt-5">
+      <div className="flex min-h-[100dvh] flex-col md:min-h-[calc(100vh-2.25rem)] md:flex-row md:gap-4">
         {/* Desktop Sidebar - hidden on mobile */}
         <div className="hidden md:block md:shrink-0">
-        <AppSidebar 
-          collapsed={sidebarCollapsed} 
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
-        />
+          <AppSidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
         </div>
-      
+
         {/* Mobile Header */}
         {isMobile && <MobileNav />}
-      
+
         {/* Main Content Area */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:rounded-[1.75rem] md:border md:border-border/80 md:bg-card/70 md:shadow-sm md:backdrop-blur-sm">
-          {/* Breadcrumbs Navigation */}
+          {/* Breadcrumbs Navigation (Desktop only) */}
           <Breadcrumbs />
-         
+
           {/* Main Content */}
-          <main className="min-h-0 flex-1 overflow-auto pb-16 md:pb-0">
+          <main className="min-h-0 flex-1 overflow-auto pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">
             <div className="md:px-1 md:pb-1">
               {children}
             </div>
           </main>
         </div>
-      
+
         {/* Mobile Bottom Navigation */}
         {isMobile && <MobileBottomNav />}
       </div>

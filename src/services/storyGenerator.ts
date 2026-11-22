@@ -1,11 +1,14 @@
 import { useState, useCallback, useRef } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import type { Person, Relationship } from '@/types';
-import { StoryScope, filterPersonsByScope as filterPersonsByScopeFromSelector } from '@/features/stories/StoryScopeSelector';
+import {
+  StoryScope,
+  filterPersonsByScope as filterPersonsByScopeFromSelector,
+  computeAlignedGenerations,
+} from '@/features/stories/StoryScopeSelector';
 
 export type StoryStyle = 'formal' | 'casual' | 'emotional' | 'children' | 'poetic';
 
-// Re-export types and functions for use by other components
 export { filterPersonsByScopeFromSelector as filterPersonsByScope };
 export type { StoryScope };
 
@@ -26,441 +29,582 @@ export interface GeneratedStory {
     yearsCovered: number;
     marriages: number;
   };
+  includedPersonIds?: string[];
   generatedAt: Date;
   aiGenerated: boolean;
 }
 
-// Template-based story generator (works offline, no AI needed)
-export function generateTemplateStory(
-  persons: Person[],
-  relationships: Relationship[],
-  style: StoryStyle = 'casual'
-): GeneratedStory {
-  // Find root ancestors (people without parents)
-  const rootPersons = persons.filter(p => {
-    const hasParents = relationships.some(
-      r => r.type === 'PARENT_CHILD' && r.toPersonId === p.id
-    );
-    return !hasParents;
+interface CoupleInfo {
+  person1: Person;
+  person2: Person;
+  marriageDate?: string;
+}
+
+// Format date cleanly in Indonesian
+function formatDateId(dateStr?: string | null): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function getYear(dateStr?: string | null): number | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.getFullYear();
+}
+
+function joinNames(names: string[]): string {
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} dan ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, serta ${names[names.length - 1]}`;
+}
+
+function extractFamilyName(firstGenPersons: Person[]): string {
+  if (firstGenPersons.length === 0) return 'Kami';
+  // Prefer oldest male patriarch, otherwise oldest person in Gen 1
+  const sorted = [...firstGenPersons].sort((a, b) => {
+    const ya = getYear(a.birthDate) ?? 9999;
+    const yb = getYear(b.birthDate) ?? 9999;
+    if (ya !== yb) return ya - yb;
+    if (a.gender === 'male' && b.gender !== 'male') return -1;
+    if (b.gender === 'male' && a.gender !== 'male') return 1;
+    return 0;
   });
 
-  // Find couples
-  const couples = findCouples(persons, relationships);
-  
-  // Calculate generations
-  const generations = calculateGenerations(persons, relationships);
-  
-  // Calculate stats
-  const marriages = relationships.filter(r => r.type === 'SPOUSE').length;
-  const yearsCovered = calculateYearsCovered(persons);
+  const raw = sorted[0].fullName.trim();
+  // Remove common honorifics before picking family name
+  const cleaned = raw.replace(/^(H\.|Hj\.|Dr\.|Ir\.|Prof\.|KH\.|R\.|R\.A\.)\s+/i, '').trim();
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length > 1) return parts[parts.length - 1];
+  return cleaned || raw;
+}
 
-  // Generate story based on style
-  const storyTemplate = getStoryTemplate(style);
-  
-  const chapters: StoryChapter[] = [];
-  
-  // Chapter 1: Introduction
-  chapters.push({
-    title: storyTemplate.chapterTitles.introduction,
-    content: generateIntroduction(rootPersons, couples, storyTemplate),
-    period: `${Math.min(...persons.map(p => p.birthDate ? new Date(p.birthDate).getFullYear() : new Date().getFullYear()))} - Sekarang`,
-    highlights: [
-      `Total ${persons.length} anggota keluarga`,
-      `${couples.length} pasangan menikah`,
-      `${generations.length} generasi`
-    ]
-  });
+function findScopedCouples(persons: Person[], relationships: Relationship[]): CoupleInfo[] {
+  const couples: CoupleInfo[] = [];
+  const seen = new Set<string>();
+  const personMap = new Map(persons.map((p) => [p.id, p]));
 
-  // Chapter 2: The Beginning (first generation)
-  if (rootPersons.length > 0) {
-    chapters.push({
-      title: storyTemplate.chapterTitles.beginning,
-      content: generateBeginningChapter(rootPersons, couples, storyTemplate),
-      period: calculatePeriodString(rootPersons),
-      highlights: rootPersons.map(p => `Lahirnya ${p.fullName}`)
+  for (const rel of relationships) {
+    if (rel.type !== 'SPOUSE') continue;
+    const p1 = personMap.get(rel.fromPersonId);
+    const p2 = personMap.get(rel.toPersonId);
+    if (!p1 || !p2) continue;
+
+    const key = [p1.id, p2.id].sort().join('-');
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    // Order husband first if known for natural Indonesian reading
+    const ordered: [Person, Person] =
+      p1.gender === 'female' && p2.gender === 'male' ? [p2, p1] : [p1, p2];
+
+    couples.push({
+      person1: ordered[0],
+      person2: ordered[1],
+      marriageDate: rel.meta?.startDate,
     });
   }
 
-  // Chapter 3: Growing Family (next generations)
-  if (generations.length > 1) {
-    for (let i = 1; i < Math.min(generations.length, 3); i++) {
-      const gen = generations[i];
-      chapters.push({
-        title: `${storyTemplate.chapterTitles.growth} ${i + 1}`,
-        content: generateGenerationChapter(gen, i, storyTemplate),
-        period: calculateGenerationPeriod(gen),
-        highlights: gen.map(p => p.fullName)
-      });
-    }
+  // Sort couples oldest first
+  return couples.sort((a, b) => {
+    const ya = Math.min(getYear(a.person1.birthDate) ?? 9999, getYear(a.person2.birthDate) ?? 9999);
+    const yb = Math.min(getYear(b.person1.birthDate) ?? 9999, getYear(b.person2.birthDate) ?? 9999);
+    return ya - yb;
+  });
+}
+
+function calculateYearsCovered(persons: Person[]): number {
+  const years = persons.map((p) => getYear(p.birthDate)).filter((y): y is number => y !== null);
+  if (years.length < 2) return 0;
+  return Math.max(...years) - Math.min(...years);
+}
+
+function calculatePeriodString(persons: Person[]): string {
+  const years = persons.map((p) => getYear(p.birthDate)).filter((y): y is number => y !== null);
+  if (years.length === 0) return 'Periode tidak tercatat';
+  const min = Math.min(...years);
+  const max = Math.max(...years);
+  return min === max ? `Tahun ${min}` : `${min} – ${max}`;
+}
+
+function describePersonProfile(person: Person, spouses: Person[]): string {
+  const parts: string[] = [];
+  const birthFormatted = formatDateId(person.birthDate);
+  const deathFormatted = formatDateId(person.deathDate);
+
+  if (birthFormatted && person.birthPlace) {
+    parts.push(`lahir di ${person.birthPlace} pada ${birthFormatted}`);
+  } else if (birthFormatted) {
+    parts.push(`lahir pada ${birthFormatted}`);
+  } else if (person.birthPlace) {
+    parts.push(`berasal dari ${person.birthPlace}`);
   }
 
-  // Chapter 4: Legacy
+  if (spouses.length > 0) {
+    parts.push(`menikah dengan ${joinNames(spouses.map((s) => s.fullName))}`);
+  }
+
+  if (person.residence && !person.deathDate) {
+    parts.push(`kini menetap di ${person.residence}`);
+  }
+
+  if (deathFormatted && person.deathPlace) {
+    parts.push(`wafat di ${person.deathPlace} pada ${deathFormatted}`);
+  } else if (deathFormatted) {
+    parts.push(`wafat pada ${deathFormatted}`);
+  }
+
+  let sentence =
+    parts.length > 0
+      ? `${person.fullName} ${parts.join(', ')}.`
+      : `${person.fullName} merupakan bagian dari generasi ini.`;
+
+  if (person.notes && person.notes.trim().length > 0) {
+    const cleanNote = person.notes.trim().replace(/\.$/, '');
+    sentence += ` Catatan keluarga: "${cleanNote}".`;
+  }
+
+  return sentence;
+}
+
+// Accurate, data-grounded story generator
+export function generateTemplateStory(
+  persons: Person[],
+  allRelationships: Relationship[],
+  style: StoryStyle = 'casual',
+  scope?: StoryScope
+): GeneratedStory {
+  // 1. Strictly filter relationships to only those inside the scoped persons
+  const personIds = new Set(persons.map((p) => p.id));
+  const relationships = allRelationships.filter(
+    (r) => personIds.has(r.fromPersonId) && personIds.has(r.toPersonId)
+  );
+
+  // 2. Align generations accurately (spouses/in-laws aligned with their partner's generation!)
+  const { generations, personGenMap } = computeAlignedGenerations(persons, relationships);
+  const couples = findScopedCouples(persons, relationships);
+  const yearsCovered = calculateYearsCovered(persons);
+  const storyTemplate = getStoryTemplate(style);
+
+  // Helpers for lookups
+  const personMap = new Map(persons.map((p) => [p.id, p]));
+  const getParents = (id: string) =>
+    relationships
+      .filter((r) => r.type === 'PARENT_CHILD' && r.toPersonId === id)
+      .map((r) => personMap.get(r.fromPersonId))
+      .filter((p): p is Person => Boolean(p));
+
+  const getChildren = (id: string) =>
+    relationships
+      .filter((r) => r.type === 'PARENT_CHILD' && r.fromPersonId === id)
+      .map((r) => personMap.get(r.toPersonId))
+      .filter((p): p is Person => Boolean(p));
+
+  const getSpouses = (id: string) => {
+    const ids = new Set<string>();
+    relationships.forEach((r) => {
+      if (r.type === 'SPOUSE') {
+        if (r.fromPersonId === id) ids.add(r.toPersonId);
+        if (r.toPersonId === id) ids.add(r.fromPersonId);
+      }
+    });
+    return Array.from(ids)
+      .map((sid) => personMap.get(sid))
+      .filter((p): p is Person => Boolean(p));
+  };
+
+  // Special Biography Mode when scope is 'person'
+  if (scope?.type === 'person' && scope.rootPersonId && personMap.has(scope.rootPersonId)) {
+    const focus = personMap.get(scope.rootPersonId)!;
+    const focusSpouses = getSpouses(focus.id);
+    const focusChildren = getChildren(focus.id);
+    const focusParents = allRelationships
+      .filter((r) => r.type === 'PARENT_CHILD' && r.toPersonId === focus.id)
+      .map((r) => useFamilyStore.getState().persons.find((p) => p.id === r.fromPersonId))
+      .filter((p): p is Person => Boolean(p));
+
+    const chapters: StoryChapter[] = [];
+
+    // Chapter 1: Profil & Asal-Usul
+    const originLines: string[] = [storyTemplate.tone];
+    originLines.push(describePersonProfile(focus, focusSpouses));
+    if (focusParents.length > 0) {
+      originLines.push(
+        `${focus.fullName} merupakan ${
+          focus.gender === 'male' ? 'putra' : focus.gender === 'female' ? 'putri' : 'anak'
+        } dari ${joinNames(focusParents.map((p) => p.fullName))}.`
+      );
+    }
+
+    chapters.push({
+      title: `Profil ${focus.fullName}`,
+      content: originLines.join('\n\n'),
+      period: calculatePeriodString([focus]),
+      highlights: [
+        focus.birthDate ? `Lahir: ${formatDateId(focus.birthDate)}` : 'Tanggal lahir belum tercatat',
+        focus.birthPlace ? `Tempat lahir: ${focus.birthPlace}` : null,
+        focusSpouses.length > 0 ? `Pasangan: ${joinNames(focusSpouses.map((s) => s.fullName))}` : null,
+      ].filter((h): h is string => Boolean(h)),
+    });
+
+    // Subsequent chapters for descendants
+    for (let i = 1; i < generations.length; i++) {
+      const genMembers = generations[i];
+      const label = i === 1 ? 'Anak-anak' : i === 2 ? 'Cucu' : `Keturunan Generasi ke-${i + 1}`;
+      chapters.push(
+        buildGenerationChapter(genMembers, i, label, relationships, personMap, getParents, getSpouses, storyTemplate)
+      );
+    }
+
+    // Legacy chapter
+    chapters.push(buildLegacyChapter(persons, storyTemplate));
+
+    return {
+      title: `Biografi & Keturunan ${focus.fullName}`,
+      subtitle: storyTemplate.subtitleTemplate,
+      chapters,
+      stats: {
+        totalMembers: persons.length,
+        totalGenerations: generations.length,
+        yearsCovered,
+        marriages: couples.length,
+      },
+      includedPersonIds: persons.map((p) => p.id),
+      generatedAt: new Date(),
+      aiGenerated: false,
+    };
+  }
+
+  // Standard Family / Branch / Subfamily Mode
+  const firstGen = generations[0] || [];
+  const firstGenIds = new Set(firstGen.map((p) => p.id));
+  const founderCouples = couples.filter(
+    (c) => firstGenIds.has(c.person1.id) && firstGenIds.has(c.person2.id)
+  );
+  const familyName = extractFamilyName(firstGen);
+  const chapters: StoryChapter[] = [];
+
+  const earliestYear = persons
+    .map((p) => getYear(p.birthDate))
+    .filter((y): y is number => y !== null)
+    .sort((a, b) => a - b)[0];
+
+  // Chapter 1: Introduction (ACCURATE generation count & ONLY Generation 1 founders!)
+  const founderSummary =
+    founderCouples.length > 0
+      ? founderCouples.map((c) => `${c.person1.fullName} dan ${c.person2.fullName}`).join('; ')
+      : joinNames(firstGen.slice(0, 4).map((p) => p.fullName));
+
+  const introParagraphs = [
+    storyTemplate.tone,
+    `Keluarga ${familyName} dalam catatan silsilah ini mencakup ${persons.length} anggota yang terbentang dalam ${generations.length} generasi${
+      yearsCovered > 0 ? ` sepanjang rentang ${yearsCovered} tahun` : ''
+    }. Jejak awalnya berakar dari generasi pertama, yaitu ${founderSummary || 'para leluhur keluarga'}.`,
+    `Melalui dokumentasi ini, kita menelusuri perjalanan setiap generasi keluarga ${familyName} beserta ikatan kekerabatan yang menyatukannya hingga hari ini.`,
+  ];
+
   chapters.push({
-    title: storyTemplate.chapterTitles.legacy,
-    content: generateLegacyChapter(persons, relationships, storyTemplate),
-    period: 'Warisan Keluarga',
+    title: storyTemplate.chapterTitles.introduction,
+    content: introParagraphs.join('\n\n'),
+    period: earliestYear ? `${earliestYear} – Sekarang` : 'Sepanjang Masa',
     highlights: [
-      'Tradisi keluarga',
-      'Pengorbanan generasi sebelumnya',
-      'Harapan untuk generasi mendatang'
-    ]
+      `Total ${persons.length} anggota keluarga`,
+      `${generations.length} generasi tercatat`,
+      `${couples.length} pasangan menikah`,
+    ],
   });
 
+  // Chapter 2: Generation 1 (Founders)
+  if (firstGen.length > 0) {
+    const gen1Paragraphs: string[] = [];
+
+    if (founderCouples.length > 0) {
+      founderCouples.forEach((couple) => {
+        const marriageYear = getYear(couple.marriageDate);
+        const kids = getChildren(couple.person1.id).filter(
+          (k) =>
+            getChildren(couple.person2.id).some((k2) => k2.id === k.id) ||
+            getParents(k.id).length === 1
+        );
+
+        let text = marriageYear
+          ? `${couple.person1.fullName} dan ${couple.person2.fullName} membangun rumah tangga pada tahun ${marriageYear}.`
+          : `${couple.person1.fullName} dan ${couple.person2.fullName} menjadi salah satu pasangan fondasi generasi pertama keluarga ini.`;
+
+        if (kids.length > 0) {
+          text += ` Dari pernikahan mereka lahir ${kids.length} anak, yaitu ${joinNames(
+            kids.map((k) => k.fullName)
+          )}.`;
+        }
+        gen1Paragraphs.push(text);
+      });
+    }
+
+    // Individual profiles for Gen 1 members
+    const profileLines = firstGen.map((p) => describePersonProfile(p, getSpouses(p.id)));
+    if (profileLines.length > 0) {
+      gen1Paragraphs.push(profileLines.join(' '));
+    }
+
+    chapters.push({
+      title: `${storyTemplate.chapterTitles.beginning} (Generasi 1)`,
+      content: gen1Paragraphs.join('\n\n'),
+      period: calculatePeriodString(firstGen),
+      highlights: firstGen.map((p) => {
+        const y = getYear(p.birthDate);
+        return y ? `${p.fullName} (lahir ${y})` : p.fullName;
+      }),
+    });
+  }
+
+  // Chapters 3..N: ALL remaining generations (no hardcoded 3-gen cap!)
+  for (let i = 1; i < generations.length; i++) {
+    const genMembers = generations[i];
+    chapters.push(
+      buildGenerationChapter(
+        genMembers,
+        i,
+        `${storyTemplate.chapterTitles.growth} ${i + 1}`,
+        relationships,
+        personMap,
+        getParents,
+        getSpouses,
+        storyTemplate
+      )
+    );
+  }
+
+  // Final Chapter: Legacy
+  chapters.push(buildLegacyChapter(persons, storyTemplate));
+
   return {
-    title: storyTemplate.titleTemplate.replace('{familyName}', getFamilyName(rootPersons)),
+    title: storyTemplate.titleTemplate.replace('{familyName}', familyName),
     subtitle: storyTemplate.subtitleTemplate,
     chapters,
     stats: {
       totalMembers: persons.length,
       totalGenerations: generations.length,
-      marriages,
-      yearsCovered
+      yearsCovered,
+      marriages: couples.length,
     },
+    includedPersonIds: persons.map((p) => p.id),
     generatedAt: new Date(),
-    aiGenerated: false
+    aiGenerated: false,
   };
 }
 
-// Story templates for different styles
+function buildGenerationChapter(
+  genMembers: Person[],
+  genIndex: number,
+  title: string,
+  relationships: Relationship[],
+  personMap: Map<string, Person>,
+  getParents: (id: string) => Person[],
+  getSpouses: (id: string) => Person[],
+  template: ReturnType<typeof getStoryTemplate>
+): StoryChapter {
+  const paragraphs: string[] = [];
+
+  paragraphs.push(
+    `Generasi ke-${genIndex + 1} terdiri dari ${genMembers.length} anggota keluarga yang melanjutkan perjalanan dan memperluas cabang keluarga.`
+  );
+
+  // Group blood descendants by their parent set for clear family context
+  const byParentKey = new Map<string, { parents: Person[]; children: Person[] }>();
+  const marriedInOrOther: Person[] = [];
+
+  for (const person of genMembers) {
+    const parents = getParents(person.id);
+    if (parents.length > 0) {
+      const key = parents
+        .map((p) => p.id)
+        .sort()
+        .join('-');
+      if (!byParentKey.has(key)) {
+        byParentKey.set(key, { parents, children: [] });
+      }
+      byParentKey.get(key)!.children.push(person);
+    } else {
+      marriedInOrOther.push(person);
+    }
+  }
+
+  // Narrate each sibling group
+  byParentKey.forEach(({ parents, children }) => {
+    const parentNames = joinNames(parents.map((p) => p.fullName));
+    const intro = `Dari ${parentNames}, tercatat ${children.length} anak yaitu ${joinNames(
+      children.map((c) => c.fullName)
+    )}.`;
+    const details = children.map((c) => describePersonProfile(c, getSpouses(c.id))).join(' ');
+    paragraphs.push(`${intro} ${details}`);
+  });
+
+  // Narrate spouses/in-laws or other members in this generation
+  if (marriedInOrOther.length > 0) {
+    const inLawDetails = marriedInOrOther
+      .map((p) => describePersonProfile(p, getSpouses(p.id)))
+      .join(' ');
+    paragraphs.push(
+      `Anggota lain yang turut memperkaya generasi ke-${genIndex + 1}: ${inLawDetails}`
+    );
+  }
+
+  return {
+    title,
+    content: paragraphs.join('\n\n'),
+    period: calculatePeriodString(genMembers),
+    highlights: genMembers.map((p) => {
+      const y = getYear(p.birthDate);
+      return y ? `${p.fullName} (${y})` : p.fullName;
+    }),
+  };
+}
+
+function buildLegacyChapter(
+  persons: Person[],
+  template: ReturnType<typeof getStoryTemplate>
+): StoryChapter {
+  const living = persons.filter((p) => !p.deathDate);
+  const deceased = persons.filter((p) => Boolean(p.deathDate));
+
+  const places = Array.from(
+    new Set(
+      persons
+        .map((p) => (p.residence || p.birthPlace || '').trim())
+        .filter((loc) => loc.length > 0)
+    )
+  );
+
+  const paragraphs: string[] = [];
+
+  paragraphs.push(
+    deceased.length > 0
+      ? `Dalam perjalanan panjang keluarga ini, ${deceased.length} anggota tercinta telah berpulang (${joinNames(
+          deceased.slice(0, 5).map((p) => p.fullName)
+        )}${deceased.length > 5 ? ', dan lainnya' : ''}). Kenangan serta jasa mereka tetap hidup dalam ingatan keluarga.`
+      : `Seluruh ${persons.length} anggota yang tercatat dalam cakupan cerita ini masih diberikan kesehatan untuk terus merangkai kenangan bersama.`
+  );
+
+  if (living.length > 0) {
+    paragraphs.push(
+      `Saat ini terdapat ${living.length} anggota keluarga yang masih aktif melanjutkan cerita dan tradisi keluarga${
+        places.length > 0 ? `, tersebar di ${joinNames(places.slice(0, 5))}${places.length > 5 ? ' dan kota lainnya' : ''}` : ''
+      }.`
+    );
+  }
+
+  paragraphs.push(template.closing);
+
+  return {
+    title: template.chapterTitles.legacy,
+    content: paragraphs.join('\n\n'),
+    period: 'Warisan Keluarga',
+    highlights: [
+      `${living.length} anggota masih hidup`,
+      deceased.length > 0 ? `${deceased.length} almarhum/ah dikenang` : 'Semua anggota masih hidup',
+      places.length > 0 ? `Tersebar di ${places.length} lokasi` : 'Ikatan persaudaraan lintas generasi',
+    ],
+  };
+}
+
 function getStoryTemplate(style: StoryStyle) {
   const templates = {
     formal: {
       titleTemplate: 'Sejarah Keluarga {familyName}',
-      subtitleTemplate: 'Dokumentasi genealogi dan narasi historis',
+      subtitleTemplate: 'Dokumentasi genealogi dan narasi historis keluarga',
       chapterTitles: {
         introduction: 'Pendahuluan',
-        beginning: 'Asal-usul dan Permulaan',
-        growth: 'Generasi',
-        legacy: 'Warisan dan Tradisi'
+        beginning: 'Asal-usul dan Generasi Pendiri',
+        growth: 'Generasi ke-',
+        legacy: 'Warisan dan Penutup',
       },
-      tone: 'Dengan hormat, kami sampaikan dokumentasi keluarga ini...'
+      tone: 'Dokumen ini merangkum catatan genealogi dan perjalanan historis keluarga besar secara kronologis.',
+      closing:
+        'Semoga dokumentasi ini menjadi arsip berharga yang menjaga kesinambungan sejarah bagi generasi mendatang.',
     },
     casual: {
       titleTemplate: 'Cerita Keluarga {familyName}',
-      subtitleTemplate: 'Perjalanan cinta, tawa, dan kebersamaan',
+      subtitleTemplate: 'Perjalanan kebersamaan dari generasi ke generasi',
       chapterTitles: {
-        introduction: 'Kenalan dengan Keluarga Kita',
-        beginning: 'Awal yang Sederhana',
-        growth: 'Keluarga Bertambah Besar',
-        legacy: 'Yang Kita Wariskan'
+        introduction: 'Mengenal Keluarga Kita',
+        beginning: 'Awal Mula Keluarga',
+        growth: 'Generasi ke-',
+        legacy: 'Jejak yang Kita Wariskan',
       },
-      tone: 'Hai! Mari berkenalan dengan keluarga kita yang luar biasa...'
+      tone: 'Mari menelusuri cerita keluarga kita dari awal hingga hari ini!',
+      closing:
+        'Warisan terbesar kita adalah ikatan kebersamaan yang terus dijaga dari generasi ke generasi.',
     },
     emotional: {
       titleTemplate: 'Benang Merah Keluarga {familyName}',
-      subtitleTemplate: 'Kisah kasih sayang yang mengalir dari generasi ke generasi',
+      subtitleTemplate: 'Kisah kasih sayang yang mengalir lintas generasi',
       chapterTitles: {
         introduction: 'Cinta yang Mengawali Segalanya',
-        beginning: 'Mimpi dan Harapan Pertama',
-        growth: 'Cahaya-cahaya Baru dalam Hidup',
-        legacy: 'Kasih yang Abadi'
+        beginning: 'Fondasi Kasih Pertama',
+        growth: 'Generasi ke-',
+        legacy: 'Kasih yang Abadi',
       },
-      tone: 'Dalam setiap detak jantung keluarga ini, terukir cerita cinta...'
+      tone: 'Di balik setiap nama dalam silsilah ini, tersimpan doa, perjuangan, dan kasih sayang yang tak ternilai.',
+      closing:
+        'Semoga hangatnya cinta keluarga ini terus mengalir dan menguatkan setiap generasi yang akan datang.',
     },
     children: {
       titleTemplate: 'Buku Cerita Keluarga {familyName}',
-      subtitleTemplate: 'Kisah keluarga kita yang seru!',
+      subtitleTemplate: 'Mengenal kakek, nenek, dan keluarga besar kita',
       chapterTitles: {
-        introduction: 'Halo, Ini Keluarga Kita!',
-        beginning: 'Dulu, Ada Nenek dan Kakek...',
-        growth: 'Anak-anak Lahir!',
-        legacy: 'Cerita untuk Diceritakan Lagi'
+        introduction: 'Halo, Ini Keluarga Besar Kita!',
+        beginning: 'Kisah Kakek dan Nenek Buyut',
+        growth: 'Generasi ke-',
+        legacy: 'Cerita untuk Diteruskan',
       },
-      tone: 'Halo teman-teman! Aku mau cerita tentang keluarga aku yang super seru...'
+      tone: 'Halo! Yuk kita kenalan dengan anggota keluarga besar kita dari dulu sampai sekarang.',
+      closing:
+        'Setiap orang di keluarga kita punya peran istimewa. Yuk kita jaga dan sayangi keluarga kita!',
     },
     poetic: {
-      titleTemplate: 'Syair Keluarga {familyName}',
-      subtitleTemplate: 'Melodi kehidupan dalam bait-bait cinta',
+      titleTemplate: 'Jejak Waktu Keluarga {familyName}',
+      subtitleTemplate: 'Untaian kisah dalam lintasan zaman',
       chapterTitles: {
         introduction: 'Prolog',
-        beginning: 'Bab Pertama: Titik Temu',
-        growth: 'Bab-Bab Berikutnya: Pelebaran Sayap',
-        legacy: 'Epilog: Abadi'
+        beginning: 'Akar Pertama',
+        growth: 'Generasi ke-',
+        legacy: 'Epilog: Warisan Abadi',
       },
-      tone: 'Pada suatu ketika, dalam lipatan waktu...'
-    }
+      tone: 'Dalam lipatan waktu yang terus bergulir, nama-nama ini menjadi akar tempat kita bertumbuh.',
+      closing:
+        'Waktu boleh berlalu, namun nama, doa, dan ikatan darah akan selalu menemukan jalannya pulang.',
+    },
   };
 
   return templates[style];
 }
 
-// Helper functions
-function findCouples(persons: Person[], relationships: Relationship[]) {
-  const couples: Array<{ person1: Person; person2: Person; marriageDate?: string }> = [];
-  
-  const spouseRels = relationships.filter(r => r.type === 'SPOUSE');
-  
-  for (const rel of spouseRels) {
-    const p1 = persons.find(p => p.id === rel.fromPersonId);
-    const p2 = persons.find(p => p.id === rel.toPersonId);
-    
-    if (p1 && p2) {
-      // Avoid duplicates
-      const exists = couples.some(
-        c => (c.person1.id === p1.id && c.person2.id === p2.id) ||
-             (c.person1.id === p2.id && c.person2.id === p1.id)
-      );
-      
-      if (!exists) {
-        couples.push({ person1: p1, person2: p2, marriageDate: rel.meta?.startDate });
-      }
-    }
-  }
-  
-  return couples;
-}
-
-function calculateGenerations(persons: Person[], relationships: Relationship[]) {
-  const generations: Person[][] = [];
-  const assigned = new Set<string>();
-  
-  // Find generation 0 (root ancestors)
-  let currentGen = persons.filter(p => {
-    const hasParents = relationships.some(
-      r => r.type === 'PARENT_CHILD' && r.toPersonId === p.id
-    );
-    return !hasParents;
-  });
-  
-  while (currentGen.length > 0) {
-    generations.push(currentGen);
-    currentGen.forEach(p => assigned.add(p.id));
-    
-    // Find next generation (children of current)
-    const nextGen: Person[] = [];
-    for (const parent of currentGen) {
-      const children = relationships
-        .filter(r => r.type === 'PARENT_CHILD' && r.fromPersonId === parent.id)
-        .map(r => persons.find(p => p.id === r.toPersonId))
-        .filter((p): p is Person => p !== undefined && !assigned.has(p.id));
-      
-      nextGen.push(...children);
-    }
-    
-    currentGen = nextGen;
-  }
-  
-  return generations;
-}
-
-function calculateYearsCovered(persons: Person[]) {
-  const years = persons
-    .map(p => p.birthDate ? new Date(p.birthDate).getFullYear() : null)
-    .filter((y): y is number => y !== null);
-  
-  if (years.length === 0) return 0;
-  
-  const min = Math.min(...years);
-  const max = Math.max(...years);
-  
-  return max - min;
-}
-
-function getFamilyName(rootPersons: Person[]) {
-  if (rootPersons.length === 0) return 'Kami';
-  
-  // Extract last name or use first name
-  const name = rootPersons[0].fullName;
-  const parts = name.split(' ');
-  
-  if (parts.length > 1) {
-    return parts[parts.length - 1]; // Last name
-  }
-  
-  return name;
-}
-
-function calculatePeriodString(persons: Person[]) {
-  const years = persons
-    .map(p => p.birthDate ? new Date(p.birthDate).getFullYear() : null)
-    .filter((y): y is number => y !== null);
-  
-  if (years.length === 0) return 'Periode tidak diketahui';
-  
-  const min = Math.min(...years);
-  const max = Math.max(...years);
-  
-  return min === max ? `Tahun ${min}` : `${min} - ${max}`;
-}
-
-function calculateGenerationPeriod(gen: Person[]) {
-  const years = gen
-    .map(p => p.birthDate ? new Date(p.birthDate).getFullYear() : null)
-    .filter((y): y is number => y !== null);
-  
-  if (years.length === 0) return 'Periode tidak diketahui';
-  
-  return `${Math.min(...years)} - ${Math.max(...years)}`;
-}
-
-// Chapter generators
-function generateIntroduction(
-  rootPersons: Person[],
-  couples: Array<{ person1: Person; person2: Person }>,
-  template: ReturnType<typeof getStoryTemplate>
-) {
-  const familyName = getFamilyName(rootPersons);
-  
-  return `${template.tone}
-
-Keluarga ${familyName} adalah sebuah keluarga yang terdiri dari ${rootPersons.length > 0 ? rootPersons.length : 'beberapa'} generasi. Dimulai dari ${couples.length > 0 ? couples.map(c => `${c.person1.fullName} dan ${c.person2.fullName}`).join(', ') : 'leluhur kita'}, keluarga ini telah tumbuh dan berkembang seiring waktu.
-
-Dalam cerita ini, kita akan menjelajahi perjalanan keluarga ${familyName} - dari awal yang sederhana hingga menjadi keluarga besar yang penuh dengan cinta dan kehangatan.`;
-}
-
-function generateBeginningChapter(
-  rootPersons: Person[],
-  couples: Array<{ person1: Person; person2: Person; marriageDate?: string }>,
-  template: ReturnType<typeof getStoryTemplate>
-) {
-  if (couples.length === 0) {
-    return 'Cerita keluarga ini dimulai dari individu-individu yang membentuk fondasi kuat bagi generasi-generasi berikutnya.';
-  }
-  
-  const mainCouple = couples[0];
-  const marriageYear = mainCouple.marriageDate 
-    ? new Date(mainCouple.marriageDate).getFullYear() 
-    : 'suatu tahun';
-  
-  return `Segalanya dimulai ketika ${mainCouple.person1.fullName} dan ${mainCouple.person2.fullName} memutuskan untuk membangun rumah tangga bersama pada tahun ${marriageYear}. 
-
-Dari pernikahan mereka, lahirlah cinta yang menjadi fondasi bagi seluruh keluarga ini. Mereka memulai perjalanan hidup bersama dengan penuh harapan dan impian - impian untuk membangun keluarga yang penuh kasih sayang dan kebahagiaan.`;
-}
-
-function generateGenerationChapter(
-  gen: Person[],
-  genIndex: number,
-  template: ReturnType<typeof getStoryTemplate>
-) {
-  const names = gen.map(p => p.fullName).join(', ');
-  
-  return `Generasi ke-${genIndex + 1} keluarga ini membawa warna baru dalam kisah keluarga kita. ${names} ${gen.length > 1 ? 'adalah anggota-anggota' : 'adalah anggota'} yang melanjutkan perjalanan keluarga ini.
-
-${gen.map(p => {
-    const birthInfo = p.birthDate 
-      ? `lahir pada ${new Date(p.birthDate).toLocaleDateString('id-ID')}` 
-      : 'bergabung dalam keluarga ini';
-    return `${p.fullName} ${birthInfo}.`;
-  }).join(' ')}
-
-Setiap anggota membawa cerita unik mereka sendiri, menambah kekayaan dan keberagaman dalam keluarga besar kita.`;
-}
-
-function generateLegacyChapter(
-  persons: Person[],
-  relationships: Relationship[],
-  template: ReturnType<typeof getStoryTemplate>
-) {
-  const currentGen = persons.filter(p => !p.deathDate);
-  const deceased = persons.filter(p => p.deathDate);
-  
-  return `Seiring berjalannya waktu, keluarga kita telah mengalami banyak perubahan. ${deceased.length > 0 
-    ? `Kita telah kehilangan ${deceased.length} anggota tercinta, namun warisan dan kenangan mereka tetap hidup dalam hati kita.` 
-    : 'Kita bersyukur masih bisa bersama-sama membentuk kenangan indah.'}
-
-${currentGen.length > 0 
-    ? `Saat ini, ${currentGen.length} anggota keluarga masih aktif menulis cerita keluarga ini.` 
-    : ''}
-
-Warisan terbesar yang kita miliki bukanlah harta materi, melainkan ikatan cinta dan persaudaraan yang terus mengalir dari generasi ke generasi. Semoga cerita keluarga ini terus berkembang dan menjadi inspirasi bagi generasi yang akan datang.`;
-}
-
-// AI Integration (optional enhancement)
 export function useStoryGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const abortController = useRef<AbortController | null>(null);
 
-  const generateStory = useCallback(async (
-    style: StoryStyle,
-    useAI: boolean = false
-  ): Promise<GeneratedStory | null> => {
+  const generateStory = useCallback(async (style: StoryStyle): Promise<GeneratedStory | null> => {
     setIsGenerating(true);
     setProgress(0);
     setError(null);
-    
     abortController.current = new AbortController();
 
     try {
-      // Get data from store
       const { persons, relationships } = useFamilyStore.getState();
-      
       if (persons.length === 0) {
         throw new Error('Tidak ada data anggota keluarga untuk membuat cerita');
       }
-
-      setProgress(20);
-
-      let story: GeneratedStory;
-
-      if (useAI) {
-        // AI generation (placeholder for future AI integration)
-        // For now, use template with AI marker
-        story = generateTemplateStory(persons, relationships, style);
-        story.aiGenerated = true;
-        story.title = `[AI] ${story.title}`;
-      } else {
-        // Template-based generation
-        story = generateTemplateStory(persons, relationships, style);
-      }
-
-      setProgress(100);
-      return story;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
-      return null;
-    } finally {
-      setIsGenerating(false);
-    }
-  }, []);
-
-  const generateStoryWithScope = useCallback(async (
-    style: StoryStyle,
-    scope: StoryScope,
-    useAI: boolean = false
-  ): Promise<GeneratedStory | null> => {
-    setIsGenerating(true);
-    setProgress(0);
-    setError(null);
-    
-    abortController.current = new AbortController();
-
-    try {
-      // Get data from store
-      const { persons, relationships } = useFamilyStore.getState();
-      
-      if (persons.length === 0) {
-        throw new Error('Tidak ada data anggota keluarga untuk membuat cerita');
-      }
-
-      setProgress(20);
-
-      // Filter persons based on scope
-      const filteredPersons = filterPersonsByScopeFromSelector(
-        persons as Person[],
-        relationships,
-        scope
-      );
-
-      if (filteredPersons.length === 0) {
-        throw new Error('Tidak ada anggota keluarga yang cocok dengan scope yang dipilih');
-      }
-
       setProgress(40);
-
-      let story: GeneratedStory;
-
-      if (useAI) {
-        // AI generation (placeholder for future AI integration)
-        story = generateTemplateStory(filteredPersons, relationships, style);
-        story.aiGenerated = true;
-        story.title = `[AI] ${story.title}`;
-      } else {
-        // Template-based generation
-        story = generateTemplateStory(filteredPersons, relationships, style);
-      }
-
+      const story = generateTemplateStory(persons, relationships, style);
       setProgress(100);
       return story;
     } catch (err) {
@@ -470,6 +614,44 @@ export function useStoryGenerator() {
       setIsGenerating(false);
     }
   }, []);
+
+  const generateStoryWithScope = useCallback(
+    async (style: StoryStyle, scope: StoryScope): Promise<GeneratedStory | null> => {
+      setIsGenerating(true);
+      setProgress(0);
+      setError(null);
+      abortController.current = new AbortController();
+
+      try {
+        const { persons, relationships } = useFamilyStore.getState();
+        if (persons.length === 0) {
+          throw new Error('Tidak ada data anggota keluarga untuk membuat cerita');
+        }
+
+        setProgress(30);
+        const filteredPersons = filterPersonsByScopeFromSelector(
+          persons as Person[],
+          relationships,
+          scope
+        );
+
+        if (filteredPersons.length === 0) {
+          throw new Error('Tidak ada anggota keluarga yang cocok dengan cakupan yang dipilih');
+        }
+
+        setProgress(65);
+        const story = generateTemplateStory(filteredPersons, relationships, style, scope);
+        setProgress(100);
+        return story;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
+        return null;
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    []
+  );
 
   const cancelGeneration = useCallback(() => {
     abortController.current?.abort();
@@ -482,6 +664,6 @@ export function useStoryGenerator() {
     cancelGeneration,
     isGenerating,
     progress,
-    error
+    error,
   };
 }

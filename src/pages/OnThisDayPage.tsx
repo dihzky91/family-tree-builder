@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useFamilyStore } from '@/store/familyStore';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ interface Event {
 
 export default function OnThisDayPage() {
     const { persons } = useFamilyStore();
+    const navigate = useNavigate();
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentDay = today.getDate();
@@ -83,10 +85,13 @@ export default function OnThisDayPage() {
     const pastEvents = events.filter(e => e.date.getDate() < currentDay);
 
     const EventCard = ({ event }: { event: Event }) => (
-        <Card className={`
-      flex items-center gap-4 p-4 transition-all hover:shadow-md
+        <Card
+            onClick={() => navigate(`/chart?focus=${event.person.id}`)}
+            className={`
+      flex items-center gap-3.5 p-3.5 sm:p-4 rounded-2xl cursor-pointer transition-all hover:shadow-md
       ${event.isToday ? 'border-primary/50 bg-primary/5' : 'hover:bg-accent/50'}
-    `}>
+    `}
+        >
             {/* Date Box */}
             <div className={`
         flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-background border shrink-0
@@ -116,13 +121,13 @@ export default function OnThisDayPage() {
     );
 
     return (
-        <div className="p-6 lg:p-8 space-y-8 animate-fade-in max-w-5xl mx-auto">
+        <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8 animate-fade-in max-w-5xl mx-auto">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-display font-bold text-foreground">
+                <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
                     Hari Ini & Peristiwa Bulan Ini
                 </h1>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-sm sm:text-base text-muted-foreground mt-1">
                     Momen spesial keluarga di bulan {today.toLocaleDateString('id-ID', { month: 'long' })}
                 </p>
             </div>

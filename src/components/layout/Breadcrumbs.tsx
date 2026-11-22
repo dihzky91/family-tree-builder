@@ -120,7 +120,7 @@ export function Breadcrumbs() {
     <nav 
       aria-label="Breadcrumb"
       className={cn(
-        "sticky top-14 md:top-0 z-30 w-full border-b bg-muted/30 backdrop-blur",
+        "hidden md:block sticky top-0 z-30 w-full border-b bg-muted/30 backdrop-blur",
         "py-1.5 px-3 md:rounded-t-[1.75rem] md:border-b md:border-border/70 md:bg-card/85 md:px-6"
       )}
     >

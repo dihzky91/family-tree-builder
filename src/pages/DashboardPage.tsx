@@ -105,34 +105,34 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 animate-fade-in pb-20">
+    <div className="p-4 md:p-6 lg:p-8 space-y-5 md:space-y-8 animate-fade-in">
 
       {/* HERO SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Welcome Card */}
-        <div className="lg:col-span-2 relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/90 to-primary/70 text-primary-foreground p-8 shadow-lg flex flex-col justify-center min-h-[200px]">
+        <div className="lg:col-span-2 relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/90 to-primary/70 text-primary-foreground p-5 sm:p-8 shadow-lg flex flex-col justify-center min-h-[168px] sm:min-h-[200px]">
           <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-2 opacity-90">
-              <GreetingIcon className="w-6 h-6" />
-              <span className="font-medium text-lg">{greetingText}</span>
+            <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-2 opacity-90">
+              <GreetingIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span className="font-medium text-sm sm:text-lg">{greetingText}</span>
             </div>
-            <h1 className="text-4xl font-display font-bold mb-4">
+            <h1 className="text-2xl sm:text-4xl font-display font-bold mb-2 sm:mb-4">
               Selamat Datang Kembali
             </h1>
-            <p className="text-primary-foreground/80 max-w-lg">
+            <p className="text-sm sm:text-base text-primary-foreground/85 max-w-lg">
               Lanjutkan perjalanan menelusuri jejak leluhur dan merangkai kisah keluarga Anda.
             </p>
-            <div className="mt-6 flex gap-3">
-              <Link to="/people">
-                <Button variant="secondary" className="gap-2">
+            <div className="mt-5 sm:mt-6 grid grid-cols-2 sm:flex gap-2.5 sm:gap-3">
+              <Link to="/people" className="w-full sm:w-auto">
+                <Button variant="secondary" className="gap-2 w-full sm:w-auto h-10">
                   <Users className="w-4 h-4" />
-                  Kelola Anggota
+                  <span className="truncate">Kelola Anggota</span>
                 </Button>
               </Link>
-              <Link to="/chart">
-                <Button variant="outline" className="gap-2 bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10 text-primary-foreground">
+              <Link to="/chart" className="w-full sm:w-auto">
+                <Button variant="outline" className="gap-2 w-full sm:w-auto h-10 bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10 text-primary-foreground">
                   <GitBranch className="w-4 h-4" />
-                  Lihat Silsilah
+                  <span className="truncate">Lihat Silsilah</span>
                 </Button>
               </Link>
             </div>
@@ -184,16 +184,16 @@ export default function DashboardPage() {
       {isLoading ? (
         <StatsCardSkeletonGrid count={4} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {stats.map((stat) => (
-            <Card key={stat.title} className="stat-card border-none shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{stat.title}</p>
-                  <p className="text-3xl font-bold mt-1 text-foreground/90">{stat.value}</p>
+            <Card key={stat.title} className="stat-card border-none shadow-sm hover:shadow-md transition-shadow p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">{stat.title}</p>
+                  <p className="text-2xl sm:text-3xl font-bold mt-1 text-foreground/90">{stat.value}</p>
                 </div>
-                <div className={`p-2.5 rounded-xl ${stat.bgColor}`}>
-                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                <div className={`p-2 sm:p-2.5 rounded-xl shrink-0 ${stat.bgColor}`}>
+                  <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color}`} />
                 </div>
               </div>
             </Card>
@@ -203,14 +203,14 @@ export default function DashboardPage() {
 
       {/* Data Completeness & Demographics */}
       {isLoading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           <LargeStatsCardSkeleton />
           <LargeStatsCardSkeleton />
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           {/* Completeness Card */}
-          <Card className="p-6 border-none shadow-sm">
+          <Card className="p-4 sm:p-6 border-none shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-primary" />
               <h2 className="font-display font-semibold text-lg">Kelengkapan Data</h2>

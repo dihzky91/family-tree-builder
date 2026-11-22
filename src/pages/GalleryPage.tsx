@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Image as ImageIcon } from 'lucide-react';
+import { Search, Image as ImageIcon, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PersonForm } from '@/features/people/PersonForm';
@@ -20,13 +20,13 @@ export default function GalleryPage() {
     );
 
     return (
-        <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-4 md:p-6 lg:p-8 space-y-5 md:space-y-6 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-3xl font-display font-bold text-foreground">
+                    <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
                         Galeri Foto
                     </h1>
-                    <p className="text-muted-foreground mt-1">
+                    <p className="text-sm text-muted-foreground mt-0.5">
                         Koleksi foto anggota keluarga ({photoPersons.length} foto)
                     </p>
                 </div>
@@ -35,19 +35,29 @@ export default function GalleryPage() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                         placeholder="Cari nama..."
-                        className="pl-9"
+                        className="pl-9 pr-9 rounded-xl h-10"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    {searchTerm && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchTerm('')}
+                            aria-label="Hapus pencarian"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
             </div>
 
             {photoPersons.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                     {photoPersons.map((person) => (
                         <div
                             key={person.id}
-                            className="group relative aspect-square rounded-xl overflow-hidden bg-muted cursor-pointer hover:shadow-lg transition-all"
+                            className="group relative aspect-square rounded-2xl overflow-hidden bg-muted cursor-pointer hover:shadow-lg transition-all"
                             onClick={() => setEditingPerson(person)}
                         >
                             <img
@@ -57,8 +67,8 @@ export default function GalleryPage() {
                                 loading="lazy"
                             />
 
-                            {/* Gradient Overlay */}
-                            <div className="absolute inset-x-0 bottom-0 pt-10 pb-3 px-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end">
+                            {/* Gradient Overlay - always visible on mobile touchscreens */}
+                            <div className="absolute inset-x-0 bottom-0 pt-10 pb-2.5 px-2.5 sm:pb-3 sm:px-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end">
                                 <p className="text-white font-medium text-sm truncate">{person.fullName}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                     {person.birthDate && (

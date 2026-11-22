@@ -11,7 +11,7 @@ interface RelationshipPathGraphProps {
 
 const CARD_W = 176;
 const CARD_H = 88;
-const X_STEP = 224;
+const X_STEP = 272;
 const Y_STEP = 128;
 const PAD_X = 48;
 const PAD_Y = 56;
@@ -209,7 +209,7 @@ export function RelationshipPathGraph({
           return (
             <div
               key={`lbl-${edge.id}`}
-              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap"
               style={{ left: edge.midX, top: edge.midY }}
             >
               <span

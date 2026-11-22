@@ -32,6 +32,13 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
+import {
   ZoomIn,
   ZoomOut,
   Search,
@@ -143,6 +150,7 @@ export default function ChartPage() {
   const [showExportStudio, setShowExportStudio] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showMobileControls, setShowMobileControls] = useState(false);
+  const [showMobileViewPicker, setShowMobileViewPicker] = useState(false);
   const [addRelationshipContext, setAddRelationshipContext] = useState<{
     personId?: string;
     suggestedType?: 'parent' | 'spouse' | 'child';
@@ -521,8 +529,8 @@ export default function ChartPage() {
       className={cn(
         'flex animate-fade-in',
         isFullscreen
-          ? 'fixed inset-0 z-50 h-screen w-screen bg-background'
-          : 'h-[calc(100vh-3.5rem)]'
+          ? 'fixed inset-0 z-50 h-[100dvh] w-screen bg-background'
+          : 'h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom,0px))] md:h-[calc(100vh-3.5rem)]'
       )}
     >
       {/* Main Chart Area */}
@@ -530,115 +538,73 @@ export default function ChartPage() {
         {/* Toolbar */}
         <div className="border-b bg-card/95 backdrop-blur-sm">
           {isMobile ? (
-            <>
-              <div className="flex items-center justify-between gap-3 px-3 pt-3">
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Tampilan</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <h1 className="text-base font-display font-semibold">Silsilah</h1>
-                    <Badge variant="secondary" className="max-w-[140px] truncate">
-                      {currentViewOption.label}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {selectedPerson ? `Fokus: ${selectedPerson.fullName}` : currentViewOption.description}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10"
-                    aria-label="Cari anggota"
-                    onClick={() => setShowMobileSearch(true)}
-                  >
-                    <Search className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10"
-                    aria-label="Buka kontrol chart"
-                    onClick={() => setShowMobileControls(true)}
-                  >
-                    <SlidersHorizontal className="w-4 h-4" />
-                  </Button>
-                </div>
+            <div className="px-3 py-2 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  className="h-9 flex-1 min-w-0 justify-between rounded-xl px-3 text-xs font-medium"
+                  title={currentViewOption.description}
+                  onClick={() => setShowMobileViewPicker(true)}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <CurrentViewIcon className="w-4 h-4 shrink-0 text-primary" />
+                    <span className="truncate">{currentViewOption.label}</span>
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60 shrink-0 ml-1" />
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-xl"
+                  aria-label="Cari anggota"
+                  onClick={() => setShowMobileSearch(true)}
+                >
+                  <Search className="w-4 h-4" />
+                </Button>
+
+                <Button
+                  variant={isFullscreen ? 'secondary' : 'outline'}
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-xl"
+                  aria-label={isFullscreen ? 'Keluar layar penuh' : 'Mode layar penuh'}
+                  onClick={() => setIsFullscreen((prev) => !prev)}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="w-4 h-4" />
+                  ) : (
+                    <Maximize2 className="w-4 h-4" />
+                  )}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-xl"
+                  aria-label="Buka kontrol chart"
+                  onClick={() => setShowMobileControls(true)}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                </Button>
               </div>
 
-              <div className="flex items-center gap-2 px-3 pb-3 pt-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-10 flex-1 justify-between" title={currentViewOption.description}>
-                      <span className="flex items-center gap-2 truncate">
-                        <CurrentViewIcon className="w-4 h-4 shrink-0" />
-                        <span className="truncate">{currentViewOption.label}</span>
-                      </span>
-                      <ChevronDown className="w-4 h-4 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="bg-popover w-64 max-h-[70vh] overflow-y-auto">
-                    <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Utama
-                    </DropdownMenuLabel>
-                    {primaryViewModes.map(opt => {
-                      const Icon = opt.icon;
-                      const isActive = viewMode === opt.value;
-                      return (
-                        <DropdownMenuItem
-                          key={opt.value}
-                          onClick={() => setViewMode(opt.value as ViewMode)}
-                          className="flex items-start gap-3 py-2"
-                        >
-                          <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
-                          <div className="flex-1 min-w-0">
-                            <div className={`font-medium ${isActive ? 'text-primary' : ''}`}>{opt.label}</div>
-                            <div className="text-xs text-muted-foreground">{opt.description}</div>
-                          </div>
-                          {isActive && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                    {secondaryViewGroups.map((group) => (
-                      <div key={group.label}>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          {group.label}
-                        </DropdownMenuLabel>
-                        {group.items.map((opt) => {
-                          const Icon = opt.icon;
-                          const isActive = viewMode === opt.value;
-                          return (
-                            <DropdownMenuItem
-                              key={opt.value}
-                              onClick={() => setViewMode(opt.value as ViewMode)}
-                              className="flex items-start gap-3 py-2"
-                            >
-                              <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isActive ? 'text-primary' : ''}`} />
-                              <div className="flex-1 min-w-0">
-                                <div className={`font-medium ${isActive ? 'text-primary' : ''}`}>{opt.label}</div>
-                                <div className="text-xs text-muted-foreground">{opt.description}</div>
-                              </div>
-                              {isActive && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
-                            </DropdownMenuItem>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {selectedPerson && (
-                  <Button
-                    variant="secondary"
-                    className="h-10 shrink-0"
+              {selectedPerson && (
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1 text-xs">
+                  <span className="truncate text-foreground font-medium">
+                    Fokus: {selectedPerson.fullName}
+                  </span>
+                  <button
+                    type="button"
                     onClick={() => setSelectedPerson(null)}
+                    className="inline-flex items-center gap-1 text-[11px] text-primary font-medium shrink-0"
+                    aria-label="Lepas fokus"
                   >
-                    Lepas Fokus
-                  </Button>
-                )}
-              </div>
-            </>
+                    <span>Lepas</span>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
               {/* Left: View Switcher + Compact Meta */}
@@ -1154,34 +1120,16 @@ export default function ChartPage() {
         </div>
       </div>
 
-      {/* Backdrop for mobile detail panel */}
+      {/* Desktop Detail Panel */}
       <AnimatePresence>
-        {selectedPerson && isMobile && (
+        {selectedPerson && !isMobile && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setSelectedPerson(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Detail Panel */}
-      <AnimatePresence>
-        {selectedPerson && (
-          <motion.div
-            className={isMobile
-              ? 'fixed inset-x-0 bottom-0 max-h-[78vh] rounded-t-3xl border-x border-t bg-card overflow-y-auto z-50 shadow-2xl'
-              : 'fixed md:relative inset-y-0 right-0 w-full md:w-80 lg:w-[340px] shrink-0 border-l bg-card overflow-y-auto z-50 md:z-auto'
-            }
-            variants={isMobile ? undefined : panelVariants}
-            initial={isMobile ? { opacity: 0, y: 48 } : 'hidden'}
-            animate={isMobile ? { opacity: 1, y: 0 } : 'visible'}
-            exit={isMobile ? { opacity: 0, y: 48 } : 'exit'}
-            transition={isMobile ? { duration: 0.2 } : undefined}
+            className="relative inset-y-0 right-0 w-80 lg:w-[340px] shrink-0 border-l bg-card overflow-y-auto"
+            variants={panelVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
           >
-            {isMobile && <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted" />}
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <h2 className="font-display font-semibold text-sm">Detail Anggota</h2>
               <div className="flex items-center gap-1">
@@ -1332,7 +1280,7 @@ export default function ChartPage() {
                 </div>
               )}
 
-              {/* Relationship Inspector (Already includes clickable Parent, Spouse, and Child links) */}
+              {/* Relationship Inspector */}
               <div className="pt-3 border-t">
                 <div className="flex items-center justify-between mb-2.5">
                   <h4 className="text-sm font-medium flex items-center gap-1.5">
@@ -1346,7 +1294,7 @@ export default function ChartPage() {
                 />
               </div>
 
-              {/* Siblings (Only shown if person has siblings, avoiding duplicate Parent/Spouse/Child lists) */}
+              {/* Siblings */}
               {relatives && relatives.siblings.length > 0 && (
                 <div className="space-y-2 pt-3 border-t">
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
@@ -1369,6 +1317,209 @@ export default function ChartPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Mobile Swipe-to-Dismiss Detail Drawer */}
+      <Drawer
+        open={Boolean(selectedPerson && isMobile)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPerson(null);
+        }}
+      >
+        <DrawerContent className="max-h-[82dvh] rounded-t-3xl safe-area-pb">
+          {selectedPerson && (
+            <>
+              <DrawerHeader className="px-4 py-2.5 border-b text-left flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <DrawerTitle className="font-display text-base">Detail Anggota</DrawerTitle>
+                  <DrawerDescription className="sr-only">
+                    Informasi profil dan relasi keluarga
+                  </DrawerDescription>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => setShowEditPerson(true)}
+                    aria-label="Edit profil anggota"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => setSelectedPerson(null)}
+                    aria-label="Tutup detail anggota"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </DrawerHeader>
+
+              <div className="overflow-y-auto p-4 space-y-4">
+                {/* Avatar, Name & Tags */}
+                <div className="flex items-start gap-3">
+                  <div className={`
+                    w-12 h-12 shrink-0 rounded-full flex items-center justify-center overflow-hidden
+                    ${selectedPerson.gender === 'male' ? 'bg-node-male/20 text-node-male' :
+                      selectedPerson.gender === 'female' ? 'bg-node-female/20 text-node-female' :
+                        'bg-node-unknown/20 text-node-unknown'}
+                  `}>
+                    {selectedPerson.photoUrl ? (
+                      <img
+                        src={selectedPerson.photoUrl}
+                        alt={selectedPerson.fullName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-6 h-6" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-base leading-tight truncate">
+                      {selectedPerson.fullName}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {selectedPerson.gender === 'male'
+                        ? 'Laki-laki'
+                        : selectedPerson.gender === 'female'
+                          ? 'Perempuan'
+                          : 'Tidak diketahui'}
+                    </p>
+                    {selectedPerson.tags.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {selectedPerson.tags.map(tag => (
+                          <Badge
+                            key={tag}
+                            variant={tag === 'verified' ? 'secondary' : 'outline'}
+                            className="text-[10px] px-2 py-0"
+                          >
+                            {tag === 'verified' ? 'Terverifikasi' : tag === 'needs review' ? 'Perlu Review' : tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Actions Bar */}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 text-xs"
+                      onClick={() => setShowEditPerson(true)}
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                      Edit Profil
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-9 text-xs"
+                      onClick={() => setViewMode('family')}
+                    >
+                      <Users className="w-3.5 h-3.5 mr-1.5" />
+                      Fokus Keluarga
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-2 text-xs"
+                      onClick={() => handleAddRelationship(selectedPerson.id, 'parent')}
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Ortu
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-2 text-xs"
+                      onClick={() => handleAddRelationship(selectedPerson.id, 'spouse')}
+                    >
+                      <Heart className="w-3.5 h-3.5 mr-1" />
+                      Pasangan
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-2 text-xs"
+                      onClick={() => handleAddRelationship(selectedPerson.id, 'child')}
+                    >
+                      <Baby className="w-3.5 h-3.5 mr-1" />
+                      Anak
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Dates */}
+                {(selectedPerson.birthDate || selectedPerson.deathDate) && (
+                  <div className="rounded-xl border border-border/60 bg-muted/25 p-3 space-y-1.5">
+                    {selectedPerson.birthDate && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span>Lahir: {new Date(selectedPerson.birthDate).toLocaleDateString('id-ID')}</span>
+                      </div>
+                    )}
+                    {selectedPerson.deathDate && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span>Wafat: {new Date(selectedPerson.deathDate).toLocaleDateString('id-ID')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Notes */}
+                {selectedPerson.notes && (
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Catatan</p>
+                    <p className="text-xs leading-relaxed">{selectedPerson.notes}</p>
+                  </div>
+                )}
+
+                {/* Relationship Inspector */}
+                <div className="pt-3 border-t">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <h4 className="text-sm font-medium flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5 text-primary" />
+                      Relasi Keluarga
+                    </h4>
+                  </div>
+                  <RelationshipInspector
+                    personId={selectedPerson.id}
+                    onPersonClick={setSelectedPerson}
+                  />
+                </div>
+
+                {/* Siblings */}
+                {relatives && relatives.siblings.length > 0 && (
+                  <div className="space-y-2 pt-3 border-t">
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5" /> Saudara Kandung ({relatives.siblings.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {relatives.siblings.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setSelectedPerson(p.id)}
+                          className="w-full text-left text-xs px-3 py-2.5 rounded-xl border border-border/50 bg-background/60 hover:bg-muted transition-colors"
+                        >
+                          {p.fullName}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </DrawerContent>
+      </Drawer>
 
       {/* Add Relationship Dialog */}
       <Dialog open={showAddRelationship} onOpenChange={setShowAddRelationship}>
@@ -1516,8 +1667,93 @@ export default function ChartPage() {
         </SheetContent>
       </Sheet>
 
+      {/* Mobile View Mode Picker Bottom Drawer */}
+      <Drawer open={showMobileViewPicker} onOpenChange={setShowMobileViewPicker}>
+        <DrawerContent className="max-h-[82dvh] rounded-t-3xl safe-area-pb">
+          <DrawerHeader className="px-4 pt-2 pb-2 text-left border-b">
+            <DrawerTitle className="font-display text-base">Pilih Mode Tampilan</DrawerTitle>
+            <DrawerDescription className="text-xs">
+              {stats.total} anggota · {stats.generations} generasi
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="overflow-y-auto p-4 space-y-5">
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                Utama
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {primaryViewModes.map((opt) => {
+                  const Icon = opt.icon;
+                  const isActive = viewMode === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setViewMode(opt.value as ViewMode);
+                        setShowMobileViewPicker(false);
+                      }}
+                      className={cn(
+                        'flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors active:scale-[0.98]',
+                        isActive
+                          ? 'bg-primary/10 border-primary/40 text-primary'
+                          : 'bg-card border-border/70 text-foreground hover:bg-accent/50'
+                      )}
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <Icon className="w-4 h-4 shrink-0" />
+                        {isActive && <Check className="w-3.5 h-3.5 text-primary" />}
+                      </div>
+                      <span className="text-xs font-semibold leading-tight mt-0.5">{opt.label}</span>
+                      <span className="text-[11px] text-muted-foreground line-clamp-1">{opt.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {secondaryViewGroups.map((group) => (
+              <div key={group.label} className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                  {group.label}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {group.items.map((opt) => {
+                    const Icon = opt.icon;
+                    const isActive = viewMode === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setViewMode(opt.value as ViewMode);
+                          setShowMobileViewPicker(false);
+                        }}
+                        className={cn(
+                          'flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors active:scale-[0.98]',
+                          isActive
+                            ? 'bg-primary/10 border-primary/40 text-primary'
+                            : 'bg-card border-border/70 text-foreground hover:bg-accent/50'
+                        )}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <Icon className="w-4 h-4 shrink-0" />
+                          {isActive && <Check className="w-3.5 h-3.5 text-primary" />}
+                        </div>
+                        <span className="text-xs font-semibold leading-tight mt-0.5">{opt.label}</span>
+                        <span className="text-[11px] text-muted-foreground line-clamp-1">{opt.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DrawerContent>
+      </Drawer>
+
       <Sheet open={showMobileControls} onOpenChange={setShowMobileControls}>
-        <SheetContent side="bottom" className="rounded-t-3xl px-4 pb-8" title="Kontrol chart mobile">
+        <SheetContent side="bottom" className="rounded-t-3xl px-4 pb-8 safe-area-pb" title="Kontrol chart mobile">
           <SheetHeader className="text-left">
             <SheetTitle>Kontrol chart</SheetTitle>
             <SheetDescription>Atur mode tampilan dan aksi penting tanpa memenuhi toolbar.</SheetDescription>
