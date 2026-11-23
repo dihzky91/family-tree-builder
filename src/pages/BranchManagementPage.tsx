@@ -44,7 +44,9 @@ import {
   MessageCircle,
   Download,
   FileCheck,
+  Share2,
 } from 'lucide-react';
+import { ShareTreeDialog } from '@/features/chart/components/ShareTreeDialog';
 import {
   getAllBranches,
   createBranch,
@@ -83,6 +85,8 @@ export default function BranchManagementPage() {
     dataUrl: string;
     link: string;
   } | null>(null);
+  const [shareTreeBranch, setShareTreeBranch] = useState<Branch | null>(null);
+  const [isShareTreeOpen, setIsShareTreeOpen] = useState(false);
 
   const form = useForm<BranchFormData>({
     resolver: zodResolver(BranchFormSchema),
@@ -485,7 +489,7 @@ export default function BranchManagementPage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <Button
                     variant="default"
                     size="sm"
@@ -521,6 +525,19 @@ export default function BranchManagementPage() {
                   >
                     <QrCode className="w-3.5 h-3.5 mr-1.5" />
                     QR Code
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-9 text-xs"
+                    title="Buat tautan baca-saja pohon silsilah khusus cabang ini"
+                    onClick={() => {
+                      setShareTreeBranch(branch);
+                      setIsShareTreeOpen(true);
+                    }}
+                  >
+                    <Share2 className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                    Link Pohon
                   </Button>
                 </div>
               </Card>
@@ -585,6 +602,15 @@ export default function BranchManagementPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Share Read-Only Branch Tree Dialog */}
+      <ShareTreeDialog
+        open={isShareTreeOpen}
+        onOpenChange={(open) => {
+          setIsShareTreeOpen(open);
+          if (!open) setShareTreeBranch(null);
+        }}
+        defaultBranch={shareTreeBranch}
+      />
     </div>
   );
 }

@@ -1,10 +1,22 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import * as f3 from 'family-chart';
-import { Crosshair, ZoomIn, ZoomOut, ArrowDownUp, ArrowLeftRight, Users } from 'lucide-react';
+import {
+  Crosshair,
+  ZoomIn,
+  ZoomOut,
+  ArrowDownUp,
+  ArrowLeftRight,
+  Users,
+  House,
+  Pin,
+  Layers,
+  Maximize2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { FamilyChartDatum } from '../utils/familyChartMapper';
 import type { Person } from '@/types';
+import { toast } from 'sonner';
 import 'family-chart/styles/family-chart.css';
 import './family-chart.css';
 
@@ -19,9 +31,11 @@ interface FamilyMainViewProps {
   data: FamilyChartDatum[];
   rootId: string;
   rootPerson: Person;
+  homePerson?: Person | null;
+  onSetHomePerson?: (id: string) => void;
   summary?: FamilyStatsSummary;
   onSelectPerson: (id: string) => void;
-  onAddRelationship: (id: string) => void;
+  onAddRelationship?: (id: string) => void;
 }
 
 interface TreeDatumLike {
@@ -47,6 +61,8 @@ export function FamilyMainView({
   data,
   rootId,
   rootPerson,
+  homePerson,
+  onSetHomePerson,
   summary,
   onSelectPerson,
   onAddRelationship,
@@ -55,10 +71,31 @@ export function FamilyMainView({
   const chartRef = useRef<ReturnType<typeof f3.createChart> | null>(null);
   const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
   const [showSiblings, setShowSiblings] = useState(true);
+  // Default to 1 generation (parents + siblings + spouse + children) like MyHeritage "Generations: 1"
+  const [generationDepth, setGenerationDepth] = useState<'1' | '2' | 'all'>('1');
+
+  const isRootHome = Boolean(homePerson && homePerson.id === rootId);
 
   const handleFitTree = useCallback(() => {
     chartRef.current?.updateTree({ initial: false, tree_position: 'fit' });
   }, []);
+
+  const handleCenterOnMain = useCallback(() => {
+    chartRef.current?.updateTree({ initial: false, tree_position: 'main_to_middle' });
+  }, []);
+
+  const handleGoHome = useCallback(() => {
+    if (!homePerson) return;
+    onSelectPerson(homePerson.id);
+    chartRef.current?.updateMainId(homePerson.id);
+    chartRef.current?.updateTree({ initial: false, tree_position: 'fit' });
+  }, [homePerson, onSelectPerson]);
+
+  const handlePinAsHome = useCallback(() => {
+    if (!onSetHomePerson) return;
+    onSetHomePerson(rootPerson.id);
+    toast.success(`${rootPerson.fullName} dijadikan Figur Utama (Saya)`);
+  }, [onSetHomePerson, rootPerson]);
 
   const handleZoomStep = useCallback((direction: 'in' | 'out') => {
     const container = containerRef.current;
@@ -84,10 +121,18 @@ export function FamilyMainView({
 
     const f3Chart = f3
       .createChart(container, data as unknown as f3.Data)
-      .setTransitionTime(450)
+      .setTransitionTime(420)
       .setCardXSpacing(orientation === 'vertical' ? 255 : 270)
-      .setCardYSpacing(orientation === 'vertical' ? 132 : 115)
-      .setShowSiblingsOfMain(showSiblings);
+      .setCardYSpacing(orientation === 'vertical' ? 136 : 118)
+      .setSingleParentEmptyCard(false)
+      .setShowSiblingsOfMain(showSiblings)
+      .setLinkSpouseText(() => '⚭');
+
+    if (generationDepth === '1') {
+      f3Chart.setAncestryDepth(1).setProgenyDepth(1);
+    } else if (generationDepth === '2') {
+      f3Chart.setAncestryDepth(2).setProgenyDepth(2);
+    }
 
     if (orientation === 'horizontal') {
       f3Chart.setOrientationHorizontal();
@@ -117,6 +162,7 @@ export function FamilyMainView({
               ? 'female'
               : 'unknown';
         const isRoot = d.id === rootId || Boolean(d.main);
+        const isHome = Boolean(homePerson && d.id === homePerson.id);
         const hasParents = Array.isArray(d.rels?.parents) && d.rels.parents.length > 0;
         const childCount = Array.isArray(d.rels?.children) ? d.rels.children.length : 0;
 
@@ -157,6 +203,7 @@ export function FamilyMainView({
               <div class="ft-name-row">
                 <div class="ft-name" title="${safeName}">${safeName}</div>
                 ${verifiedSvg}
+                ${isHome ? `<span class="ft-you-badge" title="Akun Saya / Figur Utama">Saya</span>` : ''}
               </div>
               <div class="ft-lifespan">${lifespan}</div>
               ${
@@ -168,13 +215,17 @@ export function FamilyMainView({
                   : ''
               }
             </div>
-            <button
-              type="button"
-              class="ft-add-btn"
-              data-action="add"
-              data-id="${escapeHtml(d.id)}"
-              title="Tambah relasi untuk ${safeName}"
-            >+</button>
+            ${
+              onAddRelationship
+                ? `<button
+                    type="button"
+                    class="ft-add-btn"
+                    data-action="add"
+                    data-id="${escapeHtml(d.id)}"
+                    title="Tambah relasi untuk ${safeName}"
+                  >+</button>`
+                : ''
+            }
           </div>
         `;
       });
@@ -185,7 +236,7 @@ export function FamilyMainView({
       if (addBtn) {
         e.stopPropagation();
         const id = addBtn.dataset.id;
-        if (id) onAddRelationship(id);
+        if (id && onAddRelationship) onAddRelationship(id);
         return;
       }
 
@@ -213,14 +264,14 @@ export function FamilyMainView({
       resizeObserver.disconnect();
       container.innerHTML = '';
     };
-  }, [data, rootId, orientation, showSiblings, onSelectPerson, onAddRelationship]);
+  }, [data, rootId, homePerson, orientation, showSiblings, generationDepth, onSelectPerson, onAddRelationship]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
       {/* Floating Focus Pill (top-left) */}
       <div
         data-export-ignore="true"
-        className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-12rem)] flex-wrap items-center gap-2"
+        className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-16rem)] flex-wrap items-center gap-2"
       >
         <div className="pointer-events-auto flex items-center gap-2.5 rounded-2xl border border-border/70 bg-background/88 px-3 py-1.5 shadow-sm backdrop-blur-md">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-semibold text-primary overflow-hidden border border-primary/20">
@@ -235,9 +286,16 @@ export function FamilyMainView({
             )}
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground leading-none">
-              Figur Pusat
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground leading-none">
+                Figur Pusat
+              </p>
+              {isRootHome && (
+                <span className="rounded-full bg-primary/15 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-primary">
+                  Ini Saya
+                </span>
+              )}
+            </div>
             <p className="mt-0.5 truncate text-xs font-semibold text-foreground max-w-[160px] sm:max-w-[220px]">
               {rootPerson.fullName}
             </p>
@@ -256,14 +314,77 @@ export function FamilyMainView({
               )}
             </div>
           )}
+
+          {/* Pin as Home ("Jadikan Saya") or Return to Home ("Kembali ke Saya") */}
+          <div className="flex items-center gap-1 border-l border-border/70 pl-2">
+            {!isRootHome && homePerson && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleGoHome}
+                className="h-7 gap-1 rounded-lg px-2 text-[11px] font-medium text-primary hover:bg-primary/10 hover:text-primary"
+                title={`Kembali ke figur utama (${homePerson.fullName})`}
+              >
+                <House className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Saya</span>
+              </Button>
+            )}
+            {!isRootHome && onSetHomePerson && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handlePinAsHome}
+                className="h-7 gap-1 rounded-lg px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                title={`Jadikan ${rootPerson.fullName} sebagai Figur Utama default (Ini Saya)`}
+              >
+                <Pin className="h-3 w-3" />
+                <span className="hidden md:inline">Set Utama</span>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Floating Top-Right Layout Toggles (Vertical/Horizontal + Siblings) */}
+      {/* Floating Top-Right Layout Toggles (Generations + Siblings + Vertical/Horizontal) */}
       <div
         data-export-ignore="true"
         className="absolute right-3 top-3 z-10 flex items-center gap-1.5"
       >
+        {/* Generation Depth Filter (MyHeritage-style "Generations: 1 / 2 / Semua") */}
+        <div
+          className="flex items-center rounded-xl border border-border/70 bg-background/88 p-0.5 shadow-sm backdrop-blur-md"
+          title="Jumlah generasi yang ditampilkan dari figur pusat"
+        >
+          <span className="hidden lg:inline-flex items-center gap-1 pl-2 pr-1.5 text-[11px] font-medium text-muted-foreground">
+            <Layers className="h-3 w-3" />
+            Gen:
+          </span>
+          {(
+            [
+              { value: '1', label: '1 Gen', title: 'Keluarga inti (Orang tua, Saudara, Pasangan & Anak)' },
+              { value: '2', label: '2 Gen', title: '2 generasi ke atas & ke bawah (Kakek-Nenek hingga Cucu)' },
+              { value: 'all', label: 'Semua', title: 'Tampilkan seluruh generasi' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setGenerationDepth(opt.value)}
+              title={opt.title}
+              className={cn(
+                'flex h-7 items-center rounded-lg px-2 text-[11px] font-medium transition-colors',
+                generationDepth === opt.value
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
         <Button
           variant={showSiblings ? 'secondary' : 'outline'}
           size="sm"
@@ -329,11 +450,21 @@ export function FamilyMainView({
           variant="ghost"
           size="icon"
           className="h-7 w-7 rounded-lg"
-          onClick={handleFitTree}
-          title="Sesuaikan layar (Fit)"
-          aria-label="Sesuaikan layar"
+          onClick={handleCenterOnMain}
+          title="Pusatkan ke Figur Pusat"
+          aria-label="Pusatkan ke Figur Pusat"
         >
           <Crosshair className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 rounded-lg"
+          onClick={handleFitTree}
+          title="Sesuaikan seluruh bagan ke layar (Fit)"
+          aria-label="Sesuaikan layar"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
         </Button>
         <Button
           variant="ghost"

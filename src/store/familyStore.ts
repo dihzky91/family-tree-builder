@@ -22,6 +22,7 @@ interface FamilyState {
 
   // UI State
   selectedPersonId: string | null;
+  homePersonId: string | null;
   isLoading: boolean;
   searchQuery: string;
   undoStack: UndoAction[];
@@ -53,6 +54,7 @@ interface FamilyState {
 
   // UI actions
   setSelectedPerson: (id: string | null) => void;
+  setHomePerson: (id: string | null) => void;
   setSearchQuery: (query: string) => void;
   toggleZenMode: () => void;
   isZenMode: boolean;
@@ -84,6 +86,12 @@ interface FamilyState {
 }
 
 const STORAGE_MODE_KEY = 'silsilah-storage-mode';
+const HOME_PERSON_KEY = 'silsilah-home-person-id';
+
+const getInitialHomePersonId = (): string | null => {
+  if (typeof localStorage === 'undefined') return null;
+  return localStorage.getItem(HOME_PERSON_KEY) || null;
+};
 
 const getInitialPrivateMode = (): boolean => {
   if (typeof localStorage === 'undefined') return !isSupabaseConfigured();
@@ -101,6 +109,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   auditLogs: [],
   branches: [],
   selectedPersonId: null,
+  homePersonId: getInitialHomePersonId(),
   isLoading: true,
   searchQuery: '',
   isZenMode: false,
@@ -270,6 +279,63 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       relationships: [...state.relationships, relationship],
     }));
 
+    // Auto-replace & delete placeholder shared parent ("Orang Tua ...") when a real parent is linked
+    if (relData.type === 'PARENT_CHILD') {
+      const currentState = get();
+      const addedParent = currentState.persons.find(p => p.id === relData.fromPersonId);
+      const isAddedPlaceholder =
+        addedParent?.tags.includes('auto-placeholder-parent') ||
+        addedParent?.notes === 'Dibuat otomatis sebagai leluhur penghubung saudara kandung';
+
+      if (addedParent && !isAddedPlaceholder) {
+        const childParentRels = currentState.relationships.filter(
+          r => r.type === 'PARENT_CHILD' && r.toPersonId === relData.toPersonId && r.fromPersonId !== addedParent.id
+        );
+
+        for (const oldParentRel of childParentRels) {
+          const oldParent = currentState.persons.find(p => p.id === oldParentRel.fromPersonId);
+          const isPlaceholder =
+            oldParent &&
+            (oldParent.tags.includes('auto-placeholder-parent') ||
+              oldParent.notes === 'Dibuat otomatis sebagai leluhur penghubung saudara kandung');
+
+          if (isPlaceholder && oldParent) {
+            // Transfer all siblings connected to this placeholder parent to the real parent
+            const siblingRels = currentState.relationships.filter(
+              r => r.type === 'PARENT_CHILD' && r.fromPersonId === oldParent.id
+            );
+
+            for (const sibRel of siblingRels) {
+              const alreadyLinked = get().relationships.some(
+                r =>
+                  r.type === 'PARENT_CHILD' &&
+                  r.fromPersonId === addedParent.id &&
+                  r.toPersonId === sibRel.toPersonId
+              );
+              if (!alreadyLinked) {
+                const transferredRel: Relationship = {
+                  id: uuidv4(),
+                  type: 'PARENT_CHILD',
+                  fromPersonId: addedParent.id,
+                  toPersonId: sibRel.toPersonId,
+                  meta: {},
+                  createdAt: now,
+                  updatedAt: now,
+                };
+                await storage.createRelationship(transferredRel);
+                set(st => ({
+                  relationships: [...st.relationships, transferredRel],
+                }));
+              }
+            }
+
+            // Now delete the temporary placeholder parent node (and its old relationships)
+            await get().deletePerson(oldParent.id);
+          }
+        }
+      }
+    }
+
     return relationship;
   },
 
@@ -361,6 +427,16 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   },
 
   setSelectedPerson: (id) => set({ selectedPersonId: id }),
+  setHomePerson: (id) => {
+    if (typeof localStorage !== 'undefined') {
+      if (id) {
+        localStorage.setItem(HOME_PERSON_KEY, id);
+      } else {
+        localStorage.removeItem(HOME_PERSON_KEY);
+      }
+    }
+    set({ homePersonId: id });
+  },
   setSearchQuery: (query) => set({ searchQuery: query }),
 
   undo: async () => {

@@ -78,7 +78,9 @@ import {
   Hourglass,
   ListTree,
   BarChart3,
+  Pin,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Person } from '@/types';
 import { GenerationView } from '@/features/chart/views/GenerationView';
 import { FamilyView } from '@/features/chart/views/FamilyView';
@@ -96,6 +98,7 @@ import { cn } from '@/lib/utils';
 
 const PrintDialog = lazy(() => import('@/features/chart/components/PrintDialog').then(m => ({ default: m.PrintDialog })));
 const ExportStudioDialog = lazy(() => import('@/features/chart/components/ExportStudioDialog').then(m => ({ default: m.ExportStudioDialog })));
+const ShareTreeDialog = lazy(() => import('@/features/chart/components/ShareTreeDialog').then(m => ({ default: m.ShareTreeDialog })));
 const PersonForm = lazy(() => import('@/features/people/PersonForm').then(m => ({ default: m.PersonForm })));
 const TimelineView = lazy(() => import('@/features/chart/views/TimelineView').then(m => ({ default: m.TimelineView })));
 const NetworkGraphView = lazy(() => import('@/features/chart/views/NetworkGraphView').then(m => ({ default: m.NetworkGraphView })));
@@ -136,7 +139,17 @@ const MINIMAP_PERSON_THRESHOLD = 24;
 type ViewMode = 'family' | 'pedigree' | 'tree' | 'sunburst' | 'fan' | 'hourglass' | 'outline' | 'path' | 'lifespan' | 'network' | 'timeline' | 'map' | 'dna';
 
 export default function ChartPage() {
-  const { persons, relationships, evidence, stories, getPersonRelatives, setSelectedPerson, selectedPersonId } = useFamilyStore();
+  const {
+    persons,
+    relationships,
+    evidence,
+    stories,
+    getPersonRelatives,
+    setSelectedPerson,
+    selectedPersonId,
+    homePersonId,
+    setHomePerson,
+  } = useFamilyStore();
   const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<ViewMode>('family');
@@ -148,6 +161,7 @@ export default function ChartPage() {
   const [showAddRelationship, setShowAddRelationship] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [showExportStudio, setShowExportStudio] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showMobileControls, setShowMobileControls] = useState(false);
   const [showMobileViewPicker, setShowMobileViewPicker] = useState(false);
@@ -501,16 +515,27 @@ export default function ChartPage() {
   const defaultFocusPersonId = useMemo(() => {
     if (selectedPersonId) return selectedPersonId;
     if (persons.length === 0) return null;
-    // Prefer person with most relationships so Pedigree/Family always has rich context
+    if (homePersonId && persons.some((p) => p.id === homePersonId)) {
+      return homePersonId;
+    }
+    // Prefer person with both parents and children (middle generation), or most relationships
+    const hasParents = new Set<string>();
+    const hasChildren = new Set<string>();
     const relCount = new globalThis.Map<string, number>();
     relationships.forEach((r) => {
       relCount.set(r.fromPersonId, (relCount.get(r.fromPersonId) || 0) + 1);
       relCount.set(r.toPersonId, (relCount.get(r.toPersonId) || 0) + 1);
+      if (r.type === 'PARENT_CHILD') {
+        hasChildren.add(r.fromPersonId);
+        hasParents.add(r.toPersonId);
+      }
     });
-    return [...persons].sort(
+    const balanced = persons.filter((p) => hasParents.has(p.id) && hasChildren.has(p.id));
+    const pool = balanced.length > 0 ? balanced : persons;
+    return [...pool].sort(
       (a, b) => (relCount.get(b.id) || 0) - (relCount.get(a.id) || 0)
     )[0]?.id ?? null;
-  }, [persons, relationships, selectedPersonId]);
+  }, [persons, relationships, selectedPersonId, homePersonId]);
 
   const lineageIdSet = useMemo(() => {
     if (!highlightLineage || !selectedPersonId) return null;
@@ -802,6 +827,18 @@ export default function ChartPage() {
                   )}
                 </div>
 
+                {/* Public Read-Only Share Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 rounded-lg border-primary/35 bg-primary/5 hover:bg-primary/10 text-primary px-2.5 text-xs font-medium"
+                  onClick={() => setShowShareDialog(true)}
+                  title="Bagikan tautan baca-saja pohon silsilah (dengan opsi PIN)"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Bagikan</span>
+                </Button>
+
                 {/* Fullscreen / Mode Fokus Toggle */}
                 <Button
                   variant={isFullscreen ? 'secondary' : 'outline'}
@@ -827,6 +864,14 @@ export default function ChartPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-popover w-56">
+                    <DropdownMenuItem
+                      onClick={() => setShowShareDialog(true)}
+                      disabled={persons.length === 0}
+                      className="font-medium"
+                    >
+                      <Share2 className="w-4 h-4 mr-2 text-primary" />
+                      Tautan Baca-Saja Publik...
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setShowExportStudio(true)}
                       disabled={persons.length === 0}
@@ -1214,13 +1259,17 @@ export default function ChartPage() {
                     Edit Profil
                   </Button>
                   <Button
-                    variant="secondary"
+                    variant={homePersonId === selectedPerson.id ? 'default' : 'secondary'}
                     size="sm"
                     className="h-8 text-xs"
-                    onClick={() => setViewMode('family')}
+                    onClick={() => {
+                      setHomePerson(selectedPerson.id);
+                      toast.success(`${selectedPerson.fullName} dijadikan Figur Utama (Saya)`);
+                    }}
+                    title="Jadikan anggota ini sebagai fokus utama default (Ini Saya)"
                   >
-                    <Users className="w-3.5 h-3.5 mr-1.5" />
-                    Fokus Keluarga
+                    <Pin className="w-3.5 h-3.5 mr-1.5" />
+                    {homePersonId === selectedPerson.id ? 'Ini Saya' : 'Jadikan Saya'}
                   </Button>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -1585,6 +1634,16 @@ export default function ChartPage() {
         </Suspense>
       )}
 
+      {/* Public Read-Only Share Tree Dialog */}
+      {showShareDialog && (
+        <Suspense fallback={null}>
+          <ShareTreeDialog
+            open={showShareDialog}
+            onOpenChange={setShowShareDialog}
+          />
+        </Suspense>
+      )}
+
       {/* Export Studio Dialog (Multi-page Family Book PDF + Quick Exports) */}
       {showExportStudio && (
         <Suspense fallback={null}>
@@ -1778,6 +1837,18 @@ export default function ChartPage() {
             )}
 
             <div className="space-y-2">
+              <Button
+                variant="secondary"
+                className="h-11 w-full justify-start"
+                onClick={() => {
+                  setShowMobileControls(false);
+                  setShowShareDialog(true);
+                }}
+                disabled={persons.length === 0}
+              >
+                <Share2 className="w-4 h-4" />
+                Tautan Baca-Saja Publik (PIN)
+              </Button>
               <Button
                 variant="default"
                 className="h-11 w-full justify-start"

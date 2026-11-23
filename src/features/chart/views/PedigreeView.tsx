@@ -99,7 +99,7 @@ export const PedigreeView = memo(function PedigreeView({
   const stageRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [depthLimit, setDepthLimit] = useState(Math.min(5, Math.max(2, initialMaxGenerations)));
-  const [showPlaceholders, setShowPlaceholders] = useState(true);
+  const [showPlaceholders, setShowPlaceholders] = useState(Boolean(onAddRelationship));
 
   // Subject tracking (allows double-clicking an ancestor to inspect their pedigree & go back)
   const [subjectId, setSubjectId] = useState<string | null>(selectedPersonId);
@@ -552,16 +552,18 @@ export const PedigreeView = memo(function PedigreeView({
           </div>
 
           {/* Toggle Empty Placeholder Slots */}
-          <Button
-            variant={showPlaceholders ? 'secondary' : 'outline'}
-            size="sm"
-            className="h-7 gap-1 rounded-lg px-2.5 text-[11px]"
-            onClick={() => setShowPlaceholders((prev) => !prev)}
-            title="Tampilkan atau sembunyikan slot + Ayah / + Ibu yang belum tercatat"
-          >
-            <UserPlus className="h-3 w-3" />
-            <span className="hidden sm:inline">Slot Kosong</span>
-          </Button>
+          {onAddRelationship && (
+            <Button
+              variant={showPlaceholders ? 'secondary' : 'outline'}
+              size="sm"
+              className="h-7 gap-1 rounded-lg px-2.5 text-[11px]"
+              onClick={() => setShowPlaceholders((prev) => !prev)}
+              title="Tampilkan atau sembunyikan slot + Ayah / + Ibu yang belum tercatat"
+            >
+              <UserPlus className="h-3 w-3" />
+              <span className="hidden sm:inline">Slot Kosong</span>
+            </Button>
+          )}
         </div>
       </div>
 

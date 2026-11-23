@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { getAllShareLinks } from "@/storage/supabase/shareQueries";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const OnThisDayPage = lazy(() => import("./pages/OnThisDayPage"));
@@ -26,6 +27,7 @@ const AuthPage = lazy(() => import("./pages/AuthPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PublicSubmitPage = lazy(() => import("./pages/PublicSubmitPage"));
+const PublicSharePage = lazy(() => import("./pages/PublicSharePage"));
 const BranchManagementPage = lazy(() => import("./pages/BranchManagementPage"));
 const SubmissionReviewPage = lazy(() => import("./pages/SubmissionReviewPage"));
 const BirthdayCalendar = lazy(() => import("./pages/BirthdayCalendar"));
@@ -52,6 +54,12 @@ const PageTransition = ({ children }: { children: React.ReactNode }) => (
 
 const DashboardRoutes = () => {
   const location = useLocation();
+
+  // Auto-sync any local share links to cloud in the background when authenticated
+  useEffect(() => {
+    void getAllShareLinks().catch(() => {});
+  }, []);
+
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
@@ -89,6 +97,7 @@ const App = () => (
           {/* Public routes (no auth) */}
           <Route path="/auth" element={<Suspense fallback={<RouteFallback />}><AuthPage /></Suspense>} />
           <Route path="/submit/:branchCode" element={<Suspense fallback={<RouteFallback />}><PublicSubmitPage /></Suspense>} />
+          <Route path="/view/:shareCode" element={<Suspense fallback={<RouteFallback />}><PublicSharePage /></Suspense>} />
           <Route
             path="/*"
             element={

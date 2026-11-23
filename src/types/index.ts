@@ -298,3 +298,63 @@ export interface NuclearFamily {
   createdAt: Date; // earliest marriage date or birth of first child
   familyName: string; // "Keluarga [Parent1] & [Parent2]" or "Keluarga [SingleParent]"
 }
+
+// ============= PUBLIC SHARE LINKS (Read-Only Shared Family Tree) =============
+export const ShareScopeTypeEnum = z.enum(['full', 'branch']);
+export type ShareScopeType = z.infer<typeof ShareScopeTypeEnum>;
+
+export const ShareLinkSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string().min(1).max(60),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  scopeType: ShareScopeTypeEnum,
+  branchId: z.string().uuid().optional().nullable(),
+  rootPersonId: z.string().uuid().optional().nullable(),
+  hasPin: z.boolean().default(false),
+  pinCode: z.string().optional(), // Only returned to owner in management UI
+  hideLivingDetails: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+  viewCount: z.number().default(0),
+  snapshotPersonsCount: z.number().default(0),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type ShareLink = z.infer<typeof ShareLinkSchema>;
+
+export const ShareLinkFormSchema = z.object({
+  code: z
+    .string()
+    .min(1, 'Kode tautan diperlukan')
+    .max(60)
+    .regex(/^[a-z0-9-]+$/, 'Hanya huruf kecil, angka, dan tanda hubung'),
+  title: z.string().min(1, 'Judul silsilah diperlukan').max(120),
+  description: z.string().max(300).optional(),
+  scopeType: ShareScopeTypeEnum,
+  branchId: z.string().optional(),
+  rootPersonId: z.string().optional(),
+  pinCode: z.string().max(20).optional(),
+  hideLivingDetails: z.boolean().default(false),
+});
+
+export type ShareLinkFormData = z.infer<typeof ShareLinkFormSchema>;
+
+export interface PublicSharePayload {
+  share: {
+    id: string;
+    code: string;
+    title: string;
+    description?: string;
+    scopeType: ShareScopeType;
+    branchId?: string | null;
+    branchCode?: string | null;
+    branchName?: string | null;
+    rootPersonId?: string | null;
+    hideLivingDetails: boolean;
+    updatedAt: string;
+  };
+  persons: Person[];
+  relationships: Relationship[];
+}
+

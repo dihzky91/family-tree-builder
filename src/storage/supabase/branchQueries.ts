@@ -22,12 +22,13 @@ function mapDbBranchToBranch(db: DbBranch): Branch {
 }
 
 /**
- * Get all branches
+ * Get all branches (excludes internal public share records)
  */
 export async function getAllBranches(): Promise<Branch[]> {
     const { data, error } = await supabase
         .from('branches')
         .select('*')
+        .neq('coordinator_name', '__PUBLIC_SHARE__')
         .order('created_at', { ascending: false });
 
     if (error) {
@@ -35,7 +36,9 @@ export async function getAllBranches(): Promise<Branch[]> {
         throw error;
     }
 
-    return (data || []).map(mapDbBranchToBranch);
+    return (data || [])
+        .filter((row) => !row.description?.startsWith('__PUBLIC_SHARE_V1__:'))
+        .map(mapDbBranchToBranch);
 }
 
 /**

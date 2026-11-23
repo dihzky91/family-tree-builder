@@ -183,6 +183,22 @@
   color: #16a34a;
 }
 
+.ft-you-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 0.3);
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.45;
+}
+
 .ft-lifespan {
   margin-top: 2px;
   font-size: 11px;
@@ -272,16 +288,41 @@
   transform: scale(1.14) !important;
 }
 
-/* Connector Links Styling */
+/* Connector Links Styling — Crisp MyHeritage-style Orthogonal & Bezier Curves */
+.family-stage svg.main_svg {
+  shape-rendering: geometricPrecision;
+}
+
 .family-stage path.link {
-  stroke: hsl(var(--muted-foreground) / 0.38) !important;
-  stroke-width: 2px !important;
+  stroke: hsl(var(--foreground) / 0.34) !important;
+  stroke-width: 1.85px !important;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+  vector-effect: non-scaling-stroke;
+  fill: none;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease, filter 0.2s ease;
+}
+
+.dark .family-stage path.link {
+  stroke: hsl(var(--foreground) / 0.42) !important;
 }
 
 .family-stage path.link.f3-path-to-main {
   stroke: hsl(var(--accent)) !important;
-  stroke-width: 3px !important;
+  stroke-width: 2.75px !important;
+  filter: drop-shadow(0 1px 4px hsl(var(--accent) / 0.35));
+}
+
+/* Marriage Rings Node on Spouse Connector (MyHeritage style) */
+.family-stage g.link-text text {
+  font-family: var(--font-body), 'Inter', sans-serif;
+  font-size: 12px !important;
+  fill: hsl(var(--accent)) !important;
+  paint-order: stroke;
+  stroke: hsl(var(--card));
+  stroke-width: 5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  font-weight: 700;
+  letter-spacing: -1.5px;
 }

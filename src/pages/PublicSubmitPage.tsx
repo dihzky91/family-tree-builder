@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type PublicRelationChoice = 'child' | 'grandchild' | 'great-grandchild' | 'spouse';
+type PublicRelationChoice = 'child' | 'sibling' | 'grandchild' | 'great-grandchild' | 'spouse';
 
 interface MemberEntry {
   localId: string;
@@ -119,7 +119,8 @@ function createEmptyEntry(
 
 const RELATION_LABELS: Record<PublicRelationChoice, string> = {
   child: 'Anak langsung',
-  grandchild: 'Cucu',
+  sibling: 'Kakak / Adik Kandung',
+  grandchild: 'Cucu / Keponakan',
   'great-grandchild': 'Cicit / Garis Jauh',
   spouse: 'Pasangan / Menantu',
 };
@@ -130,10 +131,11 @@ const RELATION_LABELS: Record<PublicRelationChoice, string> = {
  */
 function sortEntriesForSubmission(entries: MemberEntry[]): MemberEntry[] {
   const rank: Record<PublicRelationChoice, number> = {
-    child: 0,
-    grandchild: 1,
-    'great-grandchild': 2,
-    spouse: 3,
+    sibling: 0,
+    child: 1,
+    grandchild: 2,
+    'great-grandchild': 3,
+    spouse: 4,
   };
 
   const remaining = [...entries].sort((a, b) => rank[a.relationChoice] - rank[b.relationChoice]);
@@ -308,7 +310,11 @@ export default function PublicSubmitPage() {
         });
         return;
       }
-      if (entry.relationChoice !== 'child' && !entry.connectorName.trim()) {
+      if (
+        entry.relationChoice !== 'child' &&
+        entry.relationChoice !== 'sibling' &&
+        !entry.connectorName.trim()
+      ) {
         setError(
           `Anggota #${i + 1} (${entry.fullName}): Mohon isi nama ${
             entry.relationChoice === 'spouse' ? 'suami/istri' : 'ayah atau ibu kandung'
@@ -336,14 +342,18 @@ export default function PublicSubmitPage() {
         const possibleDuplicateId = duplicates.length > 0 ? duplicates[0].id : undefined;
 
         const dbRelation: RelationToBranch =
-          entry.relationChoice === 'spouse' ? 'other' : entry.relationChoice;
+          entry.relationChoice === 'spouse' || entry.relationChoice === 'sibling'
+            ? 'other'
+            : entry.relationChoice;
 
         const formattedConnector =
-          entry.relationChoice !== 'child' && entry.connectorName.trim()
-            ? entry.relationChoice === 'spouse'
-              ? `Pasangan dari ${entry.connectorName.trim()}`
-              : entry.connectorName.trim()
-            : undefined;
+          entry.relationChoice === 'sibling'
+            ? `Saudara kandung dari ${entry.connectorName.trim() || branch.name}`
+            : entry.relationChoice !== 'child' && entry.connectorName.trim()
+              ? entry.relationChoice === 'spouse'
+                ? `Pasangan dari ${entry.connectorName.trim()}`
+                : entry.connectorName.trim()
+              : undefined;
 
         await createSubmission({
           branchId: branch.id,
@@ -465,7 +475,8 @@ export default function PublicSubmitPage() {
     icon: React.ElementType;
   }[] = [
     { id: 'child', title: 'Anak langsung', icon: Baby },
-    { id: 'grandchild', title: 'Cucu', icon: Users },
+    { id: 'sibling', title: 'Kakak / Adik', icon: Users },
+    { id: 'grandchild', title: 'Cucu / Keponakan', icon: Users },
     { id: 'great-grandchild', title: 'Cicit / Garis Jauh', icon: GitBranch },
     { id: 'spouse', title: 'Pasangan / Menantu', icon: Heart },
   ];
@@ -671,7 +682,7 @@ export default function PublicSubmitPage() {
                         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Posisi di Cabang {branch?.name} *
                         </Label>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                           {relationOptions.map((opt) => {
                             const Icon = opt.icon;
                             const active = entry.relationChoice === opt.id;
@@ -706,7 +717,9 @@ export default function PublicSubmitPage() {
                           <Label className="text-xs sm:text-sm font-semibold">
                             {entry.relationChoice === 'spouse'
                               ? 'Suami / Istri dari siapa? *'
-                              : 'Anak kandung dari siapa? (Nama Ayah / Ibu) *'}
+                              : entry.relationChoice === 'sibling'
+                                ? `Kakak / Adik kandung dari siapa? (Kosongkan jika langsung saudara kandung Kepala Cabang ${branch?.name})`
+                                : 'Anak kandung dari siapa? (Nama Ayah / Ibu) *'}
                           </Label>
 
                           {(otherBatchMembers.length > 0 || approvedMembers.length > 0) && (
@@ -759,10 +772,17 @@ export default function PublicSubmitPage() {
                             placeholder={
                               entry.relationChoice === 'spouse'
                                 ? 'Atau ketik nama suami/istri di sini...'
-                                : 'Atau ketik nama ayah atau ibu kandung...'
+                                : entry.relationChoice === 'sibling'
+                                  ? `Kosongkan jika Kakak/Adik dari Kepala Cabang (${branch?.name})...`
+                                  : 'Ketik nama ayah/ibu kandung (boleh ketik nama yang belum terdaftar)...'
                             }
                             className="bg-background"
                           />
+                          {entry.relationChoice !== 'spouse' && entry.relationChoice !== 'sibling' && (
+                            <p className="text-[11px] text-muted-foreground">
+                              💡 Jika nama orang tua/leluhur penghubung belum terdaftar di daftar di atas, Anda bisa <strong>menambahkan kartu beliau terlebih dahulu</strong> atau langsung ketik namanya di sini (admin dapat membuatkan datanya otomatis).
+                            </p>
+                          )}
                         </div>
                       )}
 
@@ -972,7 +992,17 @@ export default function PublicSubmitPage() {
               <p className="text-xs font-medium text-muted-foreground mb-2.5 text-center">
                 Tambah anggota lain untuk dikirim bersamaan:
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs bg-background"
+                  onClick={() => addNewEntry('sibling', '')}
+                >
+                  <Users className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
+                  + Kakak / Adik
+                </Button>
                 <Button
                   type="button"
                   variant="outline"

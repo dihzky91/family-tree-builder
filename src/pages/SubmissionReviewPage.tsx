@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Select,
@@ -45,6 +47,8 @@ import {
   Users,
   CheckCheck,
   Layers,
+  UserPlus,
+  Sparkles,
 } from 'lucide-react';
 import { getAllSubmissions, updateSubmissionStatus } from '@/storage/supabase/submissionQueries';
 import { getAllBranches, incrementBranchApprovedCount } from '@/storage/supabase/branchQueries';
@@ -56,7 +60,9 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
-type LinkType = 'child_of' | 'spouse_of' | 'none';
+type LinkType = 'child_of' | 'sibling_of' | 'spouse_of' | 'none';
+
+type BridgeLinkType = 'child_of' | 'sibling_of' | 'spouse_of' | 'none';
 
 interface SubmissionGroup {
   key: string;
@@ -66,7 +72,7 @@ interface SubmissionGroup {
 }
 
 export default function SubmissionReviewPage() {
-  const { addPerson, addRelationship, persons, isDemoMode } = useFamilyStore();
+  const { addPerson, addRelationship, persons, relationships, isDemoMode } = useFamilyStore();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -83,6 +89,10 @@ export default function SubmissionReviewPage() {
   const [approveTarget, setApproveTarget] = useState<Submission | null>(null);
   const [linkType, setLinkType] = useState<LinkType>('child_of');
   const [targetPersonId, setTargetPersonId] = useState<string>('');
+  const [createBridgePerson, setCreateBridgePerson] = useState<boolean>(false);
+  const [bridgePersonName, setBridgePersonName] = useState<string>('');
+  const [bridgeLinkType, setBridgeLinkType] = useState<BridgeLinkType>('sibling_of');
+  const [bridgeTargetPersonId, setBridgeTargetPersonId] = useState<string>('');
   const [isApproving, setIsApproving] = useState(false);
 
   const sortedPersons = useMemo(
@@ -163,50 +173,217 @@ export default function SubmissionReviewPage() {
   const inferAutoLink = (
     submission: Submission,
     availablePersons: Person[]
-  ): { linkType: LinkType; targetPersonId: string } => {
+  ): {
+    linkType: LinkType;
+    targetPersonId: string;
+    missingConnectorName: string | null;
+    branchRootId: string;
+  } => {
     const branch = branches.find((b) => b.id === submission.branchId);
+    const branchRootId = branch?.rootPersonId || '';
     const rawConnector = submission.parentName?.trim() || '';
+    const lowerConnector = rawConnector.toLowerCase();
+
+    const isSiblingHint = lowerConnector.startsWith('saudara kandung dari ');
     const isSpouseHint =
-      submission.relationToBranch === 'other' ||
-      rawConnector.toLowerCase().startsWith('pasangan dari ');
+      !isSiblingHint &&
+      (submission.relationToBranch === 'other' ||
+        lowerConnector.startsWith('pasangan dari '));
 
-    const cleanedSearchName = rawConnector
+    const cleanedRawName = rawConnector
       .replace(/^pasangan dari\s+/i, '')
-      .trim()
-      .toLowerCase();
+      .replace(/^saudara kandung dari\s+/i, '')
+      .trim();
+    const cleanedSearchName = cleanedRawName.toLowerCase();
 
-    if (submission.relationToBranch === 'child' && branch?.rootPersonId) {
-      return { linkType: 'child_of', targetPersonId: branch.rootPersonId };
+    if (submission.relationToBranch === 'child' && branchRootId) {
+      return {
+        linkType: 'child_of',
+        targetPersonId: branchRootId,
+        missingConnectorName: null,
+        branchRootId,
+      };
     }
+
+    if (isSiblingHint) {
+      const matched = cleanedSearchName
+        ? availablePersons.find(
+            (p) =>
+              p.fullName.toLowerCase() === cleanedSearchName ||
+              p.fullName.toLowerCase().includes(cleanedSearchName)
+          )
+        : undefined;
+      return {
+        linkType: 'sibling_of',
+        targetPersonId: matched?.id || branchRootId,
+        missingConnectorName: null,
+        branchRootId,
+      };
+    }
+
     if (cleanedSearchName) {
       const matched = availablePersons.find(
         (p) =>
           p.fullName.toLowerCase() === cleanedSearchName ||
           p.fullName.toLowerCase().includes(cleanedSearchName)
       );
+      if (matched) {
+        return {
+          linkType: isSpouseHint ? 'spouse_of' : 'child_of',
+          targetPersonId: matched.id,
+          missingConnectorName: null,
+          branchRootId,
+        };
+      }
+      // The referenced connector person is NOT in the tree yet!
       return {
         linkType: isSpouseHint ? 'spouse_of' : 'child_of',
-        targetPersonId: matched?.id || branch?.rootPersonId || '',
+        targetPersonId: branchRootId,
+        missingConnectorName: cleanedRawName,
+        branchRootId,
       };
     }
+
     return {
       linkType: isSpouseHint ? 'spouse_of' : 'child_of',
-      targetPersonId: branch?.rootPersonId || '',
+      targetPersonId: branchRootId,
+      missingConnectorName: null,
+      branchRootId,
     };
+  };
+
+  /**
+   * Connects `personId` as a full/half sibling of `siblingTargetId`.
+   * If `siblingTargetId` already has parent(s), links `personId` as a child of the same parent(s).
+   * If `siblingTargetId` has 0 parents (e.g. Khusnah is a top-level ancestor), automatically creates
+   * a shared parent node ("Orang Tua dari [Nama]") so both appear side-by-side as siblings on the chart!
+   */
+  const connectAsSibling = async (
+    personId: string,
+    siblingTargetId: string,
+    currentPersons: Person[],
+    currentRels = relationships
+  ): Promise<Person[]> => {
+    const existingParentIds = currentRels
+      .filter((r) => r.type === 'PARENT_CHILD' && r.toPersonId === siblingTargetId)
+      .map((r) => r.fromPersonId);
+
+    const createdParents: Person[] = [];
+
+    if (existingParentIds.length > 0) {
+      for (const pid of existingParentIds) {
+        await addRelationship({
+          type: 'PARENT_CHILD',
+          fromPersonId: pid,
+          toPersonId: personId,
+        });
+      }
+    } else {
+      const targetObj = currentPersons.find((p) => p.id === siblingTargetId);
+      const sharedParent = await addPerson({
+        fullName: `Orang Tua ${targetObj?.fullName || 'Keluarga'}`,
+        gender: 'male',
+        birthDate: null,
+        birthPlace: null,
+        deathDate: null,
+        deathPlace: null,
+        residence: null,
+        photoUrl: null,
+        notes: 'Dibuat otomatis sebagai leluhur penghubung saudara kandung',
+        tags: ['auto-placeholder-parent'],
+        confidenceScore: 60,
+      });
+      createdParents.push(sharedParent);
+
+      await addRelationship({
+        type: 'PARENT_CHILD',
+        fromPersonId: sharedParent.id,
+        toPersonId: siblingTargetId,
+      });
+      await addRelationship({
+        type: 'PARENT_CHILD',
+        fromPersonId: sharedParent.id,
+        toPersonId: personId,
+      });
+    }
+
+    return createdParents;
   };
 
   const openApproveDialog = (submission: Submission) => {
     const inferred = inferAutoLink(submission, persons);
     setLinkType(inferred.linkType);
     setTargetPersonId(inferred.targetPersonId);
+    if (inferred.missingConnectorName) {
+      setCreateBridgePerson(true);
+      setBridgePersonName(inferred.missingConnectorName);
+      setBridgeLinkType('sibling_of');
+      setBridgeTargetPersonId(inferred.branchRootId || persons[0]?.id || '');
+    } else {
+      setCreateBridgePerson(false);
+      setBridgePersonName('');
+      setBridgeLinkType('sibling_of');
+      setBridgeTargetPersonId(inferred.branchRootId || persons[0]?.id || '');
+    }
     setApproveTarget(submission);
   };
 
   const approveSingleSubmission = async (
     submission: Submission,
     chosenLinkType: LinkType,
-    chosenTargetId: string
-  ): Promise<Person> => {
+    chosenTargetId: string,
+    bridgeOptions?: {
+      enabled: boolean;
+      name: string;
+      linkType: BridgeLinkType;
+      targetId: string;
+    },
+    workingPersons: Person[] = persons
+  ): Promise<Person[]> => {
+    const newlyCreated: Person[] = [];
+    let effectiveTargetId = chosenTargetId;
+
+    // If a missing connector/bridge person should be created first (e.g. Khusnah's sibling or parent)
+    if (bridgeOptions?.enabled && bridgeOptions.name.trim()) {
+      const bridgePerson = await addPerson({
+        fullName: bridgeOptions.name.trim(),
+        gender: 'unknown',
+        birthDate: null,
+        birthPlace: null,
+        deathDate: null,
+        deathPlace: null,
+        residence: null,
+        photoUrl: null,
+        notes: `Dibuat otomatis sebagai penghubung dari submisi ${submission.fullName}`,
+        tags: [],
+        confidenceScore: 65,
+      });
+      newlyCreated.push(bridgePerson);
+
+      if (bridgeOptions.linkType === 'child_of' && bridgeOptions.targetId) {
+        await addRelationship({
+          type: 'PARENT_CHILD',
+          fromPersonId: bridgeOptions.targetId,
+          toPersonId: bridgePerson.id,
+        });
+      } else if (bridgeOptions.linkType === 'spouse_of' && bridgeOptions.targetId) {
+        await addRelationship({
+          type: 'SPOUSE',
+          fromPersonId: bridgeOptions.targetId,
+          toPersonId: bridgePerson.id,
+        });
+      } else if (bridgeOptions.linkType === 'sibling_of' && bridgeOptions.targetId) {
+        const addedParents = await connectAsSibling(
+          bridgePerson.id,
+          bridgeOptions.targetId,
+          [...workingPersons, ...newlyCreated]
+        );
+        newlyCreated.push(...addedParents);
+      }
+
+      effectiveTargetId = bridgePerson.id;
+    }
+
     const person = await addPerson({
       fullName: submission.fullName,
       gender: submission.gender,
@@ -220,32 +397,49 @@ export default function SubmissionReviewPage() {
       tags: [],
       confidenceScore: 70,
     });
+    newlyCreated.push(person);
 
-    if (chosenLinkType === 'child_of' && chosenTargetId) {
+    if (chosenLinkType === 'child_of' && effectiveTargetId) {
       await addRelationship({
         type: 'PARENT_CHILD',
-        fromPersonId: chosenTargetId,
+        fromPersonId: effectiveTargetId,
         toPersonId: person.id,
       });
-    } else if (chosenLinkType === 'spouse_of' && chosenTargetId) {
+    } else if (chosenLinkType === 'spouse_of' && effectiveTargetId) {
       await addRelationship({
         type: 'SPOUSE',
-        fromPersonId: chosenTargetId,
+        fromPersonId: effectiveTargetId,
         toPersonId: person.id,
       });
+    } else if (chosenLinkType === 'sibling_of' && effectiveTargetId) {
+      const addedParents = await connectAsSibling(
+        person.id,
+        effectiveTargetId,
+        [...workingPersons, ...newlyCreated]
+      );
+      newlyCreated.push(...addedParents);
     }
 
     await updateSubmissionStatus(submission.id, 'approved', undefined, undefined, person.id);
     await incrementBranchApprovedCount(submission.branchId);
-    return person;
+    return newlyCreated;
   };
 
   const handleConfirmApprove = async () => {
     if (!approveTarget) return;
     setIsApproving(true);
     try {
-      await approveSingleSubmission(approveTarget, linkType, targetPersonId);
-      toast.success(`${approveTarget.fullName} berhasil disetujui & ditambahkan ke silsilah!`);
+      await approveSingleSubmission(approveTarget, linkType, targetPersonId, {
+        enabled: createBridgePerson,
+        name: bridgePersonName,
+        linkType: bridgeLinkType,
+        targetId: bridgeTargetPersonId,
+      });
+      toast.success(
+        createBridgePerson && bridgePersonName.trim()
+          ? `${approveTarget.fullName} & tokoh penghubung "${bridgePersonName.trim()}" berhasil ditambahkan!`
+          : `${approveTarget.fullName} berhasil disetujui & ditambahkan ke silsilah!`
+      );
       setApproveTarget(null);
       notifySubmissionsChanged();
       fetchData();
@@ -272,12 +466,21 @@ export default function SubmissionReviewPage() {
 
       for (const item of pendingItems) {
         const inferred = inferAutoLink(item, workingPersons);
-        const created = await approveSingleSubmission(
+        const createdList = await approveSingleSubmission(
           item,
           inferred.linkType,
-          inferred.targetPersonId
+          inferred.targetPersonId,
+          inferred.missingConnectorName
+            ? {
+                enabled: true,
+                name: inferred.missingConnectorName,
+                linkType: 'sibling_of',
+                targetId: inferred.branchRootId || workingPersons[0]?.id || '',
+              }
+            : undefined,
+          workingPersons
         );
-        workingPersons.push(created);
+        workingPersons.push(...createdList);
         successCount++;
       }
 
@@ -634,26 +837,113 @@ export default function SubmissionReviewPage() {
                 </div>
               )}
 
+              {/* Missing Bridge Person Auto-Creation Box */}
+              <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3.5 space-y-3">
+                <div className="flex items-start space-x-2.5">
+                  <Checkbox
+                    id="create-bridge"
+                    checked={createBridgePerson}
+                    onCheckedChange={(checked) => setCreateBridgePerson(Boolean(checked))}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-0.5">
+                    <Label
+                      htmlFor="create-bridge"
+                      className="text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      Tokoh penghubungnya belum ada di silsilah? Buat otomatis!
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Centang ini jika orang tua/leluhur penghubung dari{' '}
+                      <strong>{approveTarget.fullName}</strong> (misal adik/kakak dari kepala cabang) belum pernah diinput.
+                    </p>
+                  </div>
+                </div>
+
+                {createBridgePerson && (
+                  <div className="space-y-3 pt-2 border-t border-amber-500/20">
+                    <div>
+                      <Label className="text-xs">Nama Tokoh Penghubung Baru *</Label>
+                      <Input
+                        value={bridgePersonName}
+                        onChange={(e) => setBridgePersonName(e.target.value)}
+                        placeholder="Contoh: Adik Khusnah / Orang Tua dari pengirim..."
+                        className="mt-1 h-8 text-xs bg-background"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <Label className="text-xs">Hubungan Tokoh Penghubung Ini</Label>
+                        <Select
+                          value={bridgeLinkType}
+                          onValueChange={(v) => setBridgeLinkType(v as BridgeLinkType)}
+                        >
+                          <SelectTrigger className="mt-1 h-8 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sibling_of">Kakak / Adik kandung dari...</SelectItem>
+                            <SelectItem value="child_of">Anak kandung dari...</SelectItem>
+                            <SelectItem value="spouse_of">Pasangan dari...</SelectItem>
+                            <SelectItem value="none">Tanpa relasi ke atas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {bridgeLinkType !== 'none' && (
+                        <div>
+                          <Label className="text-xs">Terhubung ke Anggota Terdaftar</Label>
+                          <Select
+                            value={bridgeTargetPersonId}
+                            onValueChange={setBridgeTargetPersonId}
+                          >
+                            <SelectTrigger className="mt-1 h-8 text-xs bg-background">
+                              <SelectValue placeholder="Pilih anggota..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-56">
+                              {sortedPersons.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.fullName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
-                <Label>Jenis Hubungan</Label>
+                <Label>
+                  {createBridgePerson && bridgePersonName.trim()
+                    ? `Hubungan "${approveTarget.fullName}" terhadap "${bridgePersonName.trim()}"`
+                    : `Jenis Hubungan "${approveTarget.fullName}"`}
+                </Label>
                 <Select value={linkType} onValueChange={(v) => setLinkType(v as LinkType)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="child_of">Anak kandung dari...</SelectItem>
+                    <SelectItem value="sibling_of">Kakak / Adik kandung dari...</SelectItem>
                     <SelectItem value="spouse_of">Pasangan (Suami/Istri) dari...</SelectItem>
                     <SelectItem value="none">Tambahkan tanpa relasi dulu</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {linkType !== 'none' && (
+              {linkType !== 'none' && !createBridgePerson && (
                 <div className="space-y-2">
                   <Label>
                     {linkType === 'child_of'
                       ? 'Pilih Orang Tua di Silsilah'
-                      : 'Pilih Pasangan di Silsilah'}
+                      : linkType === 'sibling_of'
+                        ? 'Pilih Saudara Kandung (Kakak/Adik) di Silsilah'
+                        : 'Pilih Pasangan di Silsilah'}
                   </Label>
                   <Select value={targetPersonId} onValueChange={setTargetPersonId}>
                     <SelectTrigger>
@@ -668,6 +958,11 @@ export default function SubmissionReviewPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {linkType === 'sibling_of' && (
+                    <p className="text-[11px] text-muted-foreground">
+                      💡 Jika anggota yang dipilih belum memiliki data Orang Tua di atasnya (misal Khusnah), sistem akan otomatis membuatkan 1 node Orang Tua bersama agar keduanya tampil sejajar sebagai Kakak-Adik di bagan silsilah.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -679,7 +974,13 @@ export default function SubmissionReviewPage() {
             </Button>
             <Button
               onClick={handleConfirmApprove}
-              disabled={isApproving || (linkType !== 'none' && !targetPersonId)}
+              disabled={
+                isApproving ||
+                (createBridgePerson
+                  ? !bridgePersonName.trim() ||
+                    (bridgeLinkType !== 'none' && !bridgeTargetPersonId)
+                  : linkType !== 'none' && !targetPersonId)
+              }
             >
               {isApproving ? 'Menyimpan...' : 'Setujui & Simpan'}
             </Button>
