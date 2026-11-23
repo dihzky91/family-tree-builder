@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Submission, ApprovedMemberInfo } from '@/types';
 import type { Tables } from '@/integrations/supabase/types';
+import { v4 as uuidv4 } from 'uuid';
 
 type DbSubmission = Tables<'submissions'>;
 
@@ -105,13 +106,23 @@ export async function getSubmissionById(id: string): Promise<Submission | null> 
 
 /**
  * Create new submission (public form)
+ * IMPORTANT: Do NOT chain `.select()` after `.insert()`!
+ * In Supabase RLS, anonymous visitors have INSERT permission (`WITH CHECK`)
+ * on `submissions`, but they only have SELECT permission for `status = 'approved'`.
+ * Since new rows have `status = 'pending'`, chaining `.select()` triggers a SELECT RLS
+ * check on the newly inserted row and throws:
+ * `new row violates row-level security policy for table "submissions"`.
  */
 export async function createSubmission(
     submissionData: Omit<Submission, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'createdPersonId'>
 ): Promise<Submission> {
-    const { data, error } = await supabase
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
         .from('submissions')
         .insert([{
+            id,
             branch_id: submissionData.branchId,
             submitted_by: submissionData.submittedBy,
             submitter_email: submissionData.submitterEmail,
@@ -128,16 +139,20 @@ export async function createSubmission(
             parent_name: submissionData.parentName,
             possible_duplicate_id: submissionData.possibleDuplicateId,
             status: 'pending',
-        }])
-        .select()
-        .single();
+        }]);
 
     if (error) {
         console.error('Error creating submission:', error);
         throw error;
     }
 
-    return mapDbSubmissionToSubmission(data);
+    return {
+        ...submissionData,
+        id,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+    };
 }
 
 /**
