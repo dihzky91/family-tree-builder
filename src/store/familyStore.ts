@@ -694,15 +694,17 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   },
 
   loadDemoData: () => {
-    const { persons, relationships } = getDemoData();
+    const { persons, relationships, branches, stories } = getDemoData();
 
     set({
       persons,
       relationships,
+      branches,
       evidence: [],
-      stories: [],
+      stories,
       auditLogs: [],
       selectedPersonId: null,
+      homePersonId: 'demo-p-1', // Default focus on Andi Santoso (middle generation with parents, siblings, spouse & children)
       isLoading: false,
       isDemoMode: true,
       undoStack: [],

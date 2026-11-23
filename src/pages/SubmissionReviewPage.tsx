@@ -56,6 +56,7 @@ import { syncAllActiveShareSnapshots } from '@/storage/supabase/shareQueries';
 import { formatRelationLabel } from '@/components/submission/ApprovedMembersCard';
 import { notifySubmissionsChanged } from '@/hooks/usePendingSubmissionCount';
 import { useFamilyStore } from '@/store/familyStore';
+import { getDemoData } from '@/data/demoData';
 import type { Submission, Branch, Person } from '@/types';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -108,8 +109,17 @@ export default function SubmissionReviewPage() {
 
   const fetchData = async () => {
     if (isDemoMode) {
-      setSubmissions([]);
-      setBranches([]);
+      const demo = getDemoData();
+      const byBranch =
+        selectedBranch === 'all'
+          ? demo.submissions
+          : demo.submissions.filter((s) => s.branchId === selectedBranch);
+      const filtered =
+        selectedStatus === 'all'
+          ? byBranch
+          : byBranch.filter((s) => s.status === selectedStatus);
+      setSubmissions(filtered);
+      setBranches(demo.branches);
       setIsLoading(false);
       return;
     }

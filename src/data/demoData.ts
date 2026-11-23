@@ -1,4 +1,4 @@
-import type { Person, Relationship } from '@/types';
+import type { Person, Relationship, Branch, Submission, Story } from '@/types';
 
 /**
  * Demo family data - Keluarga Santoso (4 generations)
@@ -276,6 +276,169 @@ export const DEMO_RELATIONSHIPS: Relationship[] = [
     { id: 'demo-rel-27', fromPersonId: 'demo-p-3', toPersonId: 'demo-c-6', type: 'PARENT_CHILD' },
     { id: 'demo-rel-28', fromPersonId: 'demo-p-4', toPersonId: 'demo-c-6', type: 'PARENT_CHILD' },
     { id: 'demo-rel-29', fromPersonId: 'demo-p-5', toPersonId: 'demo-c-7', type: 'PARENT_CHILD' },
+
+    // Spouses across generations (so Marriage Rings ⚭ and Spouse Connector lines render cleanly!)
+    { id: 'demo-rel-30', fromPersonId: 'demo-gg-1', toPersonId: 'demo-gg-2', type: 'SPOUSE', meta: { status: 'married' } },
+    { id: 'demo-rel-31', fromPersonId: 'demo-gg-3', toPersonId: 'demo-gg-4', type: 'SPOUSE', meta: { status: 'married' } },
+    { id: 'demo-rel-32', fromPersonId: 'demo-g-1', toPersonId: 'demo-g-2', type: 'SPOUSE', meta: { status: 'married' } },
+    { id: 'demo-rel-33', fromPersonId: 'demo-g-3', toPersonId: 'demo-g-4', type: 'SPOUSE', meta: { status: 'married' } },
+    { id: 'demo-rel-34', fromPersonId: 'demo-p-1', toPersonId: 'demo-p-2', type: 'SPOUSE', meta: { status: 'married' } },
+    { id: 'demo-rel-35', fromPersonId: 'demo-p-3', toPersonId: 'demo-p-4', type: 'SPOUSE', meta: { status: 'married' } },
+];
+
+export const DEMO_BRANCHES: Branch[] = [
+    {
+        id: 'demo-branch-1',
+        code: 'trah-raden-santoso',
+        name: 'Trah Utama Raden Santoso',
+        rootPersonId: 'demo-gg-1',
+        coordinatorName: 'Andi Santoso',
+        coordinatorEmail: 'andi.santoso@familytree.local',
+        description: 'Cabang induk seluruh keturunan Eyang Raden Santoso & Siti Aminah.',
+        isActive: true,
+        submissionCount: 4,
+        approvedCount: 3,
+        createdAt: '2026-01-10T08:00:00.000Z',
+        updatedAt: '2026-03-15T10:00:00.000Z',
+    },
+    {
+        id: 'demo-branch-2',
+        code: 'keluarga-budi-santoso',
+        name: 'Keluarga dr. Budi Santoso',
+        rootPersonId: 'demo-g-1',
+        coordinatorName: 'Andi Santoso',
+        coordinatorEmail: 'andi.santoso@familytree.local',
+        description: 'Khusus anak, menantu, dan cucu dari dr. Budi Santoso & Ibu Sri Rahayu.',
+        isActive: true,
+        submissionCount: 5,
+        approvedCount: 3,
+        createdAt: '2026-01-12T08:00:00.000Z',
+        updatedAt: '2026-03-18T10:00:00.000Z',
+    },
+    {
+        id: 'demo-branch-3',
+        code: 'keluarga-andi-santoso',
+        name: 'Keluarga Andi Santoso',
+        rootPersonId: 'demo-p-1',
+        coordinatorName: 'Arif Santoso',
+        coordinatorEmail: 'arif.santoso@familytree.local',
+        description: 'Keluarga inti Andi Santoso & Maya Wijaya.',
+        isActive: true,
+        submissionCount: 3,
+        approvedCount: 3,
+        createdAt: '2026-02-01T08:00:00.000Z',
+        updatedAt: '2026-03-19T10:00:00.000Z',
+    },
+    {
+        id: 'demo-branch-4',
+        code: 'keluarga-rudi-santoso',
+        name: 'Keluarga Arsitek Rudi Santoso',
+        rootPersonId: 'demo-p-3',
+        coordinatorName: 'Rudi Santoso',
+        coordinatorEmail: 'rudi.santoso@familytree.local',
+        description: 'Cabang keluarga Paman Rudi Santoso & drg. Sari Indah.',
+        isActive: true,
+        submissionCount: 4,
+        approvedCount: 3,
+        createdAt: '2026-02-05T08:00:00.000Z',
+        updatedAt: '2026-03-20T10:00:00.000Z',
+    },
+    {
+        id: 'demo-branch-5',
+        code: 'keluarga-dian-pratiwi',
+        name: 'Keluarga Dian Pratiwi',
+        rootPersonId: 'demo-p-5',
+        coordinatorName: 'Dian Pratiwi',
+        coordinatorEmail: 'dian.pratiwi@familytree.local',
+        description: 'Cabang keluarga Bibi Dian Pratiwi.',
+        isActive: true,
+        submissionCount: 2,
+        approvedCount: 1,
+        createdAt: '2026-02-10T08:00:00.000Z',
+        updatedAt: '2026-03-20T10:00:00.000Z',
+    },
+];
+
+export const DEMO_SUBMISSIONS: Submission[] = [
+    {
+        id: 'demo-sub-1',
+        branchId: 'demo-branch-2',
+        submittedBy: 'Dian Pratiwi',
+        submitterEmail: 'dian.pratiwi@familytree.local',
+        fullName: 'Hendra Pratama',
+        gender: 'male',
+        birthDate: '1982-09-14',
+        birthPlace: 'Yogyakarta',
+        residence: 'Jakarta',
+        notes: 'Suami dari Dian Pratiwi, dosen Teknik Sipil',
+        relationToBranch: 'other',
+        parentName: 'Pasangan dari Dian Pratiwi',
+        status: 'pending',
+        createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    },
+    {
+        id: 'demo-sub-2',
+        branchId: 'demo-branch-2',
+        submittedBy: 'Dian Pratiwi',
+        submitterEmail: 'dian.pratiwi@familytree.local',
+        fullName: 'Nadia Pratama',
+        gender: 'female',
+        birthDate: '2011-05-22',
+        birthPlace: 'Jakarta',
+        residence: 'Jakarta',
+        notes: 'Anak kedua dari Dian Pratiwi & Hendra Pratama',
+        relationToBranch: 'grandchild',
+        parentName: 'Dian Pratiwi',
+        status: 'pending',
+        createdAt: new Date(Date.now() - 2 * 3600 * 1000 + 5000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 3600 * 1000 + 5000).toISOString(),
+    },
+    {
+        id: 'demo-sub-3',
+        branchId: 'demo-branch-1',
+        submittedBy: 'Rudi Santoso',
+        submitterEmail: 'rudi.santoso@familytree.local',
+        fullName: 'Raden Suryo Santoso',
+        gender: 'male',
+        birthDate: '1934-08-17',
+        birthPlace: 'Yogyakarta',
+        deathDate: '2012-04-09',
+        deathPlace: 'Yogyakarta',
+        notes: 'Adik kandung Eyang Raden Santoso yang menetap di Kotagede Yogyakarta',
+        relationToBranch: 'other',
+        parentName: 'Saudara kandung dari Raden Santoso',
+        status: 'pending',
+        createdAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
+    },
+];
+
+export const DEMO_STORIES: Story[] = [
+    {
+        id: 'demo-story-1',
+        title: 'Perjalanan Eyang Raden Santoso Mengajar di Yogyakarta',
+        content:
+            'Pada tahun 1952, Eyang Raden Santoso memulai pengabdiannya sebagai guru sekolah rakyat di Yogyakarta. Beliau dikenal sangat disiplin namun hangat kepada murid-muridnya, sementara Eyang Putri Siti Aminah membuka usaha batik tulis rumahan yang menopang pendidikan anak-anaknya hingga menjadi dokter dan pengusaha.',
+        authorId: null,
+        personIds: ['demo-gg-1', 'demo-gg-2', 'demo-g-1'],
+        date: '1952-07-01',
+        tags: ['Sejarah Keluarga', 'Yogyakarta', 'Pendidikan'],
+        createdAt: '2026-01-15T08:00:00.000Z',
+        updatedAt: '2026-01-15T08:00:00.000Z',
+    },
+    {
+        id: 'demo-story-2',
+        title: 'Reuni Akbar Keluarga Besar Santoso 2025',
+        content:
+            'Pertemuan empat generasi Keluarga Besar Santoso yang dihadiri oleh cabang Jakarta, Bandung, Semarang, dan Yogyakarta. Momen bersejarah ketika para cucu dan cicit mendokumentasikan pohon silsilah keluarga secara digital.',
+        authorId: null,
+        personIds: ['demo-g-1', 'demo-g-2', 'demo-p-1', 'demo-p-3', 'demo-c-1'],
+        date: '2025-12-24',
+        tags: ['Reuni', 'Keluarga Besar'],
+        createdAt: '2026-02-10T08:00:00.000Z',
+        updatedAt: '2026-02-10T08:00:00.000Z',
+    },
 ];
 
 /**
@@ -285,6 +448,9 @@ export const DEMO_RELATIONSHIPS: Relationship[] = [
 export function getDemoData() {
     return {
         persons: DEMO_PERSONS,
-        relationships: DEMO_RELATIONSHIPS
+        relationships: DEMO_RELATIONSHIPS,
+        branches: DEMO_BRANCHES,
+        submissions: DEMO_SUBMISSIONS,
+        stories: DEMO_STORIES,
     };
 }

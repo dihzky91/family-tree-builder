@@ -74,6 +74,7 @@ import {
 } from '@/storage/supabase/branchQueries';
 import { getAllSubmissions } from '@/storage/supabase/submissionQueries';
 import { getAllShareLinks } from '@/storage/supabase/shareQueries';
+import { getDemoData } from '@/data/demoData';
 import { useFamilyStore } from '@/store/familyStore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -246,8 +247,9 @@ export default function BranchManagementPage() {
 
   const fetchBranches = async () => {
     if (isDemoMode) {
-      setBranches([]);
-      setSubmissions([]);
+      const demo = getDemoData();
+      setBranches(demo.branches);
+      setSubmissions(demo.submissions);
       setIsLoading(false);
       return;
     }
