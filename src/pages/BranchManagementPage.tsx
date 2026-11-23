@@ -45,6 +45,8 @@ import {
   Download,
   FileCheck,
   Share2,
+  UserPlus,
+  Users,
 } from 'lucide-react';
 import { ShareTreeDialog } from '@/features/chart/components/ShareTreeDialog';
 import {
@@ -70,7 +72,7 @@ function slugifyBranchName(name: string): string {
 }
 
 export default function BranchManagementPage() {
-  const { persons, isDemoMode } = useFamilyStore();
+  const { persons, relationships, addPerson, addRelationship, isDemoMode } = useFamilyStore();
   const navigate = useNavigate();
 
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -80,6 +82,13 @@ export default function BranchManagementPage() {
   const [deleteTarget, setDeleteTarget] = useState<Branch | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [codeManuallyEdited, setCodeManuallyEdited] = useState(false);
+
+  // Quick-create new head of branch inline
+  const [rootMode, setRootMode] = useState<'existing' | 'new'>('existing');
+  const [newHeadName, setNewHeadName] = useState('');
+  const [newHeadGender, setNewHeadGender] = useState<'male' | 'female' | 'unknown'>('unknown');
+  const [newHeadLinkType, setNewHeadLinkType] = useState<'none' | 'sibling_of' | 'child_of'>('sibling_of');
+  const [newHeadTargetId, setNewHeadTargetId] = useState<string>('');
   const [qrDialog, setQrDialog] = useState<{
     branch: Branch;
     dataUrl: string;
@@ -134,21 +143,106 @@ export default function BranchManagementPage() {
 
   const onSubmit = async (data: BranchFormData) => {
     try {
+      let effectiveRootPersonId = data.rootPersonId;
+
+      // If creating a new head of branch inline
+      if (rootMode === 'new') {
+        const cleanHeadName = newHeadName.trim();
+        if (!cleanHeadName) {
+          toast.error('Masukkan nama Kepala Cabang baru terlebih dahulu');
+          return;
+        }
+
+        const createdHead = await addPerson({
+          fullName: cleanHeadName,
+          gender: newHeadGender,
+          birthDate: null,
+          birthPlace: null,
+          deathDate: null,
+          deathPlace: null,
+          residence: null,
+          photoUrl: null,
+          notes: `Kepala cabang ${data.name}`,
+          tags: [],
+          confidenceScore: 70,
+        });
+
+        effectiveRootPersonId = createdHead.id;
+
+        if (newHeadLinkType === 'child_of' && newHeadTargetId) {
+          await addRelationship({
+            type: 'PARENT_CHILD',
+            fromPersonId: newHeadTargetId,
+            toPersonId: createdHead.id,
+          });
+        } else if (newHeadLinkType === 'sibling_of' && newHeadTargetId) {
+          const existingParentIds = relationships
+            .filter((r) => r.type === 'PARENT_CHILD' && r.toPersonId === newHeadTargetId)
+            .map((r) => r.fromPersonId);
+
+          if (existingParentIds.length > 0) {
+            for (const pid of existingParentIds) {
+              await addRelationship({
+                type: 'PARENT_CHILD',
+                fromPersonId: pid,
+                toPersonId: createdHead.id,
+              });
+            }
+          } else {
+            const targetObj = persons.find((p) => p.id === newHeadTargetId);
+            const sharedParent = await addPerson({
+              fullName: `Orang Tua ${targetObj?.fullName || 'Keluarga'}`,
+              gender: 'male',
+              birthDate: null,
+              birthPlace: null,
+              deathDate: null,
+              deathPlace: null,
+              residence: null,
+              photoUrl: null,
+              notes: 'Dibuat otomatis sebagai leluhur penghubung saudara kandung',
+              tags: ['auto-placeholder-parent'],
+              confidenceScore: 60,
+            });
+            await addRelationship({
+              type: 'PARENT_CHILD',
+              fromPersonId: sharedParent.id,
+              toPersonId: newHeadTargetId,
+            });
+            await addRelationship({
+              type: 'PARENT_CHILD',
+              fromPersonId: sharedParent.id,
+              toPersonId: createdHead.id,
+            });
+          }
+        }
+      }
+
+      const payload = {
+        ...data,
+        rootPersonId: effectiveRootPersonId,
+      };
+
       if (editingBranch) {
-        await updateBranch(editingBranch.id, data);
+        await updateBranch(editingBranch.id, payload);
         toast.success('Cabang berhasil diperbarui');
       } else {
         await createBranch({
-          ...data,
+          ...payload,
           isActive: true,
         } as any);
-        toast.success('Cabang berhasil dibuat');
+        toast.success(
+          rootMode === 'new'
+            ? `Tokoh "${newHeadName.trim()}" & Cabang "${data.name}" berhasil dibuat!`
+            : 'Cabang berhasil dibuat'
+        );
       }
 
       fetchBranches();
       setIsCreateOpen(false);
       setEditingBranch(null);
       setCodeManuallyEdited(false);
+      setRootMode('existing');
+      setNewHeadName('');
       form.reset();
     } catch (error) {
       console.error('Error saving branch:', error);
@@ -317,27 +411,141 @@ export default function BranchManagementPage() {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="rootPersonId">Kepala Cabang *</Label>
-                <Select
-                  value={form.watch('rootPersonId')}
-                  onValueChange={(value) => form.setValue('rootPersonId', value)}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Pilih kepala cabang dari silsilah" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedPersons.map((person) => (
-                      <SelectItem key={person.id} value={person.id}>
-                        {person.fullName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.rootPersonId && (
-                  <p className="text-xs text-destructive mt-1">
-                    {form.formState.errors.rootPersonId.message}
-                  </p>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="rootPersonId">Kepala Cabang *</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (rootMode === 'existing') {
+                        setRootMode('new');
+                        // Pre-fill dummy id so Zod validation passes before onSubmit creates the real person
+                        form.setValue('rootPersonId', sortedPersons[0]?.id || 'new-head-pending');
+                        const guessedName = watchName.replace(/^keluarga\s+(besar\s+)?/i, '').trim();
+                        if (guessedName && !newHeadName) {
+                          setNewHeadName(guessedName);
+                        }
+                        if (!newHeadTargetId && sortedPersons[0]?.id) {
+                          setNewHeadTargetId(sortedPersons[0].id);
+                        }
+                      } else {
+                        setRootMode('existing');
+                        form.setValue('rootPersonId', '');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    {rootMode === 'existing' ? (
+                      <>
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Belum ada di daftar? Buat tokoh baru</span>
+                      </>
+                    ) : (
+                      <>
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Pilih dari anggota yang sudah ada</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {rootMode === 'existing' ? (
+                  <>
+                    <Select
+                      value={form.watch('rootPersonId')}
+                      onValueChange={(value) => form.setValue('rootPersonId', value)}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Pilih kepala cabang dari silsilah" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedPersons.map((person) => (
+                          <SelectItem key={person.id} value={person.id}>
+                            {person.fullName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {form.formState.errors.rootPersonId && (
+                      <p className="text-xs text-destructive mt-1">
+                        {form.formState.errors.rootPersonId.message}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-3.5 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="sm:col-span-2">
+                        <Label className="text-xs">Nama Lengkap Kepala Cabang Baru *</Label>
+                        <Input
+                          value={newHeadName}
+                          onChange={(e) => setNewHeadName(e.target.value)}
+                          placeholder="Contoh: Adik Khusnah / Mbah Sari..."
+                          className="mt-1 h-9 text-xs bg-background"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Jenis Kelamin</Label>
+                        <Select
+                          value={newHeadGender}
+                          onValueChange={(v) =>
+                            setNewHeadGender(v as 'male' | 'female' | 'unknown')
+                          }
+                        >
+                          <SelectTrigger className="mt-1 h-9 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="male">Laki-laki</SelectItem>
+                            <SelectItem value="female">Perempuan</SelectItem>
+                            <SelectItem value="unknown">Belum tahu</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <Label className="text-xs">Hubungan dengan Silsilah Saat Ini</Label>
+                        <Select
+                          value={newHeadLinkType}
+                          onValueChange={(v) =>
+                            setNewHeadLinkType(v as 'none' | 'sibling_of' | 'child_of')
+                          }
+                        >
+                          <SelectTrigger className="mt-1 h-9 text-xs bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sibling_of">Kakak / Adik kandung dari...</SelectItem>
+                            <SelectItem value="child_of">Anak kandung dari...</SelectItem>
+                            <SelectItem value="none">Belum tahu (Sambungkan nanti)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {newHeadLinkType !== 'none' && (
+                        <div>
+                          <Label className="text-xs">Terhubung ke Siapa?</Label>
+                          <Select value={newHeadTargetId} onValueChange={setNewHeadTargetId}>
+                            <SelectTrigger className="mt-1 h-9 text-xs bg-background">
+                              <SelectValue placeholder="Pilih anggota..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {sortedPersons.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.fullName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      💡 Tokoh ini akan otomatis dibuatkan di silsilah dan langsung dijadikan Kepala Cabang untuk formulir ini.
+                    </p>
+                  </div>
                 )}
               </div>
 
