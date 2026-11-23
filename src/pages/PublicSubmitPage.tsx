@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import {
 import { ApprovedMembersCard } from '@/components/submission/ApprovedMembersCard';
 import { getBranchByCode } from '@/storage/supabase/branchQueries';
 import { getApprovedMembersByBranch, createSubmission } from '@/storage/supabase/submissionQueries';
+import { findPublicShareForBranch } from '@/storage/supabase/shareQueries';
 import { useFamilyStore } from '@/store/familyStore';
 import type { Branch, ApprovedMemberInfo, RelationToBranch } from '@/types';
 import {
@@ -41,6 +42,7 @@ import {
   Send,
   Camera,
   X,
+  TreePine,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -170,6 +172,10 @@ export default function PublicSubmitPage() {
 
   const [branch, setBranch] = useState<Branch | null>(null);
   const [approvedMembers, setApprovedMembers] = useState<ApprovedMemberInfo[]>([]);
+  const [publicShareInfo, setPublicShareInfo] = useState<{
+    code: string;
+    title: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -216,8 +222,12 @@ export default function PublicSubmitPage() {
         }
         setBranch(branchData);
 
-        const members = await getApprovedMembersByBranch(branchData.id);
+        const [members, shareLink] = await Promise.all([
+          getApprovedMembersByBranch(branchData.id),
+          findPublicShareForBranch(branchCode, branchData.id).catch(() => null),
+        ]);
         setApprovedMembers(members);
+        setPublicShareInfo(shareLink);
       } catch (err) {
         console.error('Error loading data:', err);
         setError('Gagal memuat data cabang');
@@ -460,10 +470,24 @@ export default function PublicSubmitPage() {
             ))}
           </div>
 
-          <Button onClick={handleStartNewBatch} className="w-full h-11">
-            <Plus className="w-4 h-4 mr-2" />
-            Kirim Daftar Anggota Lain
-          </Button>
+          <div className="space-y-2.5">
+            {publicShareInfo && (
+              <Button asChild variant="default" className="w-full h-11">
+                <Link to={`/view/${publicShareInfo.code}`}>
+                  <TreePine className="w-4 h-4 mr-2" />
+                  Lihat Pohon Silsilah ({publicShareInfo.title})
+                </Link>
+              </Button>
+            )}
+            <Button
+              variant={publicShareInfo ? 'outline' : 'default'}
+              onClick={handleStartNewBatch}
+              className="w-full h-11"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Kirim Daftar Anggota Lain
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -486,24 +510,40 @@ export default function PublicSubmitPage() {
       {/* Header */}
       <div className="bg-card border-b">
         <div className="container max-w-3xl mx-auto px-4 py-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Users className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-display font-bold leading-tight">
-                Formulir Data Silsilah Keluarga
-              </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Cabang: <span className="font-semibold text-foreground">{branch?.name}</span>
-                {branch?.coordinatorName ? ` · Koordinator: ${branch.coordinatorName}` : ''}
-              </p>
-              {branch?.description && (
-                <p className="text-xs text-muted-foreground mt-1.5 bg-muted/40 rounded-lg px-2.5 py-1.5">
-                  {branch.description}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-display font-bold leading-tight">
+                  Formulir Data Silsilah Keluarga
+                </h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Cabang: <span className="font-semibold text-foreground">{branch?.name}</span>
+                  {branch?.coordinatorName ? ` · Koordinator: ${branch.coordinatorName}` : ''}
                 </p>
-              )}
+                {branch?.description && (
+                  <p className="text-xs text-muted-foreground mt-1.5 bg-muted/40 rounded-lg px-2.5 py-1.5">
+                    {branch.description}
+                  </p>
+                )}
+              </div>
             </div>
+
+            {publicShareInfo && (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="shrink-0 rounded-xl border-primary/35 bg-primary/5 hover:bg-primary/10 text-primary text-xs"
+              >
+                <Link to={`/view/${publicShareInfo.code}`}>
+                  <TreePine className="w-3.5 h-3.5 mr-1.5" />
+                  Lihat Pohon Silsilah
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>

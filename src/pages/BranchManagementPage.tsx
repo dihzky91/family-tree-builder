@@ -73,6 +73,7 @@ import {
   deleteBranch,
 } from '@/storage/supabase/branchQueries';
 import { getAllSubmissions } from '@/storage/supabase/submissionQueries';
+import { getAllShareLinks } from '@/storage/supabase/shareQueries';
 import { useFamilyStore } from '@/store/familyStore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -81,6 +82,7 @@ import {
   type BranchFormData,
   type Branch,
   type Submission,
+  type ShareLink,
   type Person,
   type Relationship,
 } from '@/types';
@@ -185,6 +187,7 @@ export default function BranchManagementPage() {
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
@@ -250,12 +253,14 @@ export default function BranchManagementPage() {
     }
     try {
       setIsLoading(true);
-      const [branchData, subData] = await Promise.all([
+      const [branchData, subData, sharesData] = await Promise.all([
         getAllBranches(),
         getAllSubmissions().catch(() => [] as Submission[]),
+        getAllShareLinks().catch(() => [] as ShareLink[]),
       ]);
       setBranches(branchData);
       setSubmissions(subData);
+      setShareLinks(sharesData);
     } catch (error) {
       console.error('Error fetching branches:', error);
       toast.error('Gagal memuat data cabang');
@@ -508,11 +513,26 @@ export default function BranchManagementPage() {
 
   const buildWhatsAppMessage = (branch: Branch) => {
     const link = getBranchLink(branch.code);
+    const activeShares = shareLinks.filter((s) => s.isActive);
+    const matchedShare =
+      activeShares.find((s) => s.branchId === branch.id || s.code === `pohon-${branch.code}`) ||
+      activeShares.find((s) => s.scopeType === 'full') ||
+      activeShares[0];
+
+    const viewTreeLine = matchedShare
+      ? `\n🌳 *Lihat Pohon Silsilah Interaktif:*\n${window.location.origin}/view/${matchedShare.code}${
+          matchedShare.hasPin && matchedShare.pinCode
+            ? ` (PIN: *${matchedShare.pinCode}*)`
+            : ''
+        }\n`
+      : '';
+
     return (
       `Assalamu'alaikum / Halo keluarga besar *${branch.name}* 🙏\n\n` +
       `Kami sedang melengkapi data silsilah keluarga besar. Mohon bantuannya untuk mengisi data diri, pasangan, dan anak-anak melalui tautan berikut:\n\n` +
-      `🔗 ${link}\n\n` +
-      `Panduan singkat:\n` +
+      `📝 *Formulir Pengisian Data:*\n${link}\n` +
+      viewTreeLine +
+      `\nPanduan singkat:\n` +
       `1. Isi nama pengisi & pilih hubungan (Anak / Kakak-Adik / Cucu / Cicit / Pasangan).\n` +
       `2. Tulis nama orang tua atau pasangan yang terhubung agar posisi di silsilah tepat.\n` +
       `3. Bisa kirim 1 keluarga sekaligus (suami/istri & anak-anak) dalam satu formulir.\n\n` +
@@ -1582,7 +1602,12 @@ export default function BranchManagementPage() {
         open={isShareTreeOpen}
         onOpenChange={(open) => {
           setIsShareTreeOpen(open);
-          if (!open) setShareTreeBranch(null);
+          if (!open) {
+            setShareTreeBranch(null);
+            getAllShareLinks()
+              .then(setShareLinks)
+              .catch(() => {});
+          }
         }}
         defaultBranch={shareTreeBranch}
       />

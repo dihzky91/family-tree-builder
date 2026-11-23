@@ -703,6 +703,134 @@ function mirrorShareToLocal(
 }
 
 /**
+ * Public reader: find an active public share code associated with a branch (or any full-tree share fallback)
+ * so that family members filling out `/submit/:branchCode` can immediately jump to `/view/:shareCode`!
+ */
+export async function findPublicShareForBranch(
+  branchCode: string,
+  branchId?: string
+): Promise<{ code: string; title: string; scopeType: ShareScopeType } | null> {
+  const cleanBranchCode = branchCode.trim().toLowerCase();
+  const expectedShareCode = `pohon-${cleanBranchCode}`;
+
+  // 1. Direct check for `pohon-<branchCode>` via getPublicShareMeta
+  const directMeta = await getPublicShareMeta(expectedShareCode);
+  if (directMeta) {
+    return {
+      code: directMeta.code,
+      title: directMeta.title,
+      scopeType: directMeta.scopeType,
+    };
+  }
+
+  // 2. Search Supabase `branches` cloud fallback rows for a share matching this branchId/branchCode, or any active full-tree share
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: rows } = await supabase
+        .from('branches')
+        .select('*')
+        .eq('is_active', true)
+        .like('description', `${CLOUD_SHARE_PREFIX}%`)
+        .order('created_at', { ascending: false });
+
+      if (Array.isArray(rows) && rows.length > 0) {
+        for (const r of rows) {
+          const decoded = decodeCloudBranchPayload(r.description);
+          if (
+            decoded &&
+            ((branchId && decoded.branchId === branchId) ||
+              decoded.branchCode === cleanBranchCode)
+          ) {
+            return {
+              code: r.code,
+              title: decoded.title || r.name,
+              scopeType: decoded.scopeType || 'branch',
+            };
+          }
+        }
+        // Fallback to the latest full-tree share if available
+        for (const r of rows) {
+          const decoded = decodeCloudBranchPayload(r.description);
+          if (decoded && decoded.scopeType === 'full') {
+            return {
+              code: r.code,
+              title: decoded.title || r.name,
+              scopeType: 'full',
+            };
+          }
+        }
+        // Or first available active share
+        const firstDecoded = decodeCloudBranchPayload(rows[0].description);
+        if (firstDecoded) {
+          return {
+            code: rows[0].code,
+            title: firstDecoded.title || rows[0].name,
+            scopeType: firstDecoded.scopeType || 'full',
+          };
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 3. Local shares fallback
+  const localActives = readLocalShares().filter((s) => s.isActive);
+  const matchedLocal =
+    localActives.find(
+      (s) => (branchId && s.branchId === branchId) || s.branchCode === cleanBranchCode
+    ) ||
+    localActives.find((s) => s.scopeType === 'full') ||
+    localActives[0];
+
+  if (matchedLocal) {
+    return {
+      code: matchedLocal.code,
+      title: matchedLocal.title,
+      scopeType: matchedLocal.scopeType,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Automatically refresh all active public share snapshots whenever the owner approves submissions
+ * so that `/view/...` immediately reflects newly approved family members!
+ */
+export async function syncAllActiveShareSnapshots(
+  allPersons: Person[],
+  allRelationships: Relationship[],
+  branches: Branch[] = []
+): Promise<void> {
+  if (allPersons.length === 0) return;
+  try {
+    const links = await getAllShareLinks();
+    for (const link of links) {
+      if (!link.isActive) continue;
+      const branch = link.branchId
+        ? branches.find((b) => b.id === link.branchId) || null
+        : null;
+      await updateShareLink(link.id, {
+        code: link.code,
+        title: link.title,
+        description: link.description,
+        scopeType: link.scopeType,
+        branch,
+        rootPersonId: link.rootPersonId,
+        pinCode: link.pinCode,
+        hideLivingDetails: link.hideLivingDetails,
+        isActive: link.isActive,
+        allPersons,
+        allRelationships,
+      });
+    }
+  } catch (err) {
+    console.warn('Auto-sync public shares failed:', err);
+  }
+}
+
+/**
  * Public reader: get share metadata by code (checks if it exists and whether a PIN is required)
  */
 export async function getPublicShareMeta(code: string): Promise<PublicShareMeta | null> {

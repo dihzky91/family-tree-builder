@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 import { getAllSubmissions, updateSubmissionStatus } from '@/storage/supabase/submissionQueries';
 import { getAllBranches, incrementBranchApprovedCount } from '@/storage/supabase/branchQueries';
+import { syncAllActiveShareSnapshots } from '@/storage/supabase/shareQueries';
 import { formatRelationLabel } from '@/components/submission/ApprovedMembersCard';
 import { notifySubmissionsChanged } from '@/hooks/usePendingSubmissionCount';
 import { useFamilyStore } from '@/store/familyStore';
@@ -435,6 +436,13 @@ export default function SubmissionReviewPage() {
         linkType: bridgeLinkType,
         targetId: bridgeTargetPersonId,
       });
+      // Auto-refresh public read-only share snapshots so /view/... immediately shows the new member
+      const latestState = useFamilyStore.getState();
+      void syncAllActiveShareSnapshots(
+        latestState.persons,
+        latestState.relationships,
+        branches
+      );
       toast.success(
         createBridgePerson && bridgePersonName.trim()
           ? `${approveTarget.fullName} & tokoh penghubung "${bridgePersonName.trim()}" berhasil ditambahkan!`
@@ -484,6 +492,13 @@ export default function SubmissionReviewPage() {
         successCount++;
       }
 
+      // Auto-refresh public read-only share snapshots so /view/... immediately shows the new batch
+      const latestState = useFamilyStore.getState();
+      void syncAllActiveShareSnapshots(
+        latestState.persons,
+        latestState.relationships,
+        branches
+      );
       toast.success(`${successCount} anggota dari ${group.submittedBy} berhasil disetujui!`);
       notifySubmissionsChanged();
       fetchData();
