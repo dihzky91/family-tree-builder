@@ -78,6 +78,7 @@ import {
   ShieldCheck,
   Moon,
   Sun,
+  TreeDeciduous,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -119,11 +120,17 @@ const LifespanGanttView = lazy(() =>
     default: m.LifespanGanttView,
   }))
 );
+const BotanicalTreeView = lazy(() =>
+  import('@/features/chart/views/BotanicalTreeView').then((m) => ({
+    default: m.BotanicalTreeView,
+  }))
+);
 
 type ViewMode =
   | 'family'
   | 'pedigree'
   | 'tree'
+  | 'botanical'
   | 'sunburst'
   | 'fan'
   | 'hourglass'
@@ -506,6 +513,7 @@ export default function PublicSharePage() {
     { value: 'family', label: 'Keluarga', icon: Users, description: 'Pohon keluarga interaktif' },
     { value: 'pedigree', label: 'Leluhur', icon: TreePine, description: 'Silsilah leluhur ke atas' },
     { value: 'tree', label: 'Generasi', icon: Network, description: 'Semua anggota per generasi' },
+    { value: 'botanical', label: 'Pohon Botanik', icon: TreeDeciduous, description: 'Ilustrasi pohon organik dengan dahan & daun' },
     { value: 'sunburst', label: 'Sunburst', icon: PieChart, description: 'Diagram melingkar keturunan & leluhur' },
     { value: 'fan', label: 'Diagram Kipas', icon: Compass, description: 'Kipas leluhur 180°/240°' },
     { value: 'hourglass', label: 'Jam Pasir', icon: Hourglass, description: 'Leluhur ke atas & keturunan ke bawah' },
@@ -526,6 +534,7 @@ export default function PublicSharePage() {
     isZoomableView ||
     viewMode === 'family' ||
     viewMode === 'pedigree' ||
+    viewMode === 'botanical' ||
     viewMode === 'sunburst' ||
     viewMode === 'fan' ||
     viewMode === 'hourglass' ||
@@ -536,8 +545,8 @@ export default function PublicSharePage() {
     viewMode === 'map' ||
     viewMode === 'dna';
 
-  const primaryViewModes = viewModeOptions.slice(0, 4);
-  const secondaryViewModes = viewModeOptions.slice(4);
+  const primaryViewModes = viewModeOptions.slice(0, 5);
+  const secondaryViewModes = viewModeOptions.slice(5);
   const secondaryViewGroups = [
     { label: 'Bagan Silsilah', values: ['fan', 'hourglass', 'outline'] },
     { label: 'Analisis & Relasi', values: ['path', 'network', 'dna'] },
@@ -1270,6 +1279,16 @@ export default function PublicSharePage() {
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}
                             highlightedPersonIds={lineageIdSet}
+                            onSelectPerson={setSelectedPersonId}
+                          />
+                        </motion.div>
+                      )}
+                      {viewMode === 'botanical' && (
+                        <motion.div key="botanical" {...viewTransition} className="w-full h-full">
+                          <BotanicalTreeView
+                            persons={persons}
+                            relationships={relationships}
+                            selectedPersonId={selectedPersonId || defaultFocusPersonId}
                             onSelectPerson={setSelectedPersonId}
                           />
                         </motion.div>

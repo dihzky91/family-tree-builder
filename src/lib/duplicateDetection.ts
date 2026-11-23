@@ -69,6 +69,43 @@ export function clearIgnoredDuplicatePairs(): Set<string> {
 }
 
 /**
+ * Common Indonesian given-name prefixes that frequently appear as the first word
+ * of distinct people's names (e.g., "Siti Badriah" vs "Siti Zamronah", "Muhammad A" vs "Muhammad B").
+ */
+const COMMON_NAME_PREFIXES = new Set([
+  'siti',
+  'muhammad',
+  'mohammad',
+  'mohamad',
+  'muhamad',
+  'mochamad',
+  'mochammad',
+  'moch',
+  'muh',
+  'moh',
+  'm',
+  'ahmad',
+  'achmad',
+  'abdul',
+  'abd',
+  'nur',
+  'noor',
+  'sri',
+  'ade',
+  'andi',
+  'raden',
+  'tubagus',
+  'nyimas',
+  'kemas',
+  'teuku',
+  'cut',
+  'lalu',
+  'baiq',
+  'i',
+  'ni',
+]);
+
+/**
  * Normalize Indonesian honorifics & whitespace for fairer name comparison
  */
 function normalizeName(name: string): string {
@@ -111,6 +148,19 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 /**
+ * Raw character-level Levenshtein similarity (0-100)
+ */
+function rawLevenshteinSimilarity(strA: string, strB: string): number {
+  if (strA === strB && strA.length > 0) return 100;
+  if (strA.length === 0 || strB.length === 0) return 0;
+
+  const maxLen = Math.max(strA.length, strB.length);
+  const distance = levenshteinDistance(strA, strB);
+
+  return Math.round((1 - distance / maxLen) * 100);
+}
+
+/**
  * Calculate similarity between two strings (0-100)
  */
 function stringSimilarity(
@@ -126,10 +176,127 @@ function stringSimilarity(
   if (strA === strB && strA.length > 0) return 100;
   if (strA.length === 0 || strB.length === 0) return 0;
 
-  const maxLen = Math.max(strA.length, strB.length);
-  const distance = levenshteinDistance(strA, strB);
+  if (!useNameNormalization) {
+    return rawLevenshteinSimilarity(strA, strB);
+  }
 
-  return Math.round((1 - distance / maxLen) * 100);
+  // Token-aware comparison for person names
+  const tokensA = strA.split(' ').filter(Boolean);
+  const tokensB = strB.split(' ').filter(Boolean);
+
+  // Strip common opening prefixes ONLY when further tokens exist on that side
+  const coreA =
+    tokensA.length > 1 && COMMON_NAME_PREFIXES.has(tokensA[0]) ? tokensA.slice(1) : tokensA;
+  const coreB =
+    tokensB.length > 1 && COMMON_NAME_PREFIXES.has(tokensB[0]) ? tokensB.slice(1) : tokensB;
+
+  const coreStrA = coreA.join(' ');
+  const coreStrB = coreB.join(' ');
+  const coreSim = rawLevenshteinSimilarity(coreStrA, coreStrB);
+
+  // When both names have multiple words, evaluate token-by-token alignment so that
+  // sharing only a first/last name while the other distinctive tokens differ strongly
+  // does not produce a false duplicate (e.g., "Siti Badriah" vs "Siti Zamronah",
+  // "Nabila Roma Norris" vs "Atika Roma Norris", "Budi Santoso" vs "Budi Hartono").
+  if (tokensA.length > 1 && tokensB.length > 1) {
+    // 1. Primary given-name check:
+    // After stripping common prefixes (Siti, Muhammad, etc.), the first core token is the
+    // person's primary given name (e.g. "nabila" vs "atika" in "Nabila Roma Norris" vs "Atika Roma Norris").
+    // If both have >= 2 core tokens and share the trailing family/middle name(s), their first core tokens
+    // MUST match (or be an initial abbreviation).
+    const firstCoreA = coreA[0];
+    const firstCoreB = coreB[0];
+    const firstCoreInitialMatch =
+      (firstCoreA.length === 1 && firstCoreB.startsWith(firstCoreA)) ||
+      (firstCoreB.length === 1 && firstCoreA.startsWith(firstCoreB));
+    const firstCoreSim = firstCoreInitialMatch
+      ? 85
+      : rawLevenshteinSimilarity(firstCoreA, firstCoreB);
+
+    if (coreA.length > 1 && coreB.length > 1 && firstCoreSim < 75) {
+      // Check if first core token of A matches elsewhere in B (in case of reversed word order)
+      const bestElsewhereA = Math.max(
+        ...coreB.slice(1).map((t) => rawLevenshteinSimilarity(firstCoreA, t))
+      );
+      const bestElsewhereB = Math.max(
+        ...coreA.slice(1).map((t) => rawLevenshteinSimilarity(firstCoreB, t))
+      );
+      // If neither is a swapped word order (i.e. both mismatch), they have different given names
+      // despite sharing a middle/last family name ("Nabila Roma Norris" vs "Atika Roma Norris")
+      if (bestElsewhereA < 80 || bestElsewhereB < 80) {
+        return Math.min(firstCoreSim, 45);
+      }
+    }
+
+    // 2. Check best token match for each core token
+    const minCoreTokens = Math.min(coreA.length, coreB.length);
+    const maxCoreTokens = Math.max(coreA.length, coreB.length);
+    const shorterCore = coreA.length <= coreB.length ? coreA : coreB;
+    const longerCore = coreA.length <= coreB.length ? coreB : coreA;
+
+    let matchedTokenScoreSum = 0;
+    let strongTokenMatches = 0;
+
+    for (const tok of shorterCore) {
+      let bestSim = 0;
+      for (const candidateTok of longerCore) {
+        // Also handle initial abbreviations like "M" -> "Muhammad"
+        const isInitialMatch =
+          (tok.length === 1 && candidateTok.startsWith(tok)) ||
+          (candidateTok.length === 1 && tok.startsWith(candidateTok));
+        const sim = isInitialMatch ? 85 : rawLevenshteinSimilarity(tok, candidateTok);
+        if (sim > bestSim) bestSim = sim;
+      }
+      matchedTokenScoreSum += bestSim;
+      if (bestSim >= 75) strongTokenMatches++;
+    }
+
+    // If none of the core distinctive tokens match strongly (< 75%), reject/cap score
+    if (strongTokenMatches === 0) {
+      return Math.min(coreSim, 45);
+    }
+
+    // Require EVERY token of the shorter core name to have a strong match (>= 75%) in the longer core name.
+    // For example:
+    // - "Ahmad Fauzi" vs "Ahmad Rizki" -> only 1 of 2 matches -> rejected
+    // - "Nabila Roma Norris" vs "Atika Roma Norris" -> only 2 of 3 matches -> rejected
+    // - "Nabila Norris" vs "Nabila Roma Norris" -> 2 of 2 in shorterCore match -> allowed!
+    const avgCoreTokenSim = matchedTokenScoreSum / minCoreTokens;
+    if (minCoreTokens > 1 && strongTokenMatches < minCoreTokens) {
+      return Math.min(firstCoreSim, Math.round(avgCoreTokenSim * 0.65), 50);
+    }
+
+    // Coverage penalty if one name has extra words
+    const coverageRatio = minCoreTokens / maxCoreTokens;
+    const tokenWeightedSim = Math.round(
+      avgCoreTokenSim * (0.75 + 0.25 * coverageRatio)
+    );
+
+    return Math.min(coreSim, tokenWeightedSim);
+  }
+
+  // Single-word vs multi-word (e.g. "Badriah" vs "Siti Badriah", or "Siti" vs "Siti Badriah")
+  if (tokensA.length !== tokensB.length) {
+    const singleTok = tokensA.length === 1 ? tokensA[0] : tokensB[0];
+    const multiTokens = tokensA.length === 1 ? tokensB : tokensA;
+    const multiCore = tokensA.length === 1 ? coreB : coreA;
+
+    // If the single-word name is ONLY a generic prefix (e.g. "Siti" vs "Siti Badriah"), keep score modest
+    if (COMMON_NAME_PREFIXES.has(singleTok) && !multiCore.includes(singleTok)) {
+      return Math.min(rawLevenshteinSimilarity(strA, strB), 50);
+    }
+
+    // If the single word matches the core name of the multi-word person (e.g. "Badriah" vs "Siti Badriah")
+    const bestMatchInCore = Math.max(
+      ...multiCore.map((t) => rawLevenshteinSimilarity(singleTok, t)),
+      ...multiTokens.map((t) => rawLevenshteinSimilarity(singleTok, t))
+    );
+    if (bestMatchInCore >= 85) {
+      return Math.round(bestMatchInCore * 0.88);
+    }
+  }
+
+  return coreSim;
 }
 
 /**
@@ -175,6 +342,30 @@ function areDirectlyRelated(
 }
 
 /**
+ * Check if two people share at least one common parent in the tree (i.e. recorded siblings)
+ */
+function shareCommonParent(
+  id1: string,
+  id2: string,
+  relationships?: Relationship[]
+): boolean {
+  if (!relationships || relationships.length === 0) return false;
+  const parents1 = new Set<string>();
+  for (const r of relationships) {
+    if (r.type === 'PARENT_CHILD' && r.toPersonId === id1) {
+      parents1.add(r.fromPersonId);
+    }
+  }
+  if (parents1.size === 0) return false;
+  for (const r of relationships) {
+    if (r.type === 'PARENT_CHILD' && r.toPersonId === id2 && parents1.has(r.fromPersonId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Calculate overall similarity score between two persons with hard contradiction checks
  */
 export function calculateSimilarity(
@@ -198,12 +389,27 @@ export function calculateSimilarity(
     return null;
   }
 
-  // Hard contradiction 3: Both have valid birth dates more than 5 years apart
+  // Hard contradiction 3: Birth date contradictions
   if (person1.birthDate && person2.birthDate) {
-    const y1 = new Date(person1.birthDate).getFullYear();
-    const y2 = new Date(person2.birthDate).getFullYear();
-    if (!Number.isNaN(y1) && !Number.isNaN(y2) && Math.abs(y1 - y2) > 5) {
-      return null;
+    const d1 = new Date(person1.birthDate);
+    const d2 = new Date(person2.birthDate);
+    const y1 = d1.getFullYear();
+    const y2 = d2.getFullYear();
+    if (!Number.isNaN(y1) && !Number.isNaN(y2)) {
+      // More than 5 years apart -> definitely different people
+      if (Math.abs(y1 - y2) > 5) {
+        return null;
+      }
+      // Different year AND different month/day -> distinct birth records unless name is practically identical (>= 92%)
+      if (
+        y1 !== y2 &&
+        (d1.getMonth() !== d2.getMonth() || d1.getDate() !== d2.getDate())
+      ) {
+        const quickNameSim = stringSimilarity(person1.fullName, person2.fullName, true);
+        if (quickNameSim < 92) {
+          return null;
+        }
+      }
     }
   }
 
@@ -214,6 +420,15 @@ export function calculateSimilarity(
   const nameSim = stringSimilarity(person1.fullName, person2.fullName, true);
   if (nameSim < 60) {
     return null;
+  }
+
+  // Hard contradiction 4: Recorded siblings (share a parent) with different names or different birth dates
+  if (shareCommonParent(person1.id, person2.id, options.relationships)) {
+    const differentBirthDates =
+      Boolean(person1.birthDate && person2.birthDate) && person1.birthDate !== person2.birthDate;
+    if (nameSim < 88 || differentBirthDates) {
+      return null;
+    }
   }
 
   fieldMatches.push({
@@ -291,25 +506,22 @@ export function calculateSimilarity(
     }
   }
 
-  // Dynamic weighted average across available fields so missing optional dates don't unfairly tank identical names
-  let weightedSum = nameSim * 0.6;
-  let totalWeight = 0.6;
+  // Dynamic weighted average across available fields so missing optional dates don't unfairly tank identical names.
+  // Note: Gender match is already enforced as a hard filter above, so we don't inflate similarity scores just for sharing the same gender.
+  let weightedSum = nameSim * 0.65;
+  let totalWeight = 0.65;
 
   if (hasBothBirthDates) {
     weightedSum += birthSim * 0.25;
     totalWeight += 0.25;
   }
-  if (hasBothGenders) {
-    weightedSum += (genderMatch ? 100 : 0) * 0.08;
-    totalWeight += 0.08;
-  }
   if (hasBothPlaces) {
-    weightedSum += placeSim * 0.07;
-    totalWeight += 0.07;
+    weightedSum += placeSim * 0.05;
+    totalWeight += 0.05;
   }
   if (hasBothDeathDates) {
-    weightedSum += deathSim * 0.08;
-    totalWeight += 0.08;
+    weightedSum += deathSim * 0.05;
+    totalWeight += 0.05;
   }
 
   const score = Math.round(weightedSum / totalWeight);

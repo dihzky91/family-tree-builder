@@ -79,6 +79,7 @@ import {
   ListTree,
   BarChart3,
   Pin,
+  TreeDeciduous,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Person } from '@/types';
@@ -110,6 +111,7 @@ const RelationshipPathView = lazy(() => import('@/features/chart/views/Relations
 const HourglassView = lazy(() => import('@/features/chart/views/HourglassView').then(m => ({ default: m.HourglassView })));
 const DescendantOutlineView = lazy(() => import('@/features/chart/views/DescendantOutlineView').then(m => ({ default: m.DescendantOutlineView })));
 const LifespanGanttView = lazy(() => import('@/features/chart/views/LifespanGanttView').then(m => ({ default: m.LifespanGanttView })));
+const BotanicalTreeView = lazy(() => import('@/features/chart/views/BotanicalTreeView').then(m => ({ default: m.BotanicalTreeView })));
 
 
 // Animation variants
@@ -136,7 +138,7 @@ const panelVariants = {
 
 const MINIMAP_PERSON_THRESHOLD = 24;
 
-type ViewMode = 'family' | 'pedigree' | 'tree' | 'sunburst' | 'fan' | 'hourglass' | 'outline' | 'path' | 'lifespan' | 'network' | 'timeline' | 'map' | 'dna';
+type ViewMode = 'family' | 'pedigree' | 'tree' | 'botanical' | 'sunburst' | 'fan' | 'hourglass' | 'outline' | 'path' | 'lifespan' | 'network' | 'timeline' | 'map' | 'dna';
 
 export default function ChartPage() {
   const {
@@ -474,6 +476,7 @@ export default function ChartPage() {
     { value: 'family', label: 'Keluarga', icon: Users, description: 'Pohon keluarga interaktif' },
     { value: 'pedigree', label: 'Leluhur', icon: TreePine, description: 'Silsilah leluhur ke atas' },
     { value: 'tree', label: 'Generasi', icon: Network, description: 'Semua anggota per generasi' },
+    { value: 'botanical', label: 'Pohon Botanik', icon: TreeDeciduous, description: 'Ilustrasi pohon organik dengan dahan & daun' },
     { value: 'sunburst', label: 'Sunburst', icon: PieChart, description: 'Diagram melingkar keturunan & leluhur' },
     { value: 'fan', label: 'Diagram Kipas', icon: Compass, description: 'Kipas leluhur 180°/240° & slot kosong' },
     { value: 'hourglass', label: 'Jam Pasir', icon: Hourglass, description: 'Leluhur ke atas & keturunan ke bawah' },
@@ -489,9 +492,9 @@ export default function ChartPage() {
   const currentViewOption = viewModeOptions.find(opt => opt.value === viewMode) || viewModeOptions[0];
   const CurrentViewIcon = currentViewOption.icon;
   const isZoomableView = viewMode === 'tree';
-  const isFullHeightView = isZoomableView || viewMode === 'family' || viewMode === 'pedigree' || viewMode === 'sunburst' || viewMode === 'fan' || viewMode === 'hourglass' || viewMode === 'outline' || viewMode === 'path' || viewMode === 'lifespan' || viewMode === 'network' || viewMode === 'map' || viewMode === 'dna';
-  const primaryViewModes = viewModeOptions.slice(0, 4);
-  const secondaryViewModes = viewModeOptions.slice(4);
+  const isFullHeightView = isZoomableView || viewMode === 'family' || viewMode === 'pedigree' || viewMode === 'botanical' || viewMode === 'sunburst' || viewMode === 'fan' || viewMode === 'hourglass' || viewMode === 'outline' || viewMode === 'path' || viewMode === 'lifespan' || viewMode === 'network' || viewMode === 'map' || viewMode === 'dna';
+  const primaryViewModes = viewModeOptions.slice(0, 5);
+  const secondaryViewModes = viewModeOptions.slice(5);
   const secondaryViewGroups = [
     {
       label: 'Bagan Silsilah',
@@ -1016,6 +1019,20 @@ export default function ChartPage() {
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
                           highlightedPersonIds={lineageIdSet}
+                          onSelectPerson={setSelectedPerson}
+                        />
+                      </motion.div>
+                    )}
+                    {viewMode === 'botanical' && (
+                      <motion.div
+                        key="botanical"
+                        {...viewTransition}
+                        className="w-full h-full"
+                      >
+                        <BotanicalTreeView
+                          persons={persons}
+                          relationships={relationships}
+                          selectedPersonId={selectedPersonId || defaultFocusPersonId}
                           onSelectPerson={setSelectedPerson}
                         />
                       </motion.div>
