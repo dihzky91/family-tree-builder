@@ -87,13 +87,15 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
         await addPerson({ ...data, tags });
       }
       onSuccess?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save person:', error);
-      setSubmitError(
+      const detail =
         error instanceof Error
           ? error.message
-          : 'Gagal menyimpan data anggota. Silakan coba lagi.'
-      );
+          : typeof error?.message === 'string' && error.message.trim()
+            ? error.message
+            : 'Gagal menyimpan data anggota. Silakan coba lagi.';
+      setSubmitError(detail);
     } finally {
       setIsSubmitting(false);
     }

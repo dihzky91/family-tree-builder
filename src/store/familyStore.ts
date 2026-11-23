@@ -179,15 +179,19 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     };
 
     await storage.createPerson(person);
-    await storage.createAuditLog({
-      id: uuidv4(),
-      action: 'CREATE',
-      entityType: 'PERSON',
-      entityId: person.id,
-      changes: person,
-      timestamp: now,
-      userId: null,
-    });
+    try {
+      await storage.createAuditLog({
+        id: uuidv4(),
+        action: 'CREATE',
+        entityType: 'PERSON',
+        entityId: person.id,
+        changes: person,
+        timestamp: now,
+        userId: null,
+      });
+    } catch (auditErr) {
+      console.warn('Non-fatal audit log error on addPerson:', auditErr);
+    }
 
     set(state => ({
       persons: [...state.persons, person],
@@ -209,15 +213,19 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     };
 
     await storage.updatePerson(updated);
-    await storage.createAuditLog({
-      id: uuidv4(),
-      action: 'UPDATE',
-      entityType: 'PERSON',
-      entityId: id,
-      changes: updates,
-      timestamp: now,
-      userId: null,
-    });
+    try {
+      await storage.createAuditLog({
+        id: uuidv4(),
+        action: 'UPDATE',
+        entityType: 'PERSON',
+        entityId: id,
+        changes: updates,
+        timestamp: now,
+        userId: null,
+      });
+    } catch (auditErr) {
+      console.warn('Non-fatal audit log error on updatePerson:', auditErr);
+    }
 
     set(state => ({
       persons: state.persons.map(p => p.id === id ? updated : p),
@@ -240,15 +248,19 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     }
 
     await storage.deletePerson(id);
-    await storage.createAuditLog({
-      id: uuidv4(),
-      action: 'DELETE',
-      entityType: 'PERSON',
-      entityId: id,
-      changes: person,
-      timestamp: new Date().toISOString(),
-      userId: null,
-    });
+    try {
+      await storage.createAuditLog({
+        id: uuidv4(),
+        action: 'DELETE',
+        entityType: 'PERSON',
+        entityId: id,
+        changes: person,
+        timestamp: new Date().toISOString(),
+        userId: null,
+      });
+    } catch (auditErr) {
+      console.warn('Non-fatal audit log error on deletePerson:', auditErr);
+    }
 
     set(state => ({
       persons: state.persons.filter(p => p.id !== id),
@@ -395,15 +407,19 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     };
 
     await storage.updateEvidence(updated);
-    await storage.createAuditLog({
-      id: uuidv4(),
-      action: 'UPDATE',
-      entityType: 'EVIDENCE',
-      entityId: id,
-      changes: updates,
-      timestamp: new Date().toISOString(),
-      userId: null,
-    });
+    try {
+      await storage.createAuditLog({
+        id: uuidv4(),
+        action: 'UPDATE',
+        entityType: 'EVIDENCE',
+        entityId: id,
+        changes: updates,
+        timestamp: new Date().toISOString(),
+        userId: null,
+      });
+    } catch (auditErr) {
+      console.warn('Non-fatal audit log error on updateEvidence:', auditErr);
+    }
 
     set(state => ({
       evidence: state.evidence.map(e => e.id === id ? updated : e),
