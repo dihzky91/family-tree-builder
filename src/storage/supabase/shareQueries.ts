@@ -192,11 +192,12 @@ export function computeScopedShareData(
   const sanitizedPersons = scopedPersons.map((person) => {
     const isLiving = !person.deathDate;
     if (options.hideLivingDetails && isLiving) {
-      // Keep only birth year (YYYY) if birthDate exists, hide exact day/month and personal notes
+      // Keep only birth year (YYYY) if birthDate exists, hide exact day/month, residence address, and personal notes
       const yearMatch = person.birthDate?.match(/\d{4}/);
       return {
         ...person,
-        birthDate: yearMatch ? `${yearMatch[0]}-01-01` : null,
+        birthDate: yearMatch ? yearMatch[0] : null,
+        residence: null,
         notes: null,
       };
     }

@@ -4,7 +4,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, ChevronDown, ChevronUp, UserPlus, Pencil } from 'lucide-react';
 import type { ApprovedMemberInfo, RelationToBranch } from '@/types';
-import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 
 interface ApprovedMembersCardProps {
   members: ApprovedMemberInfo[];
@@ -59,7 +58,6 @@ export function ApprovedMembersCard({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {displayMembers.map((member, i) => {
-          const yearLabel = formatShortYearLabel(member.birthDate);
           return (
             <div
               key={`${member.fullName}-${i}`}
@@ -68,11 +66,7 @@ export function ApprovedMembersCard({
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <p className="font-medium truncate">{member.fullName}</p>
-                  {yearLabel ? (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-                      {yearLabel}
-                    </Badge>
-                  ) : (
+                  {!member.hasBirthDate && (
                     <Badge
                       variant="outline"
                       className="text-[10px] px-1.5 py-0 h-4 shrink-0 border-amber-400/60 text-amber-600 dark:text-amber-400"

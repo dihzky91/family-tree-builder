@@ -25,7 +25,6 @@ import { getBranchByCode } from '@/storage/supabase/branchQueries';
 import { getApprovedMembersByBranch, createSubmission } from '@/storage/supabase/submissionQueries';
 import { findPublicShareForBranch, unlockPublicShare } from '@/storage/supabase/shareQueries';
 import { useFamilyStore } from '@/store/familyStore';
-import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 import type { Branch, ApprovedMemberInfo, RelationToBranch } from '@/types';
 import {
   CheckCircle,
@@ -251,11 +250,7 @@ export default function PublicSubmitPage() {
                 parentName: existing?.parentName,
                 createdPersonId: p.id,
                 gender: p.gender,
-                birthDate: p.birthDate || existing?.birthDate || undefined,
-                birthPlace: p.birthPlace || existing?.birthPlace || undefined,
-                residence: p.residence || existing?.residence || undefined,
-                deathDate: p.deathDate || existing?.deathDate || undefined,
-                deathPlace: p.deathPlace || existing?.deathPlace || undefined,
+                hasBirthDate: Boolean(p.birthDate) || Boolean(existing?.hasBirthDate),
               });
             }
           }
@@ -269,11 +264,7 @@ export default function PublicSubmitPage() {
               ...existing,
               createdPersonId: p.id,
               gender: p.gender,
-              birthDate: p.birthDate || existing.birthDate || undefined,
-              birthPlace: p.birthPlace || existing.birthPlace || undefined,
-              residence: p.residence || existing.residence || undefined,
-              deathDate: p.deathDate || existing.deathDate || undefined,
-              deathPlace: p.deathPlace || existing.deathPlace || undefined,
+              hasBirthDate: Boolean(p.birthDate) || Boolean(existing.hasBirthDate),
             });
           }
         }
@@ -352,17 +343,12 @@ export default function PublicSubmitPage() {
         ? currentExpanded.localId
         : null;
 
+    // Privacy-safe: only pre-fill name & gender, never expose existing dates, places, or residences
     const patch: Partial<MemberEntry> = {
       isUpdate: true,
       targetPersonId: member.createdPersonId,
       fullName: member.fullName,
       gender: member.gender === 'female' ? 'female' : 'male',
-      birthDate: member.birthDate || '',
-      birthPlace: member.birthPlace || '',
-      residence: member.residence || '',
-      isDeceased: Boolean(member.deathDate),
-      deathDate: member.deathDate === 'UNKNOWN' ? '' : (member.deathDate || ''),
-      deathPlace: member.deathPlace || '',
       relationChoice:
         member.relationToBranch === 'other' ? 'spouse' : member.relationToBranch,
       connectorName: member.parentName || '',
@@ -905,15 +891,6 @@ export default function PublicSubmitPage() {
                                     targetPersonId: found.createdPersonId,
                                     fullName: found.fullName,
                                     gender: found.gender === 'female' ? 'female' : 'male',
-                                    birthDate: found.birthDate || entry.birthDate,
-                                    birthPlace: found.birthPlace || entry.birthPlace,
-                                    residence: found.residence || entry.residence,
-                                    isDeceased: Boolean(found.deathDate),
-                                    deathDate:
-                                      found.deathDate === 'UNKNOWN'
-                                        ? ''
-                                        : found.deathDate || entry.deathDate,
-                                    deathPlace: found.deathPlace || entry.deathPlace,
                                   });
                                 } else {
                                   updateEntry(entry.localId, { fullName: selectedName });
@@ -924,15 +901,12 @@ export default function PublicSubmitPage() {
                                 <SelectValue placeholder="Pilih nama anggota dari daftar cabang..." />
                               </SelectTrigger>
                               <SelectContent className="max-h-64">
-                                {approvedMembers.map((m, mIdx) => {
-                                  const yLabel = formatShortYearLabel(m.birthDate);
-                                  return (
-                                    <SelectItem key={`${m.fullName}-${mIdx}`} value={m.fullName}>
-                                      {m.fullName}{' '}
-                                      {yLabel ? `(${yLabel})` : '— Belum ada tanggal lahir'}
-                                    </SelectItem>
-                                  );
-                                })}
+                                {approvedMembers.map((m, mIdx) => (
+                                  <SelectItem key={`${m.fullName}-${mIdx}`} value={m.fullName}>
+                                    {m.fullName}
+                                    {!m.hasBirthDate ? ' — Belum ada tanggal lahir' : ''}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           ) : null}

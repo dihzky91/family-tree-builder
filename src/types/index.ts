@@ -282,18 +282,14 @@ export const SubmissionFormSchema = z.object({
 
 export type SubmissionFormData = z.infer<typeof SubmissionFormSchema>;
 
-// Approved member info (for public display & quick self-update)
+// Approved member info (for public display & quick self-update - privacy safe: no personal dates/addresses exposed)
 export interface ApprovedMemberInfo {
   fullName: string;
   relationToBranch: RelationToBranch;
   parentName?: string;
   createdPersonId?: string;
   gender?: Gender;
-  birthDate?: string;
-  birthPlace?: string;
-  residence?: string;
-  deathDate?: string;
-  deathPlace?: string;
+  hasBirthDate?: boolean;
 }
 
 // ============= NUCLEAR FAMILY (for family grouping feature) =============

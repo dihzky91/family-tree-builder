@@ -262,11 +262,7 @@ export async function getApprovedMembersByBranch(branchId: string): Promise<Appr
                 : item.parent_name || existing?.parentName || undefined,
             createdPersonId: item.created_person_id || existing?.createdPersonId || undefined,
             gender: (item.gender as 'male' | 'female' | 'unknown') || existing?.gender,
-            birthDate: item.birth_date || existing?.birthDate || undefined,
-            birthPlace: item.birth_place || existing?.birthPlace || undefined,
-            residence: item.residence || existing?.residence || undefined,
-            deathDate: item.death_date || existing?.deathDate || undefined,
-            deathPlace: item.death_place || existing?.deathPlace || undefined,
+            hasBirthDate: Boolean(item.birth_date) || Boolean(existing?.hasBirthDate),
         });
     }
 
