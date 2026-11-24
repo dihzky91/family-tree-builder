@@ -318,6 +318,11 @@ export function AddRelativeWizardDialog({
   const connectRelativeToAnchor = async (targetPerson: Person, role: RelativeRole) => {
     if (!anchorPerson) return;
 
+    // Include targetPerson in the persons list so validation works immediately after async addPerson()
+    const currentPersons = persons.some((p) => p.id === targetPerson.id)
+      ? persons
+      : [...persons, targetPerson];
+
     const category = ROLE_CONFIGS[role].category;
 
     if (category === 'parent') {
@@ -325,7 +330,7 @@ export function AddRelativeWizardDialog({
         'PARENT_CHILD',
         targetPerson.id,
         anchorPerson.id,
-        persons,
+        currentPersons,
         relationships
       );
       if (!check.valid) {
@@ -379,7 +384,7 @@ export function AddRelativeWizardDialog({
         'SPOUSE',
         anchorPerson.id,
         targetPerson.id,
-        persons,
+        currentPersons,
         relationships
       );
       if (!check.valid) {
@@ -400,7 +405,7 @@ export function AddRelativeWizardDialog({
         'PARENT_CHILD',
         anchorPerson.id,
         targetPerson.id,
-        persons,
+        currentPersons,
         relationships
       );
       if (!check.valid) {
@@ -496,19 +501,31 @@ export function AddRelativeWizardDialog({
           return;
         }
 
-        const createdPerson = await addPerson({
-          fullName: fullName.trim(),
-          gender,
-          birthDate: birthDate.trim() || null,
-          birthPlace: birthPlace.trim() || null,
-          deathDate: !isLiving ? deathDate.trim() || 'Wafat' : null,
-          deathPlace: !isLiving ? deathPlace.trim() || null : null,
-          residence: residence.trim() || null,
-          photoUrl: photoUrl || null,
-          notes: notes.trim() || null,
-          tags: [],
-          confidenceScore: 75,
-        });
+        // Reuse already-created person if retrying after a relationship validation error
+        const existingExact = persons.find(
+          (p) =>
+            p.fullName.toLowerCase() === fullName.trim().toLowerCase() &&
+            p.gender === gender &&
+            !relationships.some(
+              (r) => r.fromPersonId === p.id || r.toPersonId === p.id
+            )
+        );
+
+        const createdPerson =
+          existingExact ||
+          (await addPerson({
+            fullName: fullName.trim(),
+            gender,
+            birthDate: birthDate.trim() || null,
+            birthPlace: birthPlace.trim() || null,
+            deathDate: !isLiving ? deathDate.trim() || 'Wafat' : null,
+            deathPlace: !isLiving ? deathPlace.trim() || null : null,
+            residence: residence.trim() || null,
+            photoUrl: photoUrl || null,
+            notes: notes.trim() || null,
+            tags: [],
+            confidenceScore: 75,
+          }));
 
         await connectRelativeToAnchor(createdPerson, selectedRole);
         toast.success(
