@@ -23,8 +23,9 @@ import {
 import { ApprovedMembersCard } from '@/components/submission/ApprovedMembersCard';
 import { getBranchByCode } from '@/storage/supabase/branchQueries';
 import { getApprovedMembersByBranch, createSubmission } from '@/storage/supabase/submissionQueries';
-import { findPublicShareForBranch } from '@/storage/supabase/shareQueries';
+import { findPublicShareForBranch, unlockPublicShare } from '@/storage/supabase/shareQueries';
 import { useFamilyStore } from '@/store/familyStore';
+import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 import type { Branch, ApprovedMemberInfo, RelationToBranch } from '@/types';
 import {
   CheckCircle,
@@ -44,6 +45,7 @@ import {
   Camera,
   X,
   TreePine,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -171,7 +173,7 @@ function sortEntriesForSubmission(entries: MemberEntry[]): MemberEntry[] {
 
 export default function PublicSubmitPage() {
   const { branchCode } = useParams<{ branchCode: string }>();
-  const { findDuplicates } = useFamilyStore();
+  const { findDuplicates, persons: storePersons } = useFamilyStore();
 
   const [branch, setBranch] = useState<Branch | null>(null);
   const [approvedMembers, setApprovedMembers] = useState<ApprovedMemberInfo[]>([]);
@@ -229,7 +231,54 @@ export default function PublicSubmitPage() {
           getApprovedMembersByBranch(branchData.id),
           findPublicShareForBranch(branchCode, branchData.id).catch(() => null),
         ]);
-        setApprovedMembers(members);
+
+        // Also merge members from public share snapshot (if unlocked/no-PIN) or in-memory store
+        // so members added directly by Admin also appear in the "Lengkapi / Update" list!
+        const mergedByName = new Map<string, ApprovedMemberInfo>();
+        for (const m of members) {
+          mergedByName.set(m.fullName.trim().toLowerCase(), m);
+        }
+
+        if (shareLink) {
+          const unlocked = await unlockPublicShare(shareLink.code).catch(() => null);
+          if (unlocked && unlocked.status === 'ok') {
+            for (const p of unlocked.payload.persons) {
+              const key = p.fullName.trim().toLowerCase();
+              const existing = mergedByName.get(key);
+              mergedByName.set(key, {
+                fullName: p.fullName,
+                relationToBranch: existing?.relationToBranch || 'child',
+                parentName: existing?.parentName,
+                createdPersonId: p.id,
+                gender: p.gender,
+                birthDate: p.birthDate || existing?.birthDate || undefined,
+                birthPlace: p.birthPlace || existing?.birthPlace || undefined,
+                residence: p.residence || existing?.residence || undefined,
+                deathDate: p.deathDate || existing?.deathDate || undefined,
+                deathPlace: p.deathPlace || existing?.deathPlace || undefined,
+              });
+            }
+          }
+        }
+
+        for (const p of storePersons) {
+          const key = p.fullName.trim().toLowerCase();
+          if (mergedByName.has(key)) {
+            const existing = mergedByName.get(key)!;
+            mergedByName.set(key, {
+              ...existing,
+              createdPersonId: p.id,
+              gender: p.gender,
+              birthDate: p.birthDate || existing.birthDate || undefined,
+              birthPlace: p.birthPlace || existing.birthPlace || undefined,
+              residence: p.residence || existing.residence || undefined,
+              deathDate: p.deathDate || existing.deathDate || undefined,
+              deathPlace: p.deathPlace || existing.deathPlace || undefined,
+            });
+          }
+        }
+
+        setApprovedMembers(Array.from(mergedByName.values()));
         setPublicShareInfo(shareLink);
       } catch (err) {
         console.error('Error loading data:', err);
@@ -763,9 +812,59 @@ export default function PublicSubmitPage() {
                   {/* Card Body */}
                   {isExpanded && (
                     <div className="p-4 sm:p-5 space-y-5 border-t">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-border/70 bg-muted/20 p-3">
+                      {/* Mode Switcher: Tambah Anggota Baru vs Lengkapi / Update Anggota Terdaftar */}
+                      <div className="space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateEntry(entry.localId, {
+                                isUpdate: false,
+                                targetPersonId: undefined,
+                              })
+                            }
+                            className={cn(
+                              'flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-xs font-semibold transition-all',
+                              !entry.isUpdate
+                                ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
+                                : 'border-border hover:border-primary/40 text-muted-foreground'
+                            )}
+                          >
+                            <UserPlus className="w-4 h-4 shrink-0" />
+                            <div>
+                              <p>Tambah Anggota Baru</p>
+                              <p className="text-[10px] font-normal opacity-80">
+                                Belum pernah terdaftar di silsilah
+                              </p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateEntry(entry.localId, {
+                                isUpdate: true,
+                              })
+                            }
+                            className={cn(
+                              'flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-xs font-semibold transition-all',
+                              entry.isUpdate
+                                ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
+                                : 'border-border hover:border-primary/40 text-muted-foreground'
+                            )}
+                          >
+                            <Pencil className="w-4 h-4 shrink-0" />
+                            <div>
+                              <p>Lengkapi / Update Anggota Terdaftar</p>
+                              <p className="text-[10px] font-normal opacity-80">
+                                Susulkan tanggal lahir / foto / biodata
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+
                         {idx === 0 && (
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 px-1 pt-0.5">
                             <Checkbox
                               id={`self-${entry.localId}`}
                               checked={Boolean(entry.isSelf)}
@@ -785,25 +884,63 @@ export default function PublicSubmitPage() {
                             </Label>
                           </div>
                         )}
-
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`update-${entry.localId}`}
-                            checked={Boolean(entry.isUpdate)}
-                            onCheckedChange={(checked) => {
-                              updateEntry(entry.localId, {
-                                isUpdate: Boolean(checked),
-                              });
-                            }}
-                          />
-                          <Label
-                            htmlFor={`update-${entry.localId}`}
-                            className="text-xs sm:text-sm cursor-pointer"
-                          >
-                            Lengkapi / update anggota yang <strong>sudah terdaftar sebelumnya</strong>
-                          </Label>
-                        </div>
                       </div>
+
+                      {/* Quick Picker when updating an already registered member */}
+                      {entry.isUpdate && (
+                        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3.5 space-y-2">
+                          <Label className="text-xs sm:text-sm font-semibold text-primary">
+                            Pilih Anggota yang Ingin Dilengkapi / Diperbarui Datanya
+                          </Label>
+                          {approvedMembers.length > 0 ? (
+                            <Select
+                              value={entry.fullName}
+                              onValueChange={(selectedName) => {
+                                const found = approvedMembers.find(
+                                  (m) => m.fullName === selectedName
+                                );
+                                if (found) {
+                                  updateEntry(entry.localId, {
+                                    isUpdate: true,
+                                    targetPersonId: found.createdPersonId,
+                                    fullName: found.fullName,
+                                    gender: found.gender === 'female' ? 'female' : 'male',
+                                    birthDate: found.birthDate || entry.birthDate,
+                                    birthPlace: found.birthPlace || entry.birthPlace,
+                                    residence: found.residence || entry.residence,
+                                    isDeceased: Boolean(found.deathDate),
+                                    deathDate:
+                                      found.deathDate === 'UNKNOWN'
+                                        ? ''
+                                        : found.deathDate || entry.deathDate,
+                                    deathPlace: found.deathPlace || entry.deathPlace,
+                                  });
+                                } else {
+                                  updateEntry(entry.localId, { fullName: selectedName });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="bg-background h-9 text-xs">
+                                <SelectValue placeholder="Pilih nama anggota dari daftar cabang..." />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-64">
+                                {approvedMembers.map((m, mIdx) => {
+                                  const yLabel = formatShortYearLabel(m.birthDate);
+                                  return (
+                                    <SelectItem key={`${m.fullName}-${mIdx}`} value={m.fullName}>
+                                      {m.fullName}{' '}
+                                      {yLabel ? `(${yLabel})` : '— Belum ada tanggal lahir'}
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                          ) : null}
+                          <p className="text-[11px] text-muted-foreground">
+                            💡 Pilih nama anggota di atas (atau ketik langsung pada kolom <strong>Nama Lengkap</strong> di bawah), lalu isi <strong>Tanggal Lahir</strong> atau biodata yang ingin dilengkapi.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Role / Position Picker (hidden when updating an existing member) */}
                       {!entry.isUpdate && (
