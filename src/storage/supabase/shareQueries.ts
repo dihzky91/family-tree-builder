@@ -118,7 +118,32 @@ function writeLocalShares(shares: StoredLocalShare[]) {
 }
 
 /**
- * Extract scoped persons & relationships for a share link:
+ * Strip street-level address segments (e.g. "Jl. Merdeka No. 10, RT 01/02, Bandung" -> "Bandung")
+ * while preserving the city/regency name so GeoMapView city markers still appear!
+ */
+function sanitizePlaceToCityOnly(rawPlace?: string | null): string | null {
+  if (!rawPlace) return null;
+  const trimmed = rawPlace.trim();
+  if (!trimmed) return null;
+
+  const streetPattern =
+    /\b(jl\.?|jln\.?|jalan|gg\.?|gang|no\.?\s*\d|rt\.?\s*\d|rw\.?\s*\d|blok\s+[a-z0-9]|perum\.?|perumahan|komp\.?|komplek|kav\.?|apartemen|cluster)\b/i;
+
+  const segments = trimmed
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // Filter out segments that look like street/house numbers
+  const citySegments = segments.filter((seg) => !streetPattern.test(seg));
+
+  if (citySegments.length > 0) {
+    return citySegments.join(', ');
+  }
+
+  // If a single string without commas had street details, hide it; otherwise keep the city name
+  return streetPattern.test(trimmed) ? null : trimmed;
+}
  * - 'full': all persons and relationships
  * - 'branch': the branch's rootPersonId + all descendants + all spouses (and parents of root if needed)
  */
@@ -192,12 +217,12 @@ export function computeScopedShareData(
   const sanitizedPersons = scopedPersons.map((person) => {
     const isLiving = !person.deathDate;
     if (options.hideLivingDetails && isLiving) {
-      // Keep only birth year (YYYY) if birthDate exists, hide exact day/month, residence address, and personal notes
+      // Keep only birth year (YYYY) if birthDate exists, keep city/regency for GeoMapView markers (strip street addresses), and hide personal notes
       const yearMatch = person.birthDate?.match(/\d{4}/);
       return {
         ...person,
         birthDate: yearMatch ? yearMatch[0] : null,
-        residence: null,
+        residence: sanitizePlaceToCityOnly(person.residence),
         notes: null,
       };
     }
