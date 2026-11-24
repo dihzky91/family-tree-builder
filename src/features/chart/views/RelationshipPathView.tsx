@@ -42,6 +42,7 @@ interface RelationshipPathViewProps {
   relationships: Relationship[];
   selectedPersonId: string | null;
   onSelectPerson: (id: string) => void;
+  readOnly?: boolean;
 }
 
 export function RelationshipPathView({
@@ -49,6 +50,7 @@ export function RelationshipPathView({
   relationships,
   selectedPersonId,
   onSelectPerson,
+  readOnly = false,
 }: RelationshipPathViewProps) {
   const [personAId, setPersonAId] = useState<string | null>(selectedPersonId);
   const [personBId, setPersonBId] = useState<string | null>(null);
@@ -232,22 +234,24 @@ export function RelationshipPathView({
                 Leluhur Bersama: {commonAncestor.fullName}
               </Badge>
             )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs bg-background/90">
-                  <Download className="h-3.5 w-3.5" />
-                  <span className="hidden md:inline">Export</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => handleExport('png')} className="text-xs">
-                  Simpan PNG (HD)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('svg')} className="text-xs">
-                  Simpan SVG (Vektor)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!readOnly && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs bg-background/90">
+                    <Download className="h-3.5 w-3.5" />
+                    <span className="hidden md:inline">Export</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={() => handleExport('png')} className="text-xs">
+                    Simpan PNG (HD)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('svg')} className="text-xs">
+                    Simpan SVG (Vektor)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         )}
       </div>

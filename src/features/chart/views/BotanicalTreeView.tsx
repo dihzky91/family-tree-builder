@@ -39,6 +39,7 @@ interface BotanicalTreeViewProps {
   relationships: Relationship[];
   selectedPersonId: string | null;
   onSelectPerson: (id: string) => void;
+  readOnly?: boolean;
 }
 
 type TreeDirectionMode = 'descendants' | 'ancestors';
@@ -344,6 +345,7 @@ export function BotanicalTreeView({
   relationships,
   selectedPersonId,
   onSelectPerson,
+  readOnly = false,
 }: BotanicalTreeViewProps) {
   const [rootPersonId, setRootPersonId] = useState<string | null>(selectedPersonId);
   const [directionMode, setDirectionMode] = useState<TreeDirectionMode>('descendants');
@@ -947,22 +949,24 @@ export function BotanicalTreeView({
             </Button>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2.5 text-xs bg-background/90">
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Unduh Poster</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={() => handleExport('png')} className="text-xs">
-                Simpan Gambar PNG (HD)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('svg')} className="text-xs">
-                Simpan Vektor SVG
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!readOnly && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2.5 text-xs bg-background/90">
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Unduh Poster</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={() => handleExport('png')} className="text-xs">
+                  Simpan Gambar PNG (HD)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('svg')} className="text-xs">
+                  Simpan Vektor SVG
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 

@@ -35,6 +35,7 @@ interface HourglassViewProps {
   relationships: Relationship[];
   selectedPersonId: string | null;
   onSelectPerson: (id: string) => void;
+  readOnly?: boolean;
 }
 
 interface TreeNode {
@@ -91,6 +92,7 @@ export function HourglassView({
   relationships,
   selectedPersonId,
   onSelectPerson,
+  readOnly = false,
 }: HourglassViewProps) {
   const [centerPersonId, setCenterPersonId] = useState<string | null>(selectedPersonId);
   const [ancestorDepth, setAncestorDepth] = useState<number>(3);
@@ -523,22 +525,24 @@ export function HourglassView({
             </Button>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs bg-background/90">
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">Export</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={() => handleExport('png')} className="text-xs">
-                Simpan PNG (HD)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('svg')} className="text-xs">
-                Simpan SVG (Vektor)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!readOnly && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs bg-background/90">
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden md:inline">Export</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={() => handleExport('png')} className="text-xs">
+                  Simpan PNG (HD)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('svg')} className="text-xs">
+                  Simpan SVG (Vektor)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 

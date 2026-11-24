@@ -1285,6 +1285,7 @@ export default function PublicSharePage() {
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
                             onSelectPerson={setSelectedPersonId}
+                            readOnly
                           />
                         </motion.div>
                       )}
@@ -1329,6 +1330,7 @@ export default function PublicSharePage() {
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
                             onSelectPerson={setSelectedPersonId}
+                            readOnly
                           />
                         </motion.div>
                       )}
@@ -1339,6 +1341,7 @@ export default function PublicSharePage() {
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
                             onSelectPerson={setSelectedPersonId}
+                            readOnly
                           />
                         </motion.div>
                       )}
@@ -1349,6 +1352,7 @@ export default function PublicSharePage() {
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
                             onSelectPerson={setSelectedPersonId}
+                            readOnly
                           />
                         </motion.div>
                       )}
