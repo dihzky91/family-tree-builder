@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#192f1e" />
+      <stop offset="55%" stop-color="#23442b" />
+      <stop offset="100%" stop-color="#142417" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#68c17b" />
+      <stop offset="100%" stop-color="#d9a066" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bgGrad)" />
+  <circle cx="1040" cy="140" r="240" fill="#409155" opacity="0.12" />
+  <circle cx="140" cy="520" r="220" fill="#d9a066" opacity="0.1" />
+  <rect x="72" y="64" width="1056" height="502" rx="32" fill="#1e3824" stroke="#4f8f5e" stroke-opacity="0.35" stroke-width="2" />
+  <rect x="120" y="116" width="180" height="8" rx="4" fill="url(#accentGrad)" />
+  <text x="120" y="185" fill="#8ce09e" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="24" font-weight="700" letter-spacing="2">SILSILAH KELUARGA DIGITAL</text>
+  <text x="120" y="275" fill="#fbf9f5" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="64" font-weight="800">Pohon Silsilah Keluarga</text>
+  <text x="120" y="345" fill="#d1dfd4" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="30" font-weight="400">Telusuri garis keturunan, tambah anggota keluarga, dan simpan kisah leluhur.</text>
+  <rect x="120" y="425" width="380" height="68" rx="16" fill="#2e5a36" stroke="#68c17b" stroke-width="2" />
+  <text x="156" y="468" fill="#fbf9f5" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="26" font-weight="700">🌳 Buka Pohon &amp; Formulir</text>
+</svg>
