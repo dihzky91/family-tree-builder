@@ -4,6 +4,11 @@ import { Calendar, User, Baby, Cross } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { Person } from '@/types';
+import {
+    getEstimatedYear,
+    getSortableTimestamp,
+    formatFlexibleDate,
+} from '@/lib/flexibleDateUtils';
 
 interface TimelineViewProps {
     persons: Person[];
@@ -12,7 +17,8 @@ interface TimelineViewProps {
 
 interface TimelineEvent {
     year: number;
-    date: Date;
+    timestamp: number;
+    dateLabel: string;
     type: 'birth' | 'death';
     person: Person;
 }
@@ -32,11 +38,13 @@ export function TimelineView({ persons, onSelectPerson }: TimelineViewProps) {
 
             // Add Birth Event
             if (person.birthDate) {
-                const date = new Date(person.birthDate);
-                if (!isNaN(date.getTime())) {
+                const year = getEstimatedYear(person.birthDate);
+                const ts = getSortableTimestamp(person.birthDate);
+                if (year !== null && ts !== null) {
                     events.push({
-                        year: date.getFullYear(),
-                        date,
+                        year,
+                        timestamp: ts,
+                        dateLabel: formatFlexibleDate(person.birthDate) || String(year),
                         type: 'birth',
                         person
                     });
@@ -46,11 +54,13 @@ export function TimelineView({ persons, onSelectPerson }: TimelineViewProps) {
 
             // Add Death Event
             if (person.deathDate) {
-                const date = new Date(person.deathDate);
-                if (!isNaN(date.getTime())) {
+                const year = getEstimatedYear(person.deathDate);
+                const ts = getSortableTimestamp(person.deathDate);
+                if (year !== null && ts !== null) {
                     events.push({
-                        year: date.getFullYear(),
-                        date,
+                        year,
+                        timestamp: ts,
+                        dateLabel: formatFlexibleDate(person.deathDate) || String(year),
                         type: 'death',
                         person
                     });
@@ -64,7 +74,7 @@ export function TimelineView({ persons, onSelectPerson }: TimelineViewProps) {
         });
 
         // Sort events by date (ascending)
-        events.sort((a, b) => a.date.getTime() - b.date.getTime());
+        events.sort((a, b) => a.timestamp - b.timestamp);
 
         // Group by Year
         const grouped = events.reduce((acc, event) => {
@@ -133,7 +143,7 @@ export function TimelineView({ persons, onSelectPerson }: TimelineViewProps) {
                                             </Badge>
                                         </div>
                                         <p className="text-sm text-muted-foreground">
-                                            {event.date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}
+                                            {event.dateLabel}
                                         </p>
                                     </div>
 

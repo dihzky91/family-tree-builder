@@ -16,6 +16,7 @@ import {
 import { Link } from 'react-router-dom';
 import { StatsCardSkeletonGrid, LargeStatsCardSkeleton } from '@/components/skeletons/StatsCardSkeleton';
 import { useMemo } from 'react';
+import { formatShortYearLabel, formatFlexibleDate } from '@/lib/flexibleDateUtils';
 
 export default function DashboardPage() {
   const { persons, relationships, evidence, isLoading } = useFamilyStore();
@@ -164,7 +165,9 @@ export default function DashboardPage() {
                 </div>
                 <h3 className="font-semibold text-lg line-clamp-1">{randomMemory.fullName}</h3>
                 <p className="text-xs text-white/70 line-clamp-1">
-                  {randomMemory.birthDate ? `Lahir: ${new Date(randomMemory.birthDate).getFullYear()}` : 'Anggota Keluarga'}
+                  {randomMemory.birthDate
+                    ? `Lahir: ${formatShortYearLabel(randomMemory.birthDate) || formatFlexibleDate(randomMemory.birthDate)}`
+                    : 'Anggota Keluarga'}
                 </p>
               </div>
             </>

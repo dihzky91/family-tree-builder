@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Person, Relationship, Evidence, AuditLog, FamilyChartPerson, Story, Branch } from '@/types';
 import { storage, setStorageMode, isSupabaseConfigured, type StorageMode } from '@/storage';
 import { getDemoData } from '@/data/demoData';
+import { formatShortYearLabel, getEstimatedYear } from '@/lib/flexibleDateUtils';
 import { deleteEvidenceFile } from '@/lib/evidenceStorage';
 
 interface UndoAction {
@@ -574,7 +575,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
         data: {
           'first name': firstName,
           'last name': lastName,
-          birthday: person.birthDate ? new Date(person.birthDate).getFullYear().toString() : '',
+          birthday: formatShortYearLabel(person.birthDate) || '',
           avatar: person.photoUrl || undefined,
           gender: person.gender === 'male' ? 'M' : person.gender === 'female' ? 'F' : '',
         },
@@ -685,7 +686,10 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
 
       // Check birth date if provided
       if (birthDate && person.birthDate) {
-        const dateSimilar = person.birthDate === birthDate;
+        const y1 = getEstimatedYear(person.birthDate);
+        const y2 = getEstimatedYear(birthDate);
+        const dateSimilar =
+          person.birthDate === birthDate || (y1 !== null && y2 !== null && y1 === y2);
         return nameSimilar && dateSimilar;
       }
 

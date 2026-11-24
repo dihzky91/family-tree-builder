@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PersonForm } from '@/features/people/PersonForm';
 import type { Person } from '@/types';
+import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 
 export default function GalleryPage() {
     const { persons } = useFamilyStore();
@@ -71,9 +72,9 @@ export default function GalleryPage() {
                             <div className="absolute inset-x-0 bottom-0 pt-10 pb-2.5 px-2.5 sm:pb-3 sm:px-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end">
                                 <p className="text-white font-medium text-sm truncate">{person.fullName}</p>
                                 <div className="flex items-center gap-2 mt-1">
-                                    {person.birthDate && (
+                                    {person.birthDate && formatShortYearLabel(person.birthDate) && (
                                         <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-white/20 text-white hover:bg-white/30 border-none">
-                                            {new Date(person.birthDate).getFullYear()}
+                                            {formatShortYearLabel(person.birthDate)}
                                         </Badge>
                                     )}
                                     {person.tags.includes('verified') && (

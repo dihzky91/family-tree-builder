@@ -1,32 +1,41 @@
 import type { Person } from '@/types';
+import {
+    parseFlexibleDate,
+    calculateFlexibleAge,
+    INDONESIAN_MONTHS,
+} from '@/lib/flexibleDateUtils';
 
 export interface UpcomingBirthday {
     person: Person;
     daysUntil: number;
     nextBirthday: Date;
-    ageOnNextBirthday: number;
+    ageOnNextBirthday: number | null;
+    isApproximateAge: boolean;
     isToday: boolean;
     isTomorrow: boolean;
 }
 
-// Get days until next birthday
-export function getDaysUntilBirthday(birthDate: Date): number {
+// Get days until next birthday given 0-indexed month and 1-indexed day
+export function getDaysUntilMonthDay(monthIndex: number, day: number): number {
     const today = new Date();
-    const currentYear = today.getFullYear();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const currentYear = todayStart.getFullYear();
 
-    // Create birthday this year
-    let nextBirthday = new Date(currentYear, birthDate.getMonth(), birthDate.getDate());
+    let nextBirthday = new Date(currentYear, monthIndex, day);
 
-    // If birthday already passed this year, use next year
-    if (nextBirthday < today) {
-        nextBirthday = new Date(currentYear + 1, birthDate.getMonth(), birthDate.getDate());
+    if (nextBirthday < todayStart) {
+        nextBirthday = new Date(currentYear + 1, monthIndex, day);
     }
 
-    // Calculate difference in days
-    const diffTime = nextBirthday.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffTime = nextBirthday.getTime() - todayStart.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
     return diffDays;
+}
+
+// Backwards-compatible helper
+export function getDaysUntilBirthday(birthDate: Date): number {
+    return getDaysUntilMonthDay(birthDate.getMonth(), birthDate.getDate());
 }
 
 // Calculate age on next birthday
@@ -37,97 +46,119 @@ export function getAgeOnNextBirthday(birthDate: Date): number {
 
     let age = currentYear - birthYear;
 
-    // Check if birthday hasn't occurred yet this year
     const todayMonthDay = today.getMonth() * 100 + today.getDate();
     const birthMonthDay = birthDate.getMonth() * 100 + birthDate.getDate();
 
-    if (todayMonthDay < birthMonthDay) {
-        // Birthday this year - age stays the same
-        // age is already correct from initial calculation
-    } else {
-        // Birthday next year
+    if (todayMonthDay > birthMonthDay) {
         age = age + 1;
     }
 
     return age;
 }
 
-// Get upcoming birthdays sorted by date
+// Get upcoming birthdays sorted by date (only includes persons with known month & day)
 export function getUpcomingBirthdays(persons: Person[], limit: number = 10): UpcomingBirthday[] {
     const birthdays: UpcomingBirthday[] = [];
+    const today = new Date();
 
     for (const person of persons) {
         if (!person.birthDate) continue;
 
-        try {
-            const birthDate = new Date(person.birthDate);
-            if (isNaN(birthDate.getTime())) continue; // Invalid date
-            const daysUntil = getDaysUntilBirthday(birthDate);
-            const today = new Date();
-            const nextYear = today.getFullYear() + (daysUntil > 365 ? 0 : (birthDate.getMonth() < today.getMonth() ||
-                (birthDate.getMonth() === today.getMonth() && birthDate.getDate() < today.getDate()) ? 1 : 0));
-
-            const nextBirthday = new Date(nextYear, birthDate.getMonth(), birthDate.getDate());
-            const ageOnNextBirthday = getAgeOnNextBirthday(birthDate);
-
-            birthdays.push({
-                person,
-                daysUntil,
-                nextBirthday,
-                ageOnNextBirthday,
-                isToday: daysUntil === 0,
-                isTomorrow: daysUntil === 1,
-            });
-        } catch (error) {
-            // Skip invalid dates
+        const parsed = parseFlexibleDate(person.birthDate);
+        // Only include in daily birthday countdown if both month and day are specifically known
+        if (!parsed || !parsed.hasSpecificMonthDay || !parsed.date1.month || !parsed.date1.day) {
             continue;
         }
+
+        const monthIndex = parsed.date1.month - 1;
+        const day = parsed.date1.day;
+        const daysUntil = getDaysUntilMonthDay(monthIndex, day);
+
+        const hasPassedThisYear =
+            monthIndex < today.getMonth() ||
+            (monthIndex === today.getMonth() && day < today.getDate());
+        const nextYear = today.getFullYear() + (hasPassedThisYear ? 1 : 0);
+        const nextBirthday = new Date(nextYear, monthIndex, day);
+
+        let ageOnNextBirthday: number | null = null;
+        if (parsed.estimatedYear !== null) {
+            ageOnNextBirthday = nextYear - parsed.estimatedYear;
+        }
+
+        birthdays.push({
+            person,
+            daysUntil,
+            nextBirthday,
+            ageOnNextBirthday,
+            isApproximateAge: parsed.isApproximate,
+            isToday: daysUntil === 0,
+            isTomorrow: daysUntil === 1,
+        });
     }
 
-    // Sort by days until birthday
     birthdays.sort((a, b) => a.daysUntil - b.daysUntil);
 
     return birthdays.slice(0, limit);
 }
 
-// Get all birthdays in a specific month
-export function getBirthdaysByMonth(persons: Person[], month: number, year: number): { day: number; persons: Person[] }[] {
+// Get all birthdays in a specific month with exact day known
+export function getBirthdaysByMonth(
+    persons: Person[],
+    month: number,
+    _year?: number
+): { day: number; persons: Person[] }[] {
     const birthdaysByDay: Record<number, Person[]> = {};
 
     for (const person of persons) {
         if (!person.birthDate) continue;
 
-        try {
-            const birthDate = new Date(person.birthDate);
-            if (isNaN(birthDate.getTime())) continue;
-            if (birthDate.getMonth() === month) {
-                const day = birthDate.getDate();
-                if (!birthdaysByDay[day]) {
-                    birthdaysByDay[day] = [];
-                }
-                birthdaysByDay[day].push(person);
-            }
-        } catch (error) {
+        const parsed = parseFlexibleDate(person.birthDate);
+        if (!parsed || !parsed.hasSpecificMonthDay || !parsed.date1.month || !parsed.date1.day) {
             continue;
+        }
+
+        if (parsed.date1.month - 1 === month) {
+            const day = parsed.date1.day;
+            if (!birthdaysByDay[day]) {
+                birthdaysByDay[day] = [];
+            }
+            birthdaysByDay[day].push(person);
         }
     }
 
-    // Convert to array format
-    return Object.entries(birthdaysByDay).map(([day, persons]) => ({
-        day: parseInt(day),
-        persons,
+    return Object.entries(birthdaysByDay).map(([day, list]) => ({
+        day: parseInt(day, 10),
+        persons: list,
     }));
 }
 
-// Find birthday twins (people with same birthday)
+// Get persons born in a specific month whose exact day of the month is unknown (e.g. "Mei 1950" or "Sekitar Mei 1950")
+export function getMonthOnlyBirthdays(persons: Person[], month: number): Person[] {
+    return persons.filter((person) => {
+        if (!person.birthDate) return false;
+        const parsed = parseFlexibleDate(person.birthDate);
+        if (!parsed) return false;
+        return (
+            parsed.hasSpecificMonth &&
+            !parsed.hasSpecificMonthDay &&
+            parsed.date1.month === month + 1
+        );
+    });
+}
+
+// Find birthday twins (people with same known month & day)
 export function getBirthdayTwins(persons: Person[]): { date: string; persons: Person[] }[] {
     const birthdayGroups: Record<string, Person[]> = {};
 
     for (const person of persons) {
         if (!person.birthDate) continue;
 
-        const birthDate = new Date(person.birthDate);
-        const key = `${birthDate.getMonth()}-${birthDate.getDate()}`;
+        const parsed = parseFlexibleDate(person.birthDate);
+        if (!parsed || !parsed.hasSpecificMonthDay || !parsed.date1.month || !parsed.date1.day) {
+            continue;
+        }
+
+        const key = `${parsed.date1.month - 1}-${parsed.date1.day}`;
 
         if (!birthdayGroups[key]) {
             birthdayGroups[key] = [];
@@ -135,60 +166,61 @@ export function getBirthdayTwins(persons: Person[]): { date: string; persons: Pe
         birthdayGroups[key].push(person);
     }
 
-    // Filter only groups with 2+ people
-    const twins = Object.entries(birthdayGroups)
-        .filter(([_, persons]) => persons.length >= 2)
-        .map(([date, persons]) => ({ date, persons }));
-
-    return twins;
+    return Object.entries(birthdayGroups)
+        .filter(([_, list]) => list.length >= 2)
+        .map(([date, list]) => ({ date, persons: list }));
 }
 
-// Get birthday statistics
+// Get birthday & age statistics
 export function getBirthdayStats(persons: Person[]) {
     const monthCounts: Record<number, number> = {};
     let totalAge = 0;
-    let count = 0;
+    let ageCount = 0;
+    let calendarEligibleCount = 0;
+    let approximateNoDayCount = 0;
 
     for (const person of persons) {
         if (!person.birthDate) continue;
 
-        const birthDate = new Date(person.birthDate);
-        const month = birthDate.getMonth();
+        const parsed = parseFlexibleDate(person.birthDate);
+        if (!parsed) continue;
 
-        monthCounts[month] = (monthCounts[month] || 0) + 1;
-
-        // Calculate current age (account for whether birthday has occurred this year)
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const hasHadBirthdayThisYear =
-            today.getMonth() > birthDate.getMonth() ||
-            (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
-
-        if (!hasHadBirthdayThisYear) {
-            age--;
+        if (parsed.hasSpecificMonthDay) {
+            calendarEligibleCount++;
+        } else {
+            approximateNoDayCount++;
         }
 
-        totalAge += age;
-        count++;
+        // Count birth month if month is known (even if day is unknown)
+        if (parsed.hasSpecificMonth && parsed.date1.month) {
+            const monthIdx = parsed.date1.month - 1;
+            monthCounts[monthIdx] = (monthCounts[monthIdx] || 0) + 1;
+        }
+
+        // Calculate age if year (or estimated year) is known
+        const ageInfo = calculateFlexibleAge(person.birthDate, person.deathDate);
+        if (ageInfo !== null) {
+            totalAge += ageInfo.age;
+            ageCount++;
+        }
     }
 
-    // Find most common month
-    let mostCommonMonth = 0;
+    let mostCommonMonth = -1;
     let maxCount = 0;
-    for (const [month, count] of Object.entries(monthCounts)) {
-        if (count > maxCount) {
-            maxCount = count;
-            mostCommonMonth = parseInt(month);
+    for (const [month, c] of Object.entries(monthCounts)) {
+        if (c > maxCount) {
+            maxCount = c;
+            mostCommonMonth = parseInt(month, 10);
         }
     }
-
-    const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
     return {
-        mostCommonMonth: monthNames[mostCommonMonth],
+        mostCommonMonth: mostCommonMonth >= 0 ? INDONESIAN_MONTHS[mostCommonMonth] : '—',
         mostCommonMonthCount: maxCount,
-        averageAge: count > 0 ? Math.round(totalAge / count) : 0,
-        totalWithBirthdays: count,
+        averageAge: ageCount > 0 ? Math.round(totalAge / ageCount) : 0,
+        totalWithBirthdays: calendarEligibleCount,
+        totalWithEstimatedAge: ageCount,
+        approximateNoDayCount,
     };
 }
 

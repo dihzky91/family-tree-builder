@@ -1,4 +1,5 @@
 import type { Person, Relationship, RelationshipType } from '@/types';
+import { getEstimatedYear } from '@/lib/flexibleDateUtils';
 
 export interface ValidationResult {
   valid: boolean;
@@ -63,21 +64,23 @@ export function validateRelationship(
 
     // Age gap validation (BLOCKING for impossible cases)
     if (fromPerson.birthDate && toPerson.birthDate) {
-      const parentYear = new Date(fromPerson.birthDate).getFullYear();
-      const childYear = new Date(toPerson.birthDate).getFullYear();
-      const ageGap = childYear - parentYear;
+      const parentYear = getEstimatedYear(fromPerson.birthDate);
+      const childYear = getEstimatedYear(toPerson.birthDate);
+      if (parentYear !== null && childYear !== null) {
+        const ageGap = childYear - parentYear;
 
-      // BLOCKING: Child cannot be born before parent
-      if (ageGap < 0) {
-        errors.push(`Tidak valid: Anak lahir ${Math.abs(ageGap)} tahun sebelum orang tua`);
-      }
-      // BLOCKING: Minimum biological age gap (e.g., 12 years)
-      else if (ageGap < 12) {
-        errors.push(`Tidak valid: Selisih usia hanya ${ageGap} tahun. Minimal 12 tahun untuk relasi orang tua-anak`);
-      }
-      // WARNING: Unusually large age gap (e.g., > 80 years) - still allowed
-      else if (ageGap > 80) {
-        warnings.push(`Peringatan: Selisih usia sangat besar (${ageGap} tahun). Pastikan data sudah benar.`);
+        // BLOCKING: Child cannot be born before parent
+        if (ageGap < 0) {
+          errors.push(`Tidak valid: Anak lahir ${Math.abs(ageGap)} tahun sebelum orang tua`);
+        }
+        // BLOCKING: Minimum biological age gap (e.g., 12 years)
+        else if (ageGap < 12) {
+          errors.push(`Tidak valid: Selisih usia hanya ${ageGap} tahun. Minimal 12 tahun untuk relasi orang tua-anak`);
+        }
+        // WARNING: Unusually large age gap (e.g., > 80 years) - still allowed
+        else if (ageGap > 80) {
+          warnings.push(`Peringatan: Selisih usia sangat besar (${ageGap} tahun). Pastikan data sudah benar.`);
+        }
       }
     }
   }

@@ -10,6 +10,11 @@ import {
   type PublicShareMeta,
 } from '@/storage/supabase/shareQueries';
 import type { Person, PublicSharePayload, Relationship } from '@/types';
+import {
+  formatFlexibleDate,
+  formatShortYearLabel,
+  getEstimatedYear,
+} from '@/lib/flexibleDateUtils';
 import { GenerationView } from '@/features/chart/views/GenerationView';
 import { FamilyView } from '@/features/chart/views/FamilyView';
 import { PedigreeView } from '@/features/chart/views/PedigreeView';
@@ -562,14 +567,10 @@ export default function PublicSharePage() {
     if (!person.birthDate) return null;
     const isLiving = !person.deathDate;
     if (payload?.share.hideLivingDetails && isLiving) {
-      const y = new Date(person.birthDate).getFullYear();
-      return Number.isNaN(y) ? null : `Tahun ${y}`;
+      const y = getEstimatedYear(person.birthDate);
+      return y === null ? null : `Tahun ${y}`;
     }
-    return new Date(person.birthDate).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    return formatFlexibleDate(person.birthDate);
   };
 
   if (isLoading) {
@@ -655,13 +656,7 @@ export default function PublicSharePage() {
 
   const renderPersonDetailContent = (person: Person) => {
     const birthLabel = formatBirthDisplay(person);
-    const deathLabel = person.deathDate
-      ? new Date(person.deathDate).toLocaleDateString('id-ID', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })
-      : null;
+    const deathLabel = formatFlexibleDate(person.deathDate);
 
     return (
       <div className="p-4 space-y-4">
@@ -1184,7 +1179,7 @@ export default function PublicSharePage() {
                                   </span>
                                 </div>
                                 <span className="shrink-0 text-[10px] text-muted-foreground">
-                                  {item.birthDate ? new Date(item.birthDate).getFullYear() : ''}
+                                  {formatShortYearLabel(item.birthDate) || ''}
                                 </span>
                               </button>
                             ))}
@@ -1485,7 +1480,7 @@ export default function PublicSharePage() {
                     <div className="min-w-0">
                       <p className="truncate font-medium">{item.fullName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.birthDate ? new Date(item.birthDate).getFullYear() : '—'}
+                        {formatShortYearLabel(item.birthDate) || '—'}
                       </p>
                     </div>
                     <Badge variant="secondary">Pilih</Badge>

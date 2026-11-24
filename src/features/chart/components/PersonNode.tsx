@@ -3,6 +3,7 @@ import { User, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { Person } from '@/types';
+import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 
 interface PersonNodeProps {
   person: Person;
@@ -42,8 +43,8 @@ export const PersonNode = memo(function PersonNode({
   layoutId,
   reduceMotion = false,
 }: PersonNodeProps) {
-  const yearBirth = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
-  const yearDeath = person.deathDate ? new Date(person.deathDate).getFullYear() : null;
+  const yearBirth = formatShortYearLabel(person.birthDate);
+  const yearDeath = formatShortYearLabel(person.deathDate);
 
   const sizeConfig = {
     small: { card: 'p-2 w-[100px]', avatar: 'w-8 h-8', nameSize: 'text-[11px]', yearSize: 'text-[9px]', maxChars: 14 },

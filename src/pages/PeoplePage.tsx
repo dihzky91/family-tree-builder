@@ -63,6 +63,10 @@ import {
   PersonDetailSheet,
   getPersonInitials,
 } from '@/features/people/components/PersonDetailSheet';
+import {
+  formatLifeSpan,
+  getSortableTimestamp,
+} from '@/lib/flexibleDateUtils';
 import { RelationshipForm } from '@/features/relationships/RelationshipForm';
 import { calculateNuclearFamilies } from '@/lib/familyUnits';
 import { PersonForm } from '@/features/people/PersonForm';
@@ -174,16 +178,20 @@ export default function PeoplePage() {
         case 'name_desc':
           return b.fullName.localeCompare(a.fullName, 'id');
         case 'birth_asc': {
-          if (!a.birthDate && !b.birthDate) return 0;
-          if (!a.birthDate) return 1;
-          if (!b.birthDate) return -1;
-          return new Date(a.birthDate).getTime() - new Date(b.birthDate).getTime();
+          const tA = getSortableTimestamp(a.birthDate);
+          const tB = getSortableTimestamp(b.birthDate);
+          if (tA === null && tB === null) return 0;
+          if (tA === null) return 1;
+          if (tB === null) return -1;
+          return tA - tB;
         }
         case 'birth_desc': {
-          if (!a.birthDate && !b.birthDate) return 0;
-          if (!a.birthDate) return 1;
-          if (!b.birthDate) return -1;
-          return new Date(b.birthDate).getTime() - new Date(a.birthDate).getTime();
+          const tA = getSortableTimestamp(a.birthDate);
+          const tB = getSortableTimestamp(b.birthDate);
+          if (tA === null && tB === null) return 0;
+          if (tA === null) return 1;
+          if (tB === null) return -1;
+          return tB - tA;
         }
         case 'confidence_desc':
           return b.confidenceScore - a.confidenceScore;
@@ -591,8 +599,7 @@ export default function PeoplePage() {
                   <TableBody>
                     {filteredPersons.map((person) => {
                       const relCount = relationCountMap.get(person.id) || 0;
-                      const birthYear = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
-                      const deathYear = person.deathDate ? new Date(person.deathDate).getFullYear() : null;
+                      const lifeSpanLabel = formatLifeSpan(person.birthDate, person.deathDate, '—');
                       const locationText = person.residence || person.birthPlace;
 
                       return (
@@ -646,11 +653,7 @@ export default function PeoplePage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {birthYear
-                              ? deathYear
-                                ? `${birthYear} – ${deathYear}`
-                                : `${birthYear}`
-                              : '—'}
+                            {lifeSpanLabel}
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                             <span className="truncate block max-w-[160px]">{locationText || '—'}</span>
@@ -733,8 +736,11 @@ export default function PeoplePage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {filteredPersons.map((person) => {
                 const relCount = relationCountMap.get(person.id) || 0;
-                const birthYear = person.birthDate ? new Date(person.birthDate).getFullYear() : null;
-                const deathYear = person.deathDate ? new Date(person.deathDate).getFullYear() : null;
+                const lifeSpanLabel = formatLifeSpan(
+                  person.birthDate,
+                  person.deathDate,
+                  'Tahun tidak diketahui'
+                );
                 const locationText = person.residence || person.birthPlace;
 
                 return (
@@ -788,11 +794,7 @@ export default function PeoplePage() {
                             <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
                               <Calendar className="w-3 h-3 shrink-0" />
                               <span className="truncate">
-                                {birthYear
-                                  ? deathYear
-                                    ? `${birthYear} – ${deathYear}`
-                                    : `${birthYear}`
-                                  : 'Tahun tidak diketahui'}
+                                {lifeSpanLabel}
                               </span>
                             </div>
                           </div>

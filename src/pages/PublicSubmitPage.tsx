@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FlexibleDateInput } from '@/components/ui/flexible-date-input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -63,6 +64,8 @@ interface MemberEntry {
   connectorName: string;
   photoUrl?: string;
   isSelf?: boolean;
+  isUpdate?: boolean;
+  targetPersonId?: string;
 }
 
 async function compressPhotoToDataUrl(file: File): Promise<string> {
@@ -275,11 +278,13 @@ export default function PublicSubmitPage() {
   };
 
   const handlePickApprovedMember = (memberName: string) => {
-    // Fill into the currently expanded card (or last card)
+    // Fill into the currently expanded card (or last card) as connector parent/spouse
     const target =
       entries.find((e) => expandedIds[e.localId]) || entries[entries.length - 1];
     if (!target) return;
     updateEntry(target.localId, {
+      isUpdate: false,
+      targetPersonId: undefined,
       relationChoice: target.relationChoice === 'child' ? 'grandchild' : target.relationChoice,
       connectorName: memberName,
     });
@@ -288,6 +293,55 @@ export default function PublicSubmitPage() {
       behavior: 'smooth',
       block: 'center',
     });
+  };
+
+  const handlePickUpdateMember = (member: ApprovedMemberInfo) => {
+    // Reuse currently expanded card if it has no name yet, otherwise add a new card
+    const currentExpanded = entries.find((e) => expandedIds[e.localId]);
+    const targetId =
+      currentExpanded && !currentExpanded.fullName.trim()
+        ? currentExpanded.localId
+        : null;
+
+    const patch: Partial<MemberEntry> = {
+      isUpdate: true,
+      targetPersonId: member.createdPersonId,
+      fullName: member.fullName,
+      gender: member.gender === 'female' ? 'female' : 'male',
+      birthDate: member.birthDate || '',
+      birthPlace: member.birthPlace || '',
+      residence: member.residence || '',
+      isDeceased: Boolean(member.deathDate),
+      deathDate: member.deathDate === 'UNKNOWN' ? '' : (member.deathDate || ''),
+      deathPlace: member.deathPlace || '',
+      relationChoice:
+        member.relationToBranch === 'other' ? 'spouse' : member.relationToBranch,
+      connectorName: member.parentName || '',
+    };
+
+    if (targetId) {
+      updateEntry(targetId, patch);
+      setExpandedIds({ [targetId]: true });
+      setTimeout(() => {
+        document.getElementById(`member-card-${targetId}`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 60);
+    } else {
+      const next: MemberEntry = {
+        ...createEmptyEntry('child'),
+        ...patch,
+      };
+      setEntries((prev) => [...prev, next]);
+      setExpandedIds({ [next.localId]: true });
+      setTimeout(() => {
+        document.getElementById(`member-card-${next.localId}`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 80);
+    }
   };
 
   const handleSubmitAll = async (e: React.FormEvent) => {
@@ -321,6 +375,7 @@ export default function PublicSubmitPage() {
         return;
       }
       if (
+        !entry.isUpdate &&
         entry.relationChoice !== 'child' &&
         entry.relationChoice !== 'sibling' &&
         !entry.connectorName.trim()
@@ -349,15 +404,17 @@ export default function PublicSubmitPage() {
       for (let i = 0; i < orderedEntries.length; i++) {
         const entry = orderedEntries[i];
         const duplicates = findDuplicates(entry.fullName.trim(), entry.birthDate || undefined);
-        const possibleDuplicateId = duplicates.length > 0 ? duplicates[0].id : undefined;
+        const possibleDuplicateId =
+          entry.targetPersonId || (duplicates.length > 0 ? duplicates[0].id : undefined);
 
         const dbRelation: RelationToBranch =
           entry.relationChoice === 'spouse' || entry.relationChoice === 'sibling'
             ? 'other'
             : entry.relationChoice;
 
-        const formattedConnector =
-          entry.relationChoice === 'sibling'
+        const formattedConnector = entry.isUpdate
+          ? `Pembaruan data anggota: ${entry.fullName.trim()}`
+          : entry.relationChoice === 'sibling'
             ? `Saudara kandung dari ${entry.connectorName.trim() || branch.name}`
             : entry.relationChoice !== 'child' && entry.connectorName.trim()
               ? entry.relationChoice === 'spouse'
@@ -373,7 +430,7 @@ export default function PublicSubmitPage() {
           gender: entry.gender,
           birthDate: entry.birthDate || undefined,
           birthPlace: entry.birthPlace.trim() || undefined,
-          deathDate: entry.isDeceased && entry.deathDate ? entry.deathDate : undefined,
+          deathDate: entry.isDeceased ? (entry.deathDate || 'UNKNOWN') : undefined,
           deathPlace:
             entry.isDeceased && entry.deathPlace.trim() ? entry.deathPlace.trim() : undefined,
           residence:
@@ -387,7 +444,7 @@ export default function PublicSubmitPage() {
 
         sentList.push({
           fullName: entry.fullName.trim(),
-          role: RELATION_LABELS[entry.relationChoice],
+          role: entry.isUpdate ? 'Pembaruan Data' : RELATION_LABELS[entry.relationChoice],
           connector: formattedConnector,
         });
 
@@ -564,6 +621,7 @@ export default function PublicSubmitPage() {
             members={approvedMembers}
             branchName={branch?.name || ''}
             onSelectMember={handlePickApprovedMember}
+            onUpdateMember={handlePickUpdateMember}
           />
         )}
 
@@ -648,14 +706,24 @@ export default function PublicSubmitPage() {
                         #{idx + 1}
                       </Badge>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate">
-                          {entry.fullName.trim() || `Anggota Baru #${idx + 1}`}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold truncate">
+                            {entry.fullName.trim() || `Anggota Baru #${idx + 1}`}
+                          </p>
+                          {entry.isUpdate && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/15 text-primary shrink-0">
+                              Update Data
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-[11px] text-muted-foreground truncate">
-                          {RELATION_LABELS[entry.relationChoice]}
-                          {entry.relationChoice !== 'child' && entry.connectorName
-                            ? ` · ${entry.connectorName}`
-                            : ''}
+                          {entry.isUpdate
+                            ? 'Melengkapi / memperbarui data anggota yang sudah terdaftar'
+                            : `${RELATION_LABELS[entry.relationChoice]}${
+                                entry.relationChoice !== 'child' && entry.connectorName
+                                  ? ` · ${entry.connectorName}`
+                                  : ''
+                              }`}
                         </p>
                       </div>
                     </div>
@@ -695,29 +763,50 @@ export default function PublicSubmitPage() {
                   {/* Card Body */}
                   {isExpanded && (
                     <div className="p-4 sm:p-5 space-y-5 border-t">
-                      {idx === 0 && (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-border/70 bg-muted/20 p-3">
+                        {idx === 0 && (
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`self-${entry.localId}`}
+                              checked={Boolean(entry.isSelf)}
+                              onCheckedChange={(checked) => {
+                                const flag = Boolean(checked);
+                                updateEntry(entry.localId, {
+                                  isSelf: flag,
+                                  fullName: flag ? submittedBy : entry.fullName,
+                                });
+                              }}
+                            />
+                            <Label
+                              htmlFor={`self-${entry.localId}`}
+                              className="text-xs sm:text-sm cursor-pointer"
+                            >
+                              Ini adalah data <strong>diri saya sendiri</strong>
+                            </Label>
+                          </div>
+                        )}
+
                         <div className="flex items-center space-x-2">
                           <Checkbox
-                            id={`self-${entry.localId}`}
-                            checked={Boolean(entry.isSelf)}
+                            id={`update-${entry.localId}`}
+                            checked={Boolean(entry.isUpdate)}
                             onCheckedChange={(checked) => {
-                              const flag = Boolean(checked);
                               updateEntry(entry.localId, {
-                                isSelf: flag,
-                                fullName: flag ? submittedBy : entry.fullName,
+                                isUpdate: Boolean(checked),
                               });
                             }}
                           />
                           <Label
-                            htmlFor={`self-${entry.localId}`}
+                            htmlFor={`update-${entry.localId}`}
                             className="text-xs sm:text-sm cursor-pointer"
                           >
-                            Ini adalah data <strong>diri saya sendiri</strong>
+                            Lengkapi / update anggota yang <strong>sudah terdaftar sebelumnya</strong>
                           </Label>
                         </div>
-                      )}
+                      </div>
 
-                      {/* Role / Position Picker */}
+                      {/* Role / Position Picker (hidden when updating an existing member) */}
+                      {!entry.isUpdate && (
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Posisi di Cabang {branch?.name} *
@@ -750,9 +839,10 @@ export default function PublicSubmitPage() {
                           })}
                         </div>
                       </div>
+                      )}
 
                       {/* Cross-Reference Connector */}
-                      {entry.relationChoice !== 'child' && (
+                      {!entry.isUpdate && entry.relationChoice !== 'child' && (
                         <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 space-y-2">
                           <Label className="text-xs sm:text-sm font-semibold">
                             {entry.relationChoice === 'spouse'
@@ -931,11 +1021,10 @@ export default function PublicSubmitPage() {
 
                         <div>
                           <Label>Tanggal Lahir</Label>
-                          <Input
-                            type="date"
+                          <FlexibleDateInput
                             value={entry.birthDate}
-                            onChange={(e) =>
-                              updateEntry(entry.localId, { birthDate: e.target.value })
+                            onChange={(val) =>
+                              updateEntry(entry.localId, { birthDate: val })
                             }
                             className="mt-1"
                           />
@@ -984,11 +1073,10 @@ export default function PublicSubmitPage() {
                           <>
                             <div>
                               <Label>Tanggal Wafat</Label>
-                              <Input
-                                type="date"
+                              <FlexibleDateInput
                                 value={entry.deathDate}
-                                onChange={(e) =>
-                                  updateEntry(entry.localId, { deathDate: e.target.value })
+                                onChange={(val) =>
+                                  updateEntry(entry.localId, { deathDate: val })
                                 }
                                 className="mt-1"
                               />

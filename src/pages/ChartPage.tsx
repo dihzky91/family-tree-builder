@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } fro
 import { motion, AnimatePresence } from 'framer-motion';
 import Fuse from 'fuse.js';
 import { useFamilyStore } from '@/store/familyStore';
+import { formatFlexibleDate, formatShortYearLabel } from '@/lib/flexibleDateUtils';
 import { usePanZoom } from '@/hooks/usePanZoom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSearchParams } from 'react-router-dom';
@@ -816,7 +817,7 @@ export default function ChartPage() {
                                 </span>
                               </div>
                               <span className="shrink-0 text-[10px] text-muted-foreground">
-                                {item.birthDate ? new Date(item.birthDate).getFullYear() : ''}
+                                {formatShortYearLabel(item.birthDate) || ''}
                               </span>
                             </button>
                           ))}
@@ -1326,13 +1327,13 @@ export default function ChartPage() {
                   {selectedPerson.birthDate && (
                     <div className="flex items-center gap-2 text-xs">
                       <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      <span>Lahir: {new Date(selectedPerson.birthDate).toLocaleDateString('id-ID')}</span>
+                      <span>Lahir: {formatFlexibleDate(selectedPerson.birthDate)}</span>
                     </div>
                   )}
                   {selectedPerson.deathDate && (
                     <div className="flex items-center gap-2 text-xs">
                       <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      <span>Wafat: {new Date(selectedPerson.deathDate).toLocaleDateString('id-ID')}</span>
+                      <span>Wafat: {formatFlexibleDate(selectedPerson.deathDate)}</span>
                     </div>
                   )}
                 </div>
@@ -1528,13 +1529,13 @@ export default function ChartPage() {
                     {selectedPerson.birthDate && (
                       <div className="flex items-center gap-2 text-xs">
                         <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        <span>Lahir: {new Date(selectedPerson.birthDate).toLocaleDateString('id-ID')}</span>
+                        <span>Lahir: {formatFlexibleDate(selectedPerson.birthDate)}</span>
                       </div>
                     )}
                     {selectedPerson.deathDate && (
                       <div className="flex items-center gap-2 text-xs">
                         <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        <span>Wafat: {new Date(selectedPerson.deathDate).toLocaleDateString('id-ID')}</span>
+                        <span>Wafat: {formatFlexibleDate(selectedPerson.deathDate)}</span>
                       </div>
                     )}
                   </div>
@@ -1723,7 +1724,7 @@ export default function ChartPage() {
                     <div className="min-w-0">
                       <p className="truncate font-medium">{item.fullName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.birthDate ? new Date(item.birthDate).getFullYear() : 'Tahun tidak diketahui'}
+                        {formatShortYearLabel(item.birthDate) || 'Tahun tidak diketahui'}
                       </p>
                     </div>
                     <Badge variant="secondary">Pilih</Badge>

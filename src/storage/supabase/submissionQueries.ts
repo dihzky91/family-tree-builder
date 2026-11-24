@@ -231,12 +231,13 @@ export async function deleteSubmission(id: string): Promise<void> {
 }
 
 /**
- * Get approved members for a branch (for public display - names only)
+ * Get approved members for a branch (for public display and quick data completion)
+ * Deduplicates by normalized full_name so repeated updates merge into one entry.
  */
 export async function getApprovedMembersByBranch(branchId: string): Promise<ApprovedMemberInfo[]> {
     const { data, error } = await supabase
         .from('submissions')
-        .select('full_name, relation_to_branch, parent_name')
+        .select('full_name, relation_to_branch, parent_name, created_person_id, gender, birth_date, birth_place, residence, death_date, death_place')
         .eq('branch_id', branchId)
         .eq('status', 'approved')
         .order('created_at', { ascending: true });
@@ -246,11 +247,30 @@ export async function getApprovedMembersByBranch(branchId: string): Promise<Appr
         throw error;
     }
 
-    return (data || []).map(item => ({
-        fullName: item.full_name,
-        relationToBranch: item.relation_to_branch as 'child' | 'grandchild' | 'great-grandchild' | 'other',
-        parentName: item.parent_name || undefined,
-    }));
+    const byName = new Map<string, ApprovedMemberInfo>();
+    for (const item of data || []) {
+        const key = item.full_name.trim().toLowerCase();
+        const existing = byName.get(key);
+        const isUpdateRecord = (item.parent_name || '').toLowerCase().startsWith('pembaruan data anggota');
+        byName.set(key, {
+            fullName: item.full_name,
+            relationToBranch: (isUpdateRecord && existing
+                ? existing.relationToBranch
+                : item.relation_to_branch) as 'child' | 'grandchild' | 'great-grandchild' | 'other',
+            parentName: isUpdateRecord && existing
+                ? existing.parentName
+                : item.parent_name || existing?.parentName || undefined,
+            createdPersonId: item.created_person_id || existing?.createdPersonId || undefined,
+            gender: (item.gender as 'male' | 'female' | 'unknown') || existing?.gender,
+            birthDate: item.birth_date || existing?.birthDate || undefined,
+            birthPlace: item.birth_place || existing?.birthPlace || undefined,
+            residence: item.residence || existing?.residence || undefined,
+            deathDate: item.death_date || existing?.deathDate || undefined,
+            deathPlace: item.death_place || existing?.deathPlace || undefined,
+        });
+    }
+
+    return Array.from(byName.values());
 }
 
 /**

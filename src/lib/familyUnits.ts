@@ -1,4 +1,5 @@
 import type { Person, Relationship, NuclearFamily } from '@/types';
+import { getSortableTimestamp } from '@/lib/flexibleDateUtils';
 
 /**
  * Calculate all nuclear families from persons and relationships
@@ -40,13 +41,17 @@ export function calculateNuclearFamilies(
         );
 
         // Get earliest date (marriage or first child birth)
-        const marriageDate = coupleRel.meta?.startDate
-            ? new Date(coupleRel.meta.startDate)
+        const marriageTs = coupleRel.meta?.startDate
+            ? getSortableTimestamp(coupleRel.meta.startDate)
             : null;
-        const earliestChildBirth = children.length > 0 && children[0].birthDate
-            ? new Date(children[0].birthDate)
+        const earliestChildTs = children.length > 0
+            ? getSortableTimestamp(children[0].birthDate)
             : null;
-        const createdAt = marriageDate || earliestChildBirth || new Date();
+        const createdAt = marriageTs !== null
+            ? new Date(marriageTs)
+            : earliestChildTs !== null
+                ? new Date(earliestChildTs)
+                : new Date();
 
         families.push({
             id: coupleKey,
@@ -73,8 +78,9 @@ export function calculateNuclearFamilies(
         if (children.length === 0) return;
 
         const generation = calculateGeneration(parentId, relationships);
-        const earliestChildBirth = children[0].birthDate
-            ? new Date(children[0].birthDate)
+        const earliestChildTs = getSortableTimestamp(children[0].birthDate);
+        const earliestChildBirth = earliestChildTs !== null
+            ? new Date(earliestChildTs)
             : new Date();
 
         families.push({
@@ -130,9 +136,12 @@ function getChildrenOfCouple(
 
     // Sort by birth date
     return validChildren.sort((a, b) => {
-        if (!a.birthDate) return 1;
-        if (!b.birthDate) return -1;
-        return new Date(a.birthDate).getTime() - new Date(b.birthDate).getTime();
+        const tA = getSortableTimestamp(a.birthDate);
+        const tB = getSortableTimestamp(b.birthDate);
+        if (tA === null && tB === null) return 0;
+        if (tA === null) return 1;
+        if (tB === null) return -1;
+        return tA - tB;
     });
 }
 

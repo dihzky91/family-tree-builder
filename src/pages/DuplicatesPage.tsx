@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { MergeWizard } from '@/features/duplicates/MergeWizard';
 import { toast } from 'sonner';
+import { formatFlexibleDate } from '@/lib/flexibleDateUtils';
 
 type SensitivityLevel = 'strict' | 'normal' | 'loose';
 
@@ -298,11 +299,7 @@ function DuplicateCard({
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return 'Tidak tercatat';
-    return new Date(date).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
+    return formatFlexibleDate(date, { shortMonth: true, fallback: 'Tidak tercatat' }) || 'Tidak tercatat';
   };
 
   const genderLabels: Record<string, string> = {

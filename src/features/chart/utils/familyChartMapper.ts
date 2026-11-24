@@ -1,4 +1,5 @@
 import type { Person, Relationship } from '@/types';
+import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 
 export interface FamilyChartDatum {
     id: string;
@@ -50,8 +51,8 @@ export function transformToFamilyChartData(
         const firstName = parts[0] || '?';
         const lastName = parts.slice(1).join(' ') || '';
 
-        const birthYear = person.birthDate ? person.birthDate.slice(0, 4) : undefined;
-        const deathYear = person.deathDate ? person.deathDate.slice(0, 4) : undefined;
+        const birthYear = formatShortYearLabel(person.birthDate) || undefined;
+        const deathYear = formatShortYearLabel(person.deathDate) || undefined;
 
         return {
             id: person.id,

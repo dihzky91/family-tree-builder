@@ -1,4 +1,5 @@
 import type { Person, Relationship, FilterConfig, GenerationLevel } from '@/types';
+import { getEstimatedYear } from '@/lib/flexibleDateUtils';
 
 /**
  * Calculate the generation level of a person based on parent-child relationships
@@ -81,7 +82,8 @@ export function filterByAgeRange(
     return persons.filter(person => {
         if (!person.birthDate) return false;
 
-        const birthYear = new Date(person.birthDate).getFullYear();
+        const birthYear = getEstimatedYear(person.birthDate);
+        if (birthYear === null) return false;
 
         if (minYear !== null && birthYear < minYear) return false;
         if (maxYear !== null && birthYear > maxYear) return false;

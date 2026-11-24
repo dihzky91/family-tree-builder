@@ -33,6 +33,11 @@ import { RelationshipInspector } from '@/features/relationships/RelationshipInsp
 import { useFamilyStore } from '@/store/familyStore';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Person } from '@/types';
+import {
+  formatFlexibleDate,
+  formatShortYearLabel,
+  calculateFlexibleAge,
+} from '@/lib/flexibleDateUtils';
 
 interface PersonDetailSheetProps {
   person: Person | null;
@@ -52,28 +57,7 @@ export function getPersonInitials(name: string): string {
 }
 
 function formatFullDate(date?: string | null): string | null {
-  if (!date) return null;
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return parsed.toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
-function calculateAge(birthDate?: string | null, deathDate?: string | null): number | null {
-  if (!birthDate) return null;
-  const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return null;
-  const end = deathDate ? new Date(deathDate) : new Date();
-  if (Number.isNaN(end.getTime())) return null;
-  let age = end.getFullYear() - birth.getFullYear();
-  const m = end.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && end.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age >= 0 ? age : null;
+  return formatFlexibleDate(date);
 }
 
 export function PersonDetailSheet({
@@ -90,7 +74,7 @@ export function PersonDetailSheet({
   const { getPersonRelatives } = useFamilyStore();
 
   const relatives = person ? getPersonRelatives(person.id) : null;
-  const age = person ? calculateAge(person.birthDate, person.deathDate) : null;
+  const ageInfo = person ? calculateFlexibleAge(person.birthDate, person.deathDate) : null;
 
   const handleOpenInChart = () => {
     if (!person) return;
@@ -147,10 +131,10 @@ export function PersonDetailSheet({
             <span className={person.deathDate ? 'text-muted-foreground' : 'text-emerald-600 dark:text-emerald-400 font-medium'}>
               {person.deathDate ? 'Almarhum/ah' : 'Masih hidup'}
             </span>
-            {age !== null && (
+            {ageInfo !== null && (
               <>
                 <span>•</span>
-                <span>{age} th</span>
+                <span>{ageInfo.isApproximate ? '~' : ''}{ageInfo.age} th</span>
               </>
             )}
           </div>
@@ -324,7 +308,7 @@ export function PersonDetailSheet({
                 <span className="truncate font-medium">{sib.fullName}</span>
                 {sib.birthDate && (
                   <span className="text-[11px] text-muted-foreground shrink-0 ml-2">
-                    {new Date(sib.birthDate).getFullYear()}
+                    {formatShortYearLabel(sib.birthDate)}
                   </span>
                 )}
               </button>

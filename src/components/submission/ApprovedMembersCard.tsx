@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronUp, UserPlus, Pencil } from 'lucide-react';
 import type { ApprovedMemberInfo, RelationToBranch } from '@/types';
+import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 
 interface ApprovedMembersCardProps {
   members: ApprovedMemberInfo[];
   branchName: string;
   onSelectMember?: (memberName: string) => void;
+  onUpdateMember?: (member: ApprovedMemberInfo) => void;
 }
 
 export function formatRelationLabel(relation: RelationToBranch): string {
@@ -30,6 +32,7 @@ export function ApprovedMembersCard({
   members,
   branchName,
   onSelectMember,
+  onUpdateMember,
 }: ApprovedMembersCardProps) {
   const [showAll, setShowAll] = useState(false);
   const displayMembers = showAll ? members : members.slice(0, 6);
@@ -51,36 +54,69 @@ export function ApprovedMembersCard({
 
       <p className="text-xs sm:text-sm text-muted-foreground mb-3">
         Daftar anggota dari <span className="font-medium text-foreground">{branchName}</span> yang sudah masuk silsilah.
-        {onSelectMember && ' Ketuk nama di bawah jika Anda ingin menghubungkan data baru ke anggota tersebut.'}
+        {' '}Klik <strong>Lengkapi</strong> jika ingin menyusul mengisi tanggal lahir/biodata anggota tersebut, atau klik <strong>Hubungkan</strong> untuk menambah anak/pasangannya.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {displayMembers.map((member, i) => (
-          <div
-            key={`${member.fullName}-${i}`}
-            className="flex items-center justify-between gap-2 rounded-xl border border-success/20 bg-background/80 px-3 py-2 text-xs sm:text-sm"
-          >
-            <div className="min-w-0">
-              <p className="font-medium truncate">{member.fullName}</p>
-              <p className="text-[11px] text-muted-foreground truncate">
-                {formatRelationLabel(member.relationToBranch)}
-                {member.parentName ? ` · ${member.parentName}` : ''}
-              </p>
+        {displayMembers.map((member, i) => {
+          const yearLabel = formatShortYearLabel(member.birthDate);
+          return (
+            <div
+              key={`${member.fullName}-${i}`}
+              className="flex items-center justify-between gap-2 rounded-xl border border-success/20 bg-background/80 px-3 py-2 text-xs sm:text-sm"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-medium truncate">{member.fullName}</p>
+                  {yearLabel ? (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                      {yearLabel}
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 h-4 shrink-0 border-amber-400/60 text-amber-600 dark:text-amber-400"
+                    >
+                      Belum ada tgl lahir
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {formatRelationLabel(member.relationToBranch)}
+                  {member.parentName ? ` · ${member.parentName}` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {onUpdateMember && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onUpdateMember(member)}
+                    title={`Lengkapi atau update biodata ${member.fullName}`}
+                    className="h-7 px-2 text-[11px] border-primary/30 text-primary hover:bg-primary/10"
+                  >
+                    <Pencil className="w-3 h-3 mr-1" />
+                    Lengkapi
+                  </Button>
+                )}
+                {onSelectMember && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onSelectMember(member.fullName)}
+                    title={`Tambahkan anak atau pasangan dari ${member.fullName}`}
+                    className="h-7 px-2 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10"
+                  >
+                    <UserPlus className="w-3 h-3 mr-1" />
+                    Hubungkan
+                  </Button>
+                )}
+              </div>
             </div>
-            {onSelectMember && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onSelectMember(member.fullName)}
-                className="h-7 px-2 text-[11px] text-primary hover:bg-primary/10 shrink-0"
-              >
-                <UserPlus className="w-3 h-3 mr-1" />
-                Pilih
-              </Button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {members.length > 6 && (

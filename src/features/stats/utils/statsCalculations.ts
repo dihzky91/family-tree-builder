@@ -1,4 +1,5 @@
 import { Person, Relationship } from '@/types';
+import { calculateFlexibleAge, parseFlexibleDate } from '@/lib/flexibleDateUtils';
 
 // Helper to parse name parts
 export function parseNameParts(fullName: string): { firstName: string; lastName: string } {
@@ -9,25 +10,20 @@ export function parseNameParts(fullName: string): { firstName: string; lastName:
   };
 }
 
-// Calculate age from birth date
+// Calculate age from birth date (supports exact and flexible dates)
 export function calculateAge(birthDate: string | null | undefined, deathDate?: string | null): number | null {
-  if (!birthDate) return null;
-  const birth = new Date(birthDate);
-  const end = deathDate ? new Date(deathDate) : new Date();
-  let age = end.getFullYear() - birth.getFullYear();
-  const monthDiff = end.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && end.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
+  const res = calculateFlexibleAge(birthDate, deathDate);
+  return res ? res.age : null;
 }
 
-// Get zodiac sign from birth date
+// Get zodiac sign from birth date (only when specific month and day are known)
 export function getZodiacSign(birthDate: string | null | undefined): string | null {
-  if (!birthDate) return null;
-  const date = new Date(birthDate);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
+  const parsed = parseFlexibleDate(birthDate);
+  if (!parsed || !parsed.hasSpecificMonthDay || !parsed.date1.month || !parsed.date1.day) {
+    return null;
+  }
+  const month = parsed.date1.month;
+  const day = parsed.date1.day;
 
   if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return 'Aries';
   if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return 'Taurus';
@@ -235,16 +231,22 @@ export function calculateBirthStats(persons: Person[]) {
 
   persons.forEach(p => {
     if (p.birthDate) {
-      const date = new Date(p.birthDate);
-      monthDistribution[date.getMonth()]++;
+      const parsed = parseFlexibleDate(p.birthDate);
+      if (!parsed) return;
+
+      if (parsed.hasSpecificMonth && parsed.date1.month) {
+        monthDistribution[parsed.date1.month - 1]++;
+      }
 
       const zodiac = getZodiacSign(p.birthDate);
       if (zodiac) {
         zodiacDistribution[zodiac] = (zodiacDistribution[zodiac] || 0) + 1;
       }
 
-      const decade = getDecade(date.getFullYear());
-      decadeDistribution[decade] = (decadeDistribution[decade] || 0) + 1;
+      if (parsed.estimatedYear !== null) {
+        const decade = getDecade(parsed.estimatedYear);
+        decadeDistribution[decade] = (decadeDistribution[decade] || 0) + 1;
+      }
     }
   });
 

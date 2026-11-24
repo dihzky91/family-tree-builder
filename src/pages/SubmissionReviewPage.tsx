@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { formatFlexibleDate, formatShortYearLabel } from '@/lib/flexibleDateUtils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +63,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
-type LinkType = 'child_of' | 'sibling_of' | 'spouse_of' | 'none';
+type LinkType = 'update_existing' | 'child_of' | 'sibling_of' | 'spouse_of' | 'none';
 
 type BridgeLinkType = 'child_of' | 'sibling_of' | 'spouse_of' | 'none';
 
@@ -74,7 +75,7 @@ interface SubmissionGroup {
 }
 
 export default function SubmissionReviewPage() {
-  const { addPerson, addRelationship, persons, relationships, isDemoMode } = useFamilyStore();
+  const { addPerson, updatePerson, addRelationship, persons, relationships, isDemoMode } = useFamilyStore();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -195,11 +196,31 @@ export default function SubmissionReviewPage() {
     const rawConnector = submission.parentName?.trim() || '';
     const lowerConnector = rawConnector.toLowerCase();
 
+    const isUpdateHint = lowerConnector.startsWith('pembaruan data anggota');
     const isSiblingHint = lowerConnector.startsWith('saudara kandung dari ');
     const isSpouseHint =
       !isSiblingHint &&
+      !isUpdateHint &&
       (submission.relationToBranch === 'other' ||
         lowerConnector.startsWith('pasangan dari '));
+
+    // Check if this submission is meant to update an existing person in the tree
+    const matchedExistingById = submission.possibleDuplicateId
+      ? availablePersons.find((p) => p.id === submission.possibleDuplicateId)
+      : undefined;
+    const matchedExistingByName = availablePersons.find(
+      (p) => p.fullName.trim().toLowerCase() === submission.fullName.trim().toLowerCase()
+    );
+    const existingCandidate = matchedExistingById || matchedExistingByName;
+
+    if (isUpdateHint && existingCandidate) {
+      return {
+        linkType: 'update_existing',
+        targetPersonId: existingCandidate.id,
+        missingConnectorName: null,
+        branchRootId,
+      };
+    }
 
     const cleanedRawName = rawConnector
       .replace(/^pasangan dari\s+/i, '')
@@ -354,6 +375,45 @@ export default function SubmissionReviewPage() {
     const newlyCreated: Person[] = [];
     let effectiveTargetId = chosenTargetId;
 
+    // Mode 0: Update an existing person in the tree without creating a duplicate node
+    if (chosenLinkType === 'update_existing' && chosenTargetId) {
+      const existingPerson =
+        workingPersons.find((p) => p.id === chosenTargetId) ||
+        persons.find((p) => p.id === chosenTargetId);
+
+      if (existingPerson) {
+        const mergedNotes = submission.notes
+          ? existingPerson.notes && !existingPerson.notes.includes(submission.notes)
+            ? `${existingPerson.notes}\n${submission.notes}`
+            : submission.notes
+          : existingPerson.notes;
+
+        await updatePerson(existingPerson.id, {
+          fullName: submission.fullName.trim() || existingPerson.fullName,
+          gender:
+            submission.gender && submission.gender !== 'unknown'
+              ? submission.gender
+              : existingPerson.gender,
+          birthDate: submission.birthDate || existingPerson.birthDate,
+          birthPlace: submission.birthPlace || existingPerson.birthPlace,
+          deathDate: submission.deathDate || existingPerson.deathDate,
+          deathPlace: submission.deathPlace || existingPerson.deathPlace,
+          residence: submission.residence || existingPerson.residence,
+          photoUrl: submission.photoUrl || existingPerson.photoUrl,
+          notes: mergedNotes,
+        });
+
+        await updateSubmissionStatus(
+          submission.id,
+          'approved',
+          undefined,
+          'Data anggota diperbarui',
+          existingPerson.id
+        );
+        return [];
+      }
+    }
+
     // If a missing connector/bridge person should be created first (e.g. Khusnah's sibling or parent)
     if (bridgeOptions?.enabled && bridgeOptions.name.trim()) {
       const bridgePerson = await addPerson({
@@ -454,9 +514,11 @@ export default function SubmissionReviewPage() {
         branches
       );
       toast.success(
-        createBridgePerson && bridgePersonName.trim()
-          ? `${approveTarget.fullName} & tokoh penghubung "${bridgePersonName.trim()}" berhasil ditambahkan!`
-          : `${approveTarget.fullName} berhasil disetujui & ditambahkan ke silsilah!`
+        linkType === 'update_existing'
+          ? `Data "${approveTarget.fullName}" berhasil diperbarui di silsilah!`
+          : createBridgePerson && bridgePersonName.trim()
+            ? `${approveTarget.fullName} & tokoh penghubung "${bridgePersonName.trim()}" berhasil ditambahkan!`
+            : `${approveTarget.fullName} berhasil disetujui & ditambahkan ke silsilah!`
       );
       setApproveTarget(null);
       notifySubmissionsChanged();
@@ -555,7 +617,9 @@ export default function SubmissionReviewPage() {
             </h3>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground mt-1">
               <span>{submission.gender === 'male' ? 'Laki-laki' : 'Perempuan'}</span>
-              {submission.birthDate && <span>• Lahir: {submission.birthDate}</span>}
+              {submission.birthDate && (
+                <span>• Lahir: {formatFlexibleDate(submission.birthDate) || submission.birthDate}</span>
+              )}
               {submission.birthPlace && (
                 <span className="inline-flex items-center gap-0.5">
                   • <MapPin className="w-3 h-3" /> {submission.birthPlace}
@@ -616,10 +680,19 @@ export default function SubmissionReviewPage() {
       </div>
 
       {submission.possibleDuplicateId && (
-        <Alert variant="destructive" className="mb-3">
+        <Alert
+          variant={
+            (submission.parentName || '').toLowerCase().startsWith('pembaruan data anggota')
+              ? 'default'
+              : 'destructive'
+          }
+          className="mb-3"
+        >
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Kemungkinan duplikat terdeteksi! Periksa data sebelum menyetujui.
+            {(submission.parentName || '').toLowerCase().startsWith('pembaruan data anggota')
+              ? 'Pengirim menandai ini sebagai pembaruan/pelengkap data anggota yang sudah terdaftar. Saat disetujui, data anggota lama akan langsung diperbarui tanpa membuat duplikat.'
+              : 'Anggota dengan nama serupa sudah ada di silsilah! Anda dapat memilih "Perbarui data anggota yang sudah ada" saat menyetujui.'}
           </AlertDescription>
         </Alert>
       )}
@@ -862,7 +935,8 @@ export default function SubmissionReviewPage() {
                 </div>
               )}
 
-              {/* Missing Bridge Person Auto-Creation Box */}
+              {/* Missing Bridge Person Auto-Creation Box (only for new person creation) */}
+              {linkType !== 'update_existing' && (
               <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3.5 space-y-3">
                 <div className="flex items-start space-x-2.5">
                   <Checkbox
@@ -941,34 +1015,60 @@ export default function SubmissionReviewPage() {
                   </div>
                 )}
               </div>
+              )}
 
               <div className="space-y-2">
                 <Label>
-                  {createBridgePerson && bridgePersonName.trim()
+                  {createBridgePerson && bridgePersonName.trim() && linkType !== 'update_existing'
                     ? `Hubungan "${approveTarget.fullName}" terhadap "${bridgePersonName.trim()}"`
-                    : `Jenis Hubungan "${approveTarget.fullName}"`}
+                    : `Tindakan / Jenis Hubungan "${approveTarget.fullName}"`}
                 </Label>
-                <Select value={linkType} onValueChange={(v) => setLinkType(v as LinkType)}>
+                <Select
+                  value={linkType}
+                  onValueChange={(v) => {
+                    const nextType = v as LinkType;
+                    setLinkType(nextType);
+                    if (nextType === 'update_existing') {
+                      setCreateBridgePerson(false);
+                      const match =
+                        (approveTarget.possibleDuplicateId &&
+                          persons.find((p) => p.id === approveTarget.possibleDuplicateId)) ||
+                        persons.find(
+                          (p) =>
+                            p.fullName.trim().toLowerCase() ===
+                            approveTarget.fullName.trim().toLowerCase()
+                        );
+                      if (match) {
+                        setTargetPersonId(match.id);
+                      }
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="update_existing">
+                      🔄 Perbarui data anggota yang sudah ada (Tanpa buat duplikat)
+                    </SelectItem>
                     <SelectItem value="child_of">Anak kandung dari...</SelectItem>
                     <SelectItem value="sibling_of">Kakak / Adik kandung dari...</SelectItem>
                     <SelectItem value="spouse_of">Pasangan (Suami/Istri) dari...</SelectItem>
-                    <SelectItem value="none">Tambahkan tanpa relasi dulu</SelectItem>
+                    <SelectItem value="none">Tambahkan baru tanpa relasi dulu</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {linkType !== 'none' && !createBridgePerson && (
+              {linkType !== 'none' && (linkType === 'update_existing' || !createBridgePerson) && (
                 <div className="space-y-2">
                   <Label>
-                    {linkType === 'child_of'
-                      ? 'Pilih Orang Tua di Silsilah'
-                      : linkType === 'sibling_of'
-                        ? 'Pilih Saudara Kandung (Kakak/Adik) di Silsilah'
-                        : 'Pilih Pasangan di Silsilah'}
+                    {linkType === 'update_existing'
+                      ? 'Pilih Anggota di Silsilah yang Akan Diperbarui Datanya'
+                      : linkType === 'child_of'
+                        ? 'Pilih Orang Tua di Silsilah'
+                        : linkType === 'sibling_of'
+                          ? 'Pilih Saudara Kandung (Kakak/Adik) di Silsilah'
+                          : 'Pilih Pasangan di Silsilah'}
                   </Label>
                   <Select value={targetPersonId} onValueChange={setTargetPersonId}>
                     <SelectTrigger>
@@ -978,7 +1078,7 @@ export default function SubmissionReviewPage() {
                       {sortedPersons.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.fullName}
-                          {p.birthDate ? ` (${new Date(p.birthDate).getFullYear()})` : ''}
+                          {p.birthDate ? ` (${formatShortYearLabel(p.birthDate) || p.birthDate})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -987,6 +1087,43 @@ export default function SubmissionReviewPage() {
                     <p className="text-[11px] text-muted-foreground">
                       💡 Jika anggota yang dipilih belum memiliki data Orang Tua di atasnya (misal Khusnah), sistem akan otomatis membuatkan 1 node Orang Tua bersama agar keduanya tampil sejajar sebagai Kakak-Adik di bagan silsilah.
                     </p>
+                  )}
+                  {linkType === 'update_existing' && targetPersonId && (
+                    <div className="rounded-xl border border-primary/25 bg-primary/5 p-3 text-xs space-y-1">
+                      <p className="font-semibold text-primary">
+                        Ringkasan Pembaruan Data:
+                      </p>
+                      {approveTarget.birthDate && (
+                        <p>
+                          • Tanggal Lahir:{' '}
+                          <strong>
+                            {formatFlexibleDate(approveTarget.birthDate) || approveTarget.birthDate}
+                          </strong>
+                        </p>
+                      )}
+                      {approveTarget.birthPlace && (
+                        <p>
+                          • Tempat Lahir: <strong>{approveTarget.birthPlace}</strong>
+                        </p>
+                      )}
+                      {approveTarget.residence && (
+                        <p>
+                          • Domisili: <strong>{approveTarget.residence}</strong>
+                        </p>
+                      )}
+                      {approveTarget.deathDate && (
+                        <p>
+                          • Tanggal Wafat:{' '}
+                          <strong>
+                            {formatFlexibleDate(approveTarget.deathDate) || approveTarget.deathDate}
+                          </strong>
+                        </p>
+                      )}
+                      {approveTarget.photoUrl && <p>• Foto Profil baru akan disimpan</p>}
+                      <p className="text-[11px] text-muted-foreground pt-1">
+                        Data lama yang tidak diisi di form ini (serta seluruh relasi keluarga yang sudah terhubung) tetap aman dan tidak berubah.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}

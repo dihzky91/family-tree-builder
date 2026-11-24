@@ -1,4 +1,5 @@
 import type { Person, Relationship } from '@/types';
+import { getEstimatedYear, getSortableTimestamp } from '@/lib/flexibleDateUtils';
 
 export interface DataIssue {
     id: string;
@@ -42,24 +43,26 @@ export function checkDataQuality(persons: Person[], relationships: Relationship[
 
         // Likely Deceased but marked living (Very old)
         if (person.birthDate && !person.deathDate) {
-            const birth = getDate(person.birthDate)!;
-            const age = new Date().getFullYear() - birth.getFullYear();
-            if (age > 110) {
-                issues.push({
-                    id: `likely-deceased-${person.id}`,
-                    personId: person.id,
-                    type: 'warning',
-                    title: 'Kemungkinan Sudah Wafat',
-                    description: `Umur tercatat ${age} tahun. Mohon verifikasi apakah anggota ini masih hidup.`
-                });
+            const birthYear = getEstimatedYear(person.birthDate);
+            if (birthYear !== null) {
+                const age = new Date().getFullYear() - birthYear;
+                if (age > 110) {
+                    issues.push({
+                        id: `likely-deceased-${person.id}`,
+                        personId: person.id,
+                        type: 'warning',
+                        title: 'Kemungkinan Sudah Wafat',
+                        description: `Umur tercatat sekitar ${age} tahun. Mohon verifikasi apakah anggota ini masih hidup.`
+                    });
+                }
             }
         }
 
         // Death before Birth
         if (person.birthDate && person.deathDate) {
-            const birth = getDate(person.birthDate)!;
-            const death = getDate(person.deathDate)!;
-            if (death < birth) {
+            const birthTs = getSortableTimestamp(person.birthDate);
+            const deathTs = getSortableTimestamp(person.deathDate);
+            if (birthTs !== null && deathTs !== null && deathTs < birthTs) {
                 issues.push({
                     id: `death-before-birth-${person.id}`,
                     personId: person.id,
@@ -78,24 +81,24 @@ export function checkDataQuality(persons: Person[], relationships: Relationship[
             const child = personMap.get(rel.toPersonId);
 
             if (parent && child) {
-                const parentBirth = getDate(parent.birthDate);
-                const childBirth = getDate(child.birthDate);
+                const parentBirthYear = getEstimatedYear(parent.birthDate);
+                const childBirthYear = getEstimatedYear(child.birthDate);
 
-                if (parentBirth && childBirth) {
+                if (parentBirthYear !== null && childBirthYear !== null) {
                     // Child born before parent
-                    if (childBirth <= parentBirth) {
+                    if (childBirthYear <= parentBirthYear) {
                         issues.push({
                             id: `child-before-parent-${parent.id}-${child.id}`,
                             personId: child.id,
                             relatedPersonId: parent.id,
                             type: 'error',
                             title: 'Lahir Sebelum Orang Tua',
-                            description: `Tercatat lahir pada ${childBirth.getFullYear()}, sedangkan orang tua (${parent.fullName}) lahir pada ${parentBirth.getFullYear()}.`
+                            description: `Tercatat lahir pada ${childBirthYear}, sedangkan orang tua (${parent.fullName}) lahir pada ${parentBirthYear}.`
                         });
                     }
 
                     // Parent too young (< 12 years)
-                    const ageAtBirth = childBirth.getFullYear() - parentBirth.getFullYear();
+                    const ageAtBirth = childBirthYear - parentBirthYear;
                     if (ageAtBirth > 0 && ageAtBirth < 12) {
                         issues.push({
                             id: `parent-too-young-${parent.id}-${child.id}`,

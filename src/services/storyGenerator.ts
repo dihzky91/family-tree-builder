@@ -6,6 +6,7 @@ import {
   filterPersonsByScope as filterPersonsByScopeFromSelector,
   computeAlignedGenerations,
 } from '@/features/stories/StoryScopeSelector';
+import { formatFlexibleDate, getEstimatedYear } from '@/lib/flexibleDateUtils';
 
 export type StoryStyle = 'formal' | 'casual' | 'emotional' | 'children' | 'poetic';
 
@@ -40,23 +41,13 @@ interface CoupleInfo {
   marriageDate?: string;
 }
 
-// Format date cleanly in Indonesian
+// Format date cleanly in Indonesian (supports exact and flexible dates)
 function formatDateId(dateStr?: string | null): string | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return formatFlexibleDate(dateStr);
 }
 
 function getYear(dateStr?: string | null): number | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.getFullYear();
+  return getEstimatedYear(dateStr);
 }
 
 function joinNames(names: string[]): string {

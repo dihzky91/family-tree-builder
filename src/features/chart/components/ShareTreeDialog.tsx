@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFamilyStore } from '@/store/familyStore';
+import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 import {
   ShareLinkFormSchema,
   type ShareLinkFormData,
@@ -754,7 +755,7 @@ export function ShareTreeDialog({
                           {sortedPersons.map((p) => (
                             <SelectItem key={p.id} value={p.id} className="text-xs">
                               {p.fullName}
-                              {p.birthDate ? ` (${new Date(p.birthDate).getFullYear()})` : ''}
+                              {p.birthDate ? ` (${formatShortYearLabel(p.birthDate) || p.birthDate})` : ''}
                             </SelectItem>
                           ))}
                         </SelectContent>

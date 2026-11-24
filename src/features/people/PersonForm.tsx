@@ -23,6 +23,8 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 import { PhotoUploader } from '@/components/photo/PhotoUploader';
+import { FlexibleDateInput } from '@/components/ui/flexible-date-input';
+import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
 
 interface PersonFormProps {
   person?: Person;
@@ -122,9 +124,12 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
           <AlertDescription>
             Ditemukan {duplicates.length} orang dengan nama serupa:
             <ul className="mt-2 list-disc list-inside">
-              {duplicates.slice(0, 3).map(p => (
-                <li key={p.id}>{p.fullName} {p.birthDate && `(${new Date(p.birthDate).getFullYear()})`}</li>
-              ))}
+              {duplicates.slice(0, 3).map(p => {
+                const yLabel = formatShortYearLabel(p.birthDate);
+                return (
+                  <li key={p.id}>{p.fullName} {yLabel && `(${yLabel})`}</li>
+                );
+              })}
             </ul>
           </AlertDescription>
         </Alert>
@@ -181,20 +186,21 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
 
         <div>
           <Label htmlFor="birthDate">Tanggal Lahir</Label>
-          <Input
+          <FlexibleDateInput
             id="birthDate"
-            type="date"
-            {...register('birthDate')}
+            value={watch('birthDate')}
+            onChange={(val) => setValue('birthDate', val, { shouldDirty: true })}
             className="mt-1"
           />
         </div>
 
         <div>
           <Label htmlFor="deathDate">Tanggal Wafat</Label>
-          <Input
+          <FlexibleDateInput
             id="deathDate"
-            type="date"
-            {...register('deathDate')}
+            value={watch('deathDate')}
+            onChange={(val) => setValue('deathDate', val, { shouldDirty: true })}
+            freeTextPlaceholder="Contoh: Wafat saat pandemi, usia 80 thn..."
             className="mt-1"
           />
         </div>

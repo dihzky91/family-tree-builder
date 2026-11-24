@@ -2,6 +2,11 @@ import { memo, useMemo } from 'react';
 import type { Person, Relationship } from '@/types';
 import { Heart, CheckCircle2, Users, Baby } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  getEstimatedYear,
+  formatShortYearLabel,
+  getSortableTimestamp,
+} from '@/lib/flexibleDateUtils';
 
 interface GenerationViewProps {
   persons: Person[];
@@ -16,13 +21,13 @@ interface FamilyUnitData {
   children: Person[];
 }
 
-function getYear(date?: string) {
-  return date ? new Date(date).getFullYear() : null;
+function getYear(date?: string | null) {
+  return getEstimatedYear(date);
 }
 
 function getPersonYearsLabel(person: Person) {
-  const birth = getYear(person.birthDate);
-  const death = getYear(person.deathDate);
+  const birth = formatShortYearLabel(person.birthDate);
+  const death = formatShortYearLabel(person.deathDate);
   if (birth && death) return `${birth} – ${death}`;
   if (birth) return `${birth}`;
   if (death) return `† ${death}`;
@@ -163,8 +168,8 @@ export const GenerationView = memo(function GenerationView({
             .map((id) => personById.get(id))
             .filter((p): p is Person => !!p)
             .sort((a, b) => {
-              const da = a.birthDate ? new Date(a.birthDate).getTime() : 0;
-              const db = b.birthDate ? new Date(b.birthDate).getTime() : 0;
+              const da = getSortableTimestamp(a.birthDate) ?? Number.MAX_SAFE_INTEGER;
+              const db = getSortableTimestamp(b.birthDate) ?? Number.MAX_SAFE_INTEGER;
               return da - db;
             });
 

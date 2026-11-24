@@ -1,4 +1,5 @@
 import type { Person, Relationship } from '@/types';
+import { parseFlexibleDate } from '@/lib/flexibleDateUtils';
 
 export interface DuplicateCandidate {
   person1: Person;
@@ -300,29 +301,35 @@ function stringSimilarity(
 }
 
 /**
- * Calculate similarity between two dates (0-100)
+ * Calculate similarity between two dates (0-100), supporting exact and flexible dates
  */
 function dateSimilarity(a: string | null | undefined, b: string | null | undefined): number {
   if (!a || !b) return 0;
-
-  const dateA = new Date(a);
-  const dateB = new Date(b);
-
-  if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
-
   if (a === b) return 100;
 
-  if (dateA.getFullYear() === dateB.getFullYear()) {
-    if (dateA.getMonth() === dateB.getMonth()) {
-      const dayDiff = Math.abs(dateA.getDate() - dateB.getDate());
-      if (dayDiff <= 7) return 90;
+  const pA = parseFlexibleDate(a);
+  const pB = parseFlexibleDate(b);
+  if (!pA || !pB) return 0;
+
+  const yA = pA.estimatedYear;
+  const yB = pB.estimatedYear;
+  if (yA === null || yB === null) return 0;
+
+  if (yA === yB) {
+    if (pA.date1.month && pB.date1.month && pA.date1.month === pB.date1.month) {
+      if (pA.date1.day && pB.date1.day) {
+        const dayDiff = Math.abs(pA.date1.day - pB.date1.day);
+        if (dayDiff === 0) return 95;
+        if (dayDiff <= 7) return 90;
+      }
       return 75;
     }
     return 60;
   }
 
-  const yearDiff = Math.abs(dateA.getFullYear() - dateB.getFullYear());
+  const yearDiff = Math.abs(yA - yB);
   if (yearDiff === 1) return 35;
+  if ((pA.isApproximate || pB.isApproximate) && yearDiff <= 3) return 45;
 
   return 0;
 }
@@ -391,19 +398,21 @@ export function calculateSimilarity(
 
   // Hard contradiction 3: Birth date contradictions
   if (person1.birthDate && person2.birthDate) {
-    const d1 = new Date(person1.birthDate);
-    const d2 = new Date(person2.birthDate);
-    const y1 = d1.getFullYear();
-    const y2 = d2.getFullYear();
-    if (!Number.isNaN(y1) && !Number.isNaN(y2)) {
+    const p1 = parseFlexibleDate(person1.birthDate);
+    const p2 = parseFlexibleDate(person2.birthDate);
+    const y1 = p1?.estimatedYear ?? null;
+    const y2 = p2?.estimatedYear ?? null;
+    if (y1 !== null && y2 !== null) {
       // More than 5 years apart -> definitely different people
       if (Math.abs(y1 - y2) > 5) {
         return null;
       }
-      // Different year AND different month/day -> distinct birth records unless name is practically identical (>= 92%)
+      // Different year AND different exact month/day -> distinct birth records unless name is practically identical (>= 92%)
       if (
         y1 !== y2 &&
-        (d1.getMonth() !== d2.getMonth() || d1.getDate() !== d2.getDate())
+        p1?.isExactFullDate &&
+        p2?.isExactFullDate &&
+        (p1.date1.month !== p2.date1.month || p1.date1.day !== p2.date1.day)
       ) {
         const quickNameSim = stringSimilarity(person1.fullName, person2.fullName, true);
         if (quickNameSim < 92) {

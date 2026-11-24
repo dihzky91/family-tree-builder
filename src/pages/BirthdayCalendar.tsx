@@ -8,10 +8,12 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Cake, TrendingUp, 
 import {
     getUpcomingBirthdays,
     getBirthdaysByMonth,
+    getMonthOnlyBirthdays,
     getBirthdayTwins,
     getBirthdayStats,
     formatCountdown
 } from '@/lib/birthdayUtils';
+import { formatFlexibleDate } from '@/lib/flexibleDateUtils';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { usePagination } from '@/components/VirtualList';
 
@@ -45,6 +47,11 @@ export default function BirthdayCalendar() {
     const monthBirthdays = useMemo(() =>
         getBirthdaysByMonth(persons, selectedMonth, selectedYear),
         [persons, selectedMonth, selectedYear]
+    );
+
+    const monthOnlyBirthdays = useMemo(() =>
+        getMonthOnlyBirthdays(persons, selectedMonth),
+        [persons, selectedMonth]
     );
 
     // Get statistics
@@ -138,8 +145,10 @@ export default function BirthdayCalendar() {
                                 >
                                     {/* Age Badge */}
                                     <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                                        <span className="text-lg font-bold text-primary">
-                                            {birthday.ageOnNextBirthday}
+                                        <span className="text-base font-bold text-primary">
+                                            {birthday.ageOnNextBirthday !== null
+                                                ? `${birthday.isApproximateAge ? '~' : ''}${birthday.ageOnNextBirthday}`
+                                                : '🎂'}
                                         </span>
                                     </div>
 
@@ -273,6 +282,29 @@ export default function BirthdayCalendar() {
                                 );
                             })}
                         </div>
+
+                        {monthOnlyBirthdays.length > 0 && (
+                            <div className="mt-4 pt-3 border-t border-border/60">
+                                <p className="text-xs font-medium text-muted-foreground mb-2">
+                                    Lahir di bulan {MONTH_NAMES[selectedMonth]} (tanggal pasti tidak diketahui):
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {monthOnlyBirthdays.map((p) => (
+                                        <Badge
+                                            key={p.id}
+                                            variant="secondary"
+                                            className="cursor-pointer text-xs font-normal hover:bg-primary/15"
+                                            onClick={() => {
+                                                setSelectedPerson(p.id);
+                                                navigate(`/chart?focus=${p.id}`);
+                                            }}
+                                        >
+                                            {p.fullName} ({formatFlexibleDate(p.birthDate)})
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </Card>
 
                     {/* Statistics */}

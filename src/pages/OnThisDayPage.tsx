@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useFamilyStore } from '@/store/familyStore';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Cake, Heart, Calendar, ArrowRight } from 'lucide-react';
+import { Cake, Heart, Calendar } from 'lucide-react';
 import type { Person } from '@/types';
+import { parseFlexibleDate, formatFlexibleDate } from '@/lib/flexibleDateUtils';
 
 interface Event {
     person: Person;
     type: 'birthday' | 'death';
     date: Date;
-    age: number; // Age turning or years since death
+    yearLabel: string;
+    age: number | null; // Age turning or years since death
+    isApproximate: boolean;
     isToday: boolean;
 }
 
@@ -41,37 +44,51 @@ export default function OnThisDayPage() {
         const monthEvents: Event[] = [];
 
         persons.forEach(person => {
-            // Check Birthday
+            // Check Birthday (only if exact month and day are known)
             if (person.birthDate) {
-                const birthDate = new Date(person.birthDate);
-                if (birthDate.getMonth() === currentMonth) {
-                    const age = today.getFullYear() - birthDate.getFullYear();
-                    const isToday = birthDate.getDate() === currentDay;
+                const parsed = parseFlexibleDate(person.birthDate);
+                if (parsed && parsed.hasSpecificMonthDay && parsed.date1.month && parsed.date1.day) {
+                    const monthIdx = parsed.date1.month - 1;
+                    const day = parsed.date1.day;
+                    if (monthIdx === currentMonth) {
+                        const age = parsed.estimatedYear !== null ? today.getFullYear() - parsed.estimatedYear : null;
+                        const isToday = day === currentDay;
+                        const eventDate = new Date(parsed.estimatedYear ?? today.getFullYear(), monthIdx, day);
 
-                    monthEvents.push({
-                        person,
-                        type: 'birthday',
-                        date: birthDate,
-                        age,
-                        isToday
-                    });
+                        monthEvents.push({
+                            person,
+                            type: 'birthday',
+                            date: eventDate,
+                            yearLabel: formatFlexibleDate(person.birthDate) || '',
+                            age,
+                            isApproximate: parsed.isApproximate,
+                            isToday,
+                        });
+                    }
                 }
             }
 
-            // Check Death Anniversary (Haul)
+            // Check Death Anniversary (Haul) (only if exact month and day are known)
             if (person.deathDate) {
-                const deathDate = new Date(person.deathDate);
-                if (deathDate.getMonth() === currentMonth) {
-                    const years = today.getFullYear() - deathDate.getFullYear();
-                    const isToday = deathDate.getDate() === currentDay;
+                const parsed = parseFlexibleDate(person.deathDate);
+                if (parsed && parsed.hasSpecificMonthDay && parsed.date1.month && parsed.date1.day) {
+                    const monthIdx = parsed.date1.month - 1;
+                    const day = parsed.date1.day;
+                    if (monthIdx === currentMonth) {
+                        const years = parsed.estimatedYear !== null ? today.getFullYear() - parsed.estimatedYear : null;
+                        const isToday = day === currentDay;
+                        const eventDate = new Date(parsed.estimatedYear ?? today.getFullYear(), monthIdx, day);
 
-                    monthEvents.push({
-                        person,
-                        type: 'death',
-                        date: deathDate,
-                        age: years,
-                        isToday
-                    });
+                        monthEvents.push({
+                            person,
+                            type: 'death',
+                            date: eventDate,
+                            yearLabel: formatFlexibleDate(person.deathDate) || '',
+                            age: years,
+                            isApproximate: parsed.isApproximate,
+                            isToday,
+                        });
+                    }
                 }
             }
         });
@@ -111,10 +128,16 @@ export default function OnThisDayPage() {
                     <span className="text-sm font-medium truncate">{event.person.fullName}</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                    {event.type === 'birthday' ? `Ulang tahun ke-${event.age}` : `Memperingati ${event.age} tahun wafat`}
+                    {event.type === 'birthday'
+                        ? event.age !== null
+                            ? `Ulang tahun ke-${event.isApproximate ? '~' : ''}${event.age}`
+                            : 'Hari ulang tahun'
+                        : event.age !== null
+                            ? `Memperingati ${event.isApproximate ? '~' : ''}${event.age} tahun wafat`
+                            : 'Memperingati hari wafat'}
                 </p>
                 <p className="text-xs text-muted-foreground/60 mt-0.5">
-                    {event.date.getFullYear()}
+                    {event.yearLabel}
                 </p>
             </div>
         </Card>
