@@ -125,8 +125,7 @@ export function FamilyMainView({
       .setCardXSpacing(orientation === 'vertical' ? 255 : 270)
       .setCardYSpacing(orientation === 'vertical' ? 136 : 118)
       .setSingleParentEmptyCard(false)
-      .setShowSiblingsOfMain(showSiblings)
-      .setLinkSpouseText(() => '⚭');
+      .setShowSiblingsOfMain(showSiblings);
 
     if (generationDepth === '1') {
       f3Chart.setAncestryDepth(1).setProgenyDepth(1);
@@ -222,8 +221,13 @@ export function FamilyMainView({
                     class="ft-add-btn"
                     data-action="add"
                     data-id="${escapeHtml(d.id)}"
-                    title="Tambah relasi untuk ${safeName}"
-                  >+</button>`
+                    title="Tambah kerabat untuk ${safeName}"
+                    aria-label="Tambah kerabat untuk ${safeName}"
+                  >
+                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+                      <path d="M7 2.5v9M2.5 7h9" />
+                    </svg>
+                  </button>`
                 : ''
             }
           </div>
@@ -268,13 +272,14 @@ export function FamilyMainView({
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      {/* Floating Focus Pill (top-left) */}
+      {/* Floating Top Bar: Focus Pill + Layout Toggles (stacks cleanly in 2 rows on mobile, single row on sm+) */}
       <div
         data-export-ignore="true"
-        className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-16rem)] flex-wrap items-center gap-2"
+        className="pointer-events-none absolute inset-x-2.5 top-2.5 sm:inset-x-3 sm:top-3 z-10 flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between"
       >
-        <div className="pointer-events-auto flex items-center gap-2.5 rounded-2xl border border-border/70 bg-background/88 px-3 py-1.5 shadow-sm backdrop-blur-md">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-semibold text-primary overflow-hidden border border-primary/20">
+        {/* Focus Pill */}
+        <div className="pointer-events-auto flex max-w-full self-start items-center gap-2 rounded-2xl border border-border/70 bg-background/90 px-2.5 py-1.5 sm:gap-2.5 sm:px-3 shadow-sm backdrop-blur-md">
+          <div className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-semibold text-primary overflow-hidden border border-primary/20">
             {rootPerson.photoUrl ? (
               <img
                 src={rootPerson.photoUrl}
@@ -285,7 +290,7 @@ export function FamilyMainView({
               getInitials(rootPerson.fullName)
             )}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground leading-none">
                 Figur Pusat
@@ -296,7 +301,7 @@ export function FamilyMainView({
                 </span>
               )}
             </div>
-            <p className="mt-0.5 truncate text-xs font-semibold text-foreground max-w-[160px] sm:max-w-[220px]">
+            <p className="mt-0.5 truncate text-xs font-semibold text-foreground max-w-[180px] sm:max-w-[220px]">
               {rootPerson.fullName}
             </p>
           </div>
@@ -316,115 +321,114 @@ export function FamilyMainView({
           )}
 
           {/* Pin as Home ("Jadikan Saya") or Return to Home ("Kembali ke Saya") */}
-          <div className="flex items-center gap-1 border-l border-border/70 pl-2">
-            {!isRootHome && homePerson && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleGoHome}
-                className="h-7 gap-1 rounded-lg px-2 text-[11px] font-medium text-primary hover:bg-primary/10 hover:text-primary"
-                title={`Kembali ke figur utama (${homePerson.fullName})`}
-              >
-                <House className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Saya</span>
-              </Button>
-            )}
-            {!isRootHome && onSetHomePerson && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handlePinAsHome}
-                className="h-7 gap-1 rounded-lg px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                title={`Jadikan ${rootPerson.fullName} sebagai Figur Utama default (Ini Saya)`}
-              >
-                <Pin className="h-3 w-3" />
-                <span className="hidden md:inline">Set Utama</span>
-              </Button>
-            )}
-          </div>
+          {!isRootHome && (homePerson || onSetHomePerson) && (
+            <div className="flex items-center gap-1 border-l border-border/70 pl-2">
+              {homePerson && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleGoHome}
+                  className="h-7 gap-1 rounded-lg px-2 text-[11px] font-medium text-primary hover:bg-primary/10 hover:text-primary"
+                  title={`Kembali ke figur utama (${homePerson.fullName})`}
+                >
+                  <House className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Saya</span>
+                </Button>
+              )}
+              {onSetHomePerson && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePinAsHome}
+                  className="h-7 gap-1 rounded-lg px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                  title={`Jadikan ${rootPerson.fullName} sebagai Figur Utama default (Ini Saya)`}
+                >
+                  <Pin className="h-3 w-3" />
+                  <span className="hidden md:inline">Set Utama</span>
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Floating Top-Right Layout Toggles (Generations + Siblings + Vertical/Horizontal) */}
-      <div
-        data-export-ignore="true"
-        className="absolute right-3 top-3 z-10 flex items-center gap-1.5"
-      >
-        {/* Generation Depth Filter (MyHeritage-style "Generations: 1 / 2 / Semua") */}
-        <div
-          className="flex items-center rounded-xl border border-border/70 bg-background/88 p-0.5 shadow-sm backdrop-blur-md"
-          title="Jumlah generasi yang ditampilkan dari figur pusat"
-        >
-          <span className="hidden lg:inline-flex items-center gap-1 pl-2 pr-1.5 text-[11px] font-medium text-muted-foreground">
-            <Layers className="h-3 w-3" />
-            Gen:
-          </span>
-          {(
-            [
-              { value: '1', label: '1 Gen', title: 'Keluarga inti (Orang tua, Saudara, Pasangan & Anak)' },
-              { value: '2', label: '2 Gen', title: '2 generasi ke atas & ke bawah (Kakek-Nenek hingga Cucu)' },
-              { value: 'all', label: 'Semua', title: 'Tampilkan seluruh generasi' },
-            ] as const
-          ).map((opt) => (
+        {/* Layout Toggles (Generations + Siblings + Vertical/Horizontal) */}
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
+          {/* Generation Depth Filter (MyHeritage-style "Generations: 1 / 2 / Semua") */}
+          <div
+            className="flex items-center rounded-xl border border-border/70 bg-background/90 p-0.5 shadow-sm backdrop-blur-md"
+            title="Jumlah generasi yang ditampilkan dari figur pusat"
+          >
+            <span className="hidden lg:inline-flex items-center gap-1 pl-2 pr-1.5 text-[11px] font-medium text-muted-foreground">
+              <Layers className="h-3 w-3" />
+              Gen:
+            </span>
+            {(
+              [
+                { value: '1', label: '1 Gen', title: 'Keluarga inti (Orang tua, Saudara, Pasangan & Anak)' },
+                { value: '2', label: '2 Gen', title: '2 generasi ke atas & ke bawah (Kakek-Nenek hingga Cucu)' },
+                { value: 'all', label: 'Semua', title: 'Tampilkan seluruh generasi' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setGenerationDepth(opt.value)}
+                title={opt.title}
+                className={cn(
+                  'flex h-7 items-center rounded-lg px-2 text-[11px] font-medium transition-colors',
+                  generationDepth === opt.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          <Button
+            variant={showSiblings ? 'secondary' : 'outline'}
+            size="sm"
+            className="h-8 gap-1.5 rounded-xl border-border/70 bg-background/90 px-2.5 text-[11px] shadow-sm backdrop-blur-md"
+            onClick={() => setShowSiblings((prev) => !prev)}
+            title="Tampilkan atau sembunyikan saudara kandung figur pusat"
+          >
+            <Users className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Saudara</span>
+          </Button>
+
+          <div className="flex items-center rounded-xl border border-border/70 bg-background/90 p-0.5 shadow-sm backdrop-blur-md">
             <button
-              key={opt.value}
               type="button"
-              onClick={() => setGenerationDepth(opt.value)}
-              title={opt.title}
+              onClick={() => setOrientation('vertical')}
               className={cn(
-                'flex h-7 items-center rounded-lg px-2 text-[11px] font-medium transition-colors',
-                generationDepth === opt.value
+                'flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-medium transition-colors',
+                orientation === 'vertical'
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               )}
+              title="Tata letak vertikal (atas ke bawah)"
             >
-              {opt.label}
+              <ArrowDownUp className="h-3 w-3" />
+              <span className="hidden md:inline">Vertikal</span>
             </button>
-          ))}
-        </div>
-
-        <Button
-          variant={showSiblings ? 'secondary' : 'outline'}
-          size="sm"
-          className="h-8 gap-1.5 rounded-xl border-border/70 bg-background/88 px-2.5 text-[11px] shadow-sm backdrop-blur-md"
-          onClick={() => setShowSiblings((prev) => !prev)}
-          title="Tampilkan atau sembunyikan saudara kandung figur pusat"
-        >
-          <Users className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Saudara</span>
-        </Button>
-
-        <div className="flex items-center rounded-xl border border-border/70 bg-background/88 p-0.5 shadow-sm backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => setOrientation('vertical')}
-            className={cn(
-              'flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-medium transition-colors',
-              orientation === 'vertical'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            title="Tata letak vertikal (atas ke bawah)"
-          >
-            <ArrowDownUp className="h-3 w-3" />
-            <span className="hidden md:inline">Vertikal</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setOrientation('horizontal')}
-            className={cn(
-              'flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-medium transition-colors',
-              orientation === 'horizontal'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            title="Tata letak horizontal (kiri ke kanan)"
-          >
-            <ArrowLeftRight className="h-3 w-3" />
-            <span className="hidden md:inline">Horizontal</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setOrientation('horizontal')}
+              className={cn(
+                'flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-medium transition-colors',
+                orientation === 'horizontal'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              title="Tata letak horizontal (kiri ke kanan)"
+            >
+              <ArrowLeftRight className="h-3 w-3" />
+              <span className="hidden md:inline">Horizontal</span>
+            </button>
+          </div>
         </div>
       </div>
 

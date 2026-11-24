@@ -89,6 +89,10 @@ import { FamilyView } from '@/features/chart/views/FamilyView';
 import { PedigreeView } from '@/features/chart/views/PedigreeView';
 import { RelationshipForm } from '@/features/relationships/RelationshipForm';
 import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
+import {
+  AddRelativeWizardDialog,
+  type RelativeRole,
+} from '@/features/chart/components/AddRelativeWizardDialog';
 import { MiniMap } from '@/features/chart/components/MiniMap';
 import {
   exportTreeAsImage,
@@ -162,6 +166,11 @@ export default function ChartPage() {
   const [highlightLineage, setHighlightLineage] = useState(false);
   const [showEditPerson, setShowEditPerson] = useState(false);
   const [showAddRelationship, setShowAddRelationship] = useState(false);
+  const [showAddRelativeWizard, setShowAddRelativeWizard] = useState(false);
+  const [addRelativeWizardState, setAddRelativeWizardState] = useState<{
+    personId: string | null;
+    initialRole?: RelativeRole | null;
+  }>({ personId: null, initialRole: null });
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [showExportStudio, setShowExportStudio] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -398,10 +407,19 @@ export default function ChartPage() {
     await copyTreeToClipboard(chartRef.current);
   };
 
-  const handleAddRelationship = useCallback((personId: string, type: 'parent' | 'spouse' | 'child') => {
-    setAddRelationshipContext({ personId, suggestedType: type });
-    setShowAddRelationship(true);
-  }, []);
+  const handleAddRelationship = useCallback(
+    (personId: string, type?: 'parent' | 'spouse' | 'child') => {
+      // Open the MyHeritage-style interactive relative diagram / form
+      const initialRole: RelativeRole | null =
+        type === 'spouse' ? 'partner' : null;
+      setAddRelativeWizardState({
+        personId,
+        initialRole,
+      });
+      setShowAddRelativeWizard(true);
+    },
+    []
+  );
 
   const timelineData = useMemo(() => {
     const parentsByChild = new globalThis.Map<string, string[]>();
@@ -1588,7 +1606,24 @@ export default function ChartPage() {
         </DrawerContent>
       </Drawer>
 
-      {/* Add Relationship Dialog */}
+      {/* MyHeritage-style Add Relative Diagram & Quick Form Dialog */}
+      <AddRelativeWizardDialog
+        open={showAddRelativeWizard}
+        onOpenChange={setShowAddRelativeWizard}
+        anchorPersonId={
+          addRelativeWizardState.personId || selectedPersonId || defaultFocusPersonId
+        }
+        initialRole={addRelativeWizardState.initialRole}
+        onOpenManualLinkDialog={() => {
+          setAddRelationshipContext({
+            personId:
+              addRelativeWizardState.personId || selectedPersonId || undefined,
+          });
+          setShowAddRelationship(true);
+        }}
+      />
+
+      {/* Manual Link Existing Relationship Dialog */}
       <Dialog open={showAddRelationship} onOpenChange={setShowAddRelationship}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

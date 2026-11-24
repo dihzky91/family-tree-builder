@@ -10,7 +10,7 @@ interface FamilyViewProps {
   relationships: Relationship[];
   selectedPersonId: string | null;
   onSelectPerson: (id: string) => void;
-  onAddRelationship?: (personId: string, type: 'parent' | 'spouse' | 'child') => void;
+  onAddRelationship?: (personId: string) => void;
   readOnly?: boolean;
 }
 
@@ -185,7 +185,7 @@ export const FamilyView = memo(function FamilyView({
       onSetHomePerson={readOnly ? undefined : setHomePerson}
       summary={summary}
       onSelectPerson={onSelectPerson}
-      onAddRelationship={onAddRelationship ? (id) => onAddRelationship(id, 'child') : undefined}
+      onAddRelationship={onAddRelationship ? (id) => onAddRelationship(id) : undefined}
     />
   );
 });

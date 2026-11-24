@@ -144,6 +144,9 @@ function sanitizePlaceToCityOnly(rawPlace?: string | null): string | null {
   // If a single string without commas had street details, hide it; otherwise keep the city name
   return streetPattern.test(trimmed) ? null : trimmed;
 }
+
+/**
+ * Filter persons and relationships by share scope:
  * - 'full': all persons and relationships
  * - 'branch': the branch's rootPersonId + all descendants + all spouses (and parents of root if needed)
  */

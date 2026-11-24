@@ -252,40 +252,61 @@
   border-radius: 9999px;
 }
 
-/* Floating Add Relative Button on Hover */
+/* Floating Add Relative Pill Tab at Bottom-Center of Card (Option 3) */
 .ft-add-btn {
   position: absolute;
   bottom: -9px;
-  right: 12px;
-  width: 22px;
-  height: 22px;
+  left: 50%;
+  width: 28px;
+  height: 17px;
+  padding: 0;
   border-radius: 9999px;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  border: 2px solid hsl(var(--card));
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+  border: 1.5px solid hsl(var(--border));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
   cursor: pointer;
   z-index: 6;
   opacity: 0;
-  transform: scale(0.9);
-  transition: opacity 0.16s ease, transform 0.16s ease;
-  box-shadow: 0 4px 10px -3px rgba(38, 25, 14, 0.45);
+  transform: translateX(-50%) scale(0.92);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+  box-shadow: 0 2px 6px rgba(38, 25, 14, 0.12);
+}
+
+.ft-add-btn svg {
+  width: 10px;
+  height: 10px;
+  display: block;
+  pointer-events: none;
 }
 
 .ft-card:hover .ft-add-btn,
 .family-stage .card-main .ft-add-btn,
 .ft-card.is-root .ft-add-btn {
   opacity: 1;
-  transform: scale(1);
+  transform: translateX(-50%) scale(1);
+}
+
+.family-stage .card-main .ft-add-btn,
+.ft-card.is-root .ft-add-btn {
+  border-color: hsl(var(--accent));
+  color: hsl(var(--primary));
 }
 
 .ft-add-btn:hover {
-  transform: scale(1.14) !important;
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-color: hsl(var(--primary)) !important;
+  transform: translateX(-50%) scale(1.1) !important;
+  box-shadow: 0 4px 10px -2px rgba(38, 25, 14, 0.32);
 }
 
 /* Connector Links Styling — Crisp MyHeritage-style Orthogonal & Bezier Curves */
@@ -311,18 +332,4 @@
   stroke: hsl(var(--accent)) !important;
   stroke-width: 2.75px !important;
   filter: drop-shadow(0 1px 4px hsl(var(--accent) / 0.35));
-}
-
-/* Marriage Rings Node on Spouse Connector (MyHeritage style) */
-.family-stage g.link-text text {
-  font-family: var(--font-body), 'Inter', sans-serif;
-  font-size: 12px !important;
-  fill: hsl(var(--accent)) !important;
-  paint-order: stroke;
-  stroke: hsl(var(--card));
-  stroke-width: 5px;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  font-weight: 700;
-  letter-spacing: -1.5px;
 }
