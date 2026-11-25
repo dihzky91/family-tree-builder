@@ -14,19 +14,7 @@ import {
     List,
     GitFork,
 } from 'lucide-react';
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from '@/components/ui/command';
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from '@/components/ui/popover';
+import { PersonPicker } from '@/components/PersonPicker';
 import { calculateRelationship } from '@/lib/relationshipCalculator';
 import { RelationshipPathGraph } from '@/features/relationships/RelationshipPathGraph';
 import type { Person } from '@/types';
@@ -71,8 +59,15 @@ export default function RelationshipCheckPage() {
     }) => (
         <div className="flex flex-col gap-2 flex-1 w-full">
             <label className="text-sm font-medium text-muted-foreground">{label}</label>
-            <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
+            <PersonPicker
+                persons={persons}
+                relationships={relationships}
+                selectedPerson={person}
+                onSelect={(p) => setPerson(p)}
+                open={open}
+                onOpenChange={setOpen}
+                popoverClassName="w-[320px] p-0"
+                trigger={
                     <Button
                         variant="outline"
                         role="combobox"
@@ -95,37 +90,8 @@ export default function RelationshipCheckPage() {
                         )}
                         <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-0" align="start">
-                    <Command>
-                        <CommandInput placeholder="Cari nama..." />
-                        <CommandList>
-                            <CommandEmpty>Tidak ditemukan.</CommandEmpty>
-                            <CommandGroup>
-                                {persons.map((p) => (
-                                    <CommandItem
-                                        key={p.id}
-                                        value={p.fullName}
-                                        onSelect={() => {
-                                            setPerson(p);
-                                            setOpen(false);
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <div
-                                                className={`w-3.5 h-3.5 rounded-full ${
-                                                    p.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'
-                                                }`}
-                                            />
-                                            {p.fullName}
-                                        </div>
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        </CommandList>
-                    </Command>
-                </PopoverContent>
-            </Popover>
+                }
+            />
         </div>
     );
 

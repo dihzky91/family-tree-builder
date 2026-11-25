@@ -583,7 +583,7 @@ export default function ChartPage() {
       {/* Main Chart Area */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="border-b bg-card/95 backdrop-blur-sm">
+        <div className="relative z-30 border-b bg-card/95 backdrop-blur-sm">
           {isMobile ? (
             <div className="px-3 py-2 space-y-1.5">
               <div className="flex items-center gap-1.5">
@@ -809,7 +809,7 @@ export default function ChartPage() {
                     className="h-8 rounded-lg border-border/70 bg-background/85 pl-8 text-xs"
                   />
                   {isSearchOpen && searchQuery.trim().length > 0 && (
-                    <div className="absolute right-0 top-full z-40 mt-1.5 w-64 overflow-hidden rounded-xl border border-border/80 bg-popover shadow-lg">
+                    <div className="absolute left-0 top-full z-50 mt-1.5 w-72 overflow-hidden rounded-xl border border-border bg-popover shadow-xl">
                       {quickSearchResults.length > 0 ? (
                         <div className="max-h-64 overflow-y-auto p-1">
                           {quickSearchResults.map(({ item }) => (

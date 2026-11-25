@@ -19,19 +19,7 @@ import {
 import { exportTreeAsImage } from '@/features/chart/utils/exportTreeAsImage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { PersonPicker } from '@/components/PersonPicker';
 import { calculateRelationship } from '@/lib/relationshipCalculator';
 import { RelationshipPathGraph } from '@/features/relationships/RelationshipPathGraph';
 import type { Person, Relationship } from '@/types';
@@ -86,9 +74,12 @@ export function RelationshipPathView({
 
     if (!personBId) {
       // Pick someone connected (prefer 2-4 steps away if possible, else any connected person)
+      // Cap candidate scan to keep initial tab open instant even with thousands of persons
       let bestCandidate: string | null = null;
       let bestScore = -1;
-      for (const candidate of persons) {
+      const maxCandidates = Math.min(persons.length, 60);
+      for (let i = 0; i < maxCandidates; i++) {
+        const candidate = persons[i];
         if (candidate.id === startId) continue;
         const res = calculateRelationship(startId, candidate.id, persons, relationships);
         if (!res) continue;
@@ -97,6 +88,7 @@ export function RelationshipPathView({
           bestScore = score;
           bestCandidate = candidate.id;
         }
+        if (score >= 13) break;
       }
       setPersonBId(bestCandidate || persons.find((p) => p.id !== startId)?.id || null);
     }
@@ -129,8 +121,15 @@ export function RelationshipPathView({
     setOpen: (v: boolean) => void,
     accentClass: string
   ) => (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <PersonPicker
+      persons={persons}
+      relationships={relationships}
+      selectedPerson={selected}
+      onSelect={(p) => onChange(p.id)}
+      open={open}
+      onOpenChange={setOpen}
+      popoverClassName="w-[300px] p-0"
+      trigger={
         <Button
           variant="outline"
           role="combobox"
@@ -152,42 +151,8 @@ export function RelationshipPathView({
           </div>
           <Search className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[260px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Cari nama anggota..." />
-          <CommandList>
-            <CommandEmpty>Tidak ditemukan.</CommandEmpty>
-            <CommandGroup>
-              {persons.map((p) => (
-                <CommandItem
-                  key={p.id}
-                  value={p.fullName}
-                  onSelect={() => {
-                    onChange(p.id);
-                    setOpen(false);
-                  }}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span
-                      className={cn(
-                        'h-2.5 w-2.5 shrink-0 rounded-full',
-                        p.gender === 'male'
-                          ? 'bg-sky-500'
-                          : p.gender === 'female'
-                            ? 'bg-rose-500'
-                            : 'bg-muted-foreground'
-                      )}
-                    />
-                    <span className="truncate">{p.fullName}</span>
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      }
+    />
   );
 
   const commonAncestor =
