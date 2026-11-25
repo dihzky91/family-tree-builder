@@ -3,7 +3,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { useFamilyStore } from '@/store/familyStore';
-import { DocumentTypeEnum, VerificationStatusEnum, EntityTypeEnum } from '@/types';
+import {
+  DocumentTypeEnum,
+  VerificationStatusEnum,
+  EntityTypeEnum,
+  type DocumentType,
+  type VerificationStatus,
+  type EntityType,
+} from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -39,8 +46,17 @@ interface EvidenceFormProps {
   onSuccess?: () => void;
 }
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Gagal membaca file lokal'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
-  const { addEvidence, persons, relationships } = useFamilyStore();
+  const { addEvidence, persons, relationships, isDemoMode, isPrivateMode } = useFamilyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -114,15 +130,20 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
       let fileUrl: string | null = null;
       let filePath: string | null = null;
       let fileName: string | null = null;
+      let fileData: string | null = null;
 
-      // Upload file to Supabase Storage if selected
+      // Upload file to Supabase Storage if in cloud mode, or encode locally in Private/Demo mode
       if (selectedFile) {
         setIsUploading(true);
         try {
-          const result = await uploadEvidenceFile(selectedFile, evidenceId);
-          fileUrl = result.url;
-          filePath = result.path;
           fileName = selectedFile.name;
+          if (isDemoMode || isPrivateMode) {
+            fileData = await readFileAsDataUrl(selectedFile);
+          } else {
+            const result = await uploadEvidenceFile(selectedFile, evidenceId);
+            fileUrl = result.url;
+            filePath = result.path;
+          }
         } finally {
           setIsUploading(false);
         }
@@ -131,6 +152,7 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
       await addEvidence({
         ...data,
         id: evidenceId,
+        fileData,
         fileUrl,
         filePath,
         fileName,
@@ -237,7 +259,7 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
           <Select 
             defaultValue="PERSON"
             onValueChange={(value) => {
-              setValue('entityType', value as any);
+              setValue('entityType', value as EntityType);
               setValue('entityId', '');
             }}
           >
@@ -287,7 +309,7 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
           <Label>Tipe Dokumen</Label>
           <Select 
             defaultValue="other"
-            onValueChange={(value) => setValue('docType', value as any)}
+            onValueChange={(value) => setValue('docType', value as DocumentType)}
           >
             <SelectTrigger className="mt-1">
               <SelectValue />
@@ -304,7 +326,7 @@ export function EvidenceForm({ onSuccess }: EvidenceFormProps) {
           <Label>Status Awal</Label>
           <Select 
             defaultValue="draft"
-            onValueChange={(value) => setValue('status', value as any)}
+            onValueChange={(value) => setValue('status', value as VerificationStatus)}
           >
             <SelectTrigger className="mt-1">
               <SelectValue />

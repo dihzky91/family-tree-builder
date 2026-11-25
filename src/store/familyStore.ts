@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, validate as isUuid } from 'uuid';
 import type { Person, Relationship, Evidence, AuditLog, FamilyChartPerson, Story, Branch } from '@/types';
 import { storage, setStorageMode, isSupabaseConfigured, type StorageMode } from '@/storage';
 import { getDemoData } from '@/data/demoData';
@@ -10,6 +10,66 @@ interface UndoAction {
   type: 'DELETE_PERSON' | 'DELETE_RELATIONSHIP' | 'DELETE_STORY';
   data: Person | Relationship | Story;
   relatedData?: Relationship[];
+  relatedEvidence?: Evidence[];
+}
+
+function normalizeImportedIds(raw: {
+  persons?: Person[];
+  relationships?: Relationship[];
+  evidence?: Evidence[];
+  stories?: Story[];
+}) {
+  const idMap = new Map<string, string>();
+  const ensureUuid = (id: string | undefined | null): string => {
+    if (!id) return uuidv4();
+    if (isUuid(id)) return id;
+    const existing = idMap.get(id);
+    if (existing) return existing;
+    const next = uuidv4();
+    idMap.set(id, next);
+    return next;
+  };
+
+  const persons = (raw.persons || []).map((p) => ({
+    ...p,
+    id: ensureUuid(p.id),
+    tags: Array.isArray(p.tags) ? p.tags : [],
+    confidenceScore: p.confidenceScore ?? 50,
+  }));
+
+  const relationships = (raw.relationships || []).map((r) => ({
+    ...r,
+    id: ensureUuid(r.id),
+    fromPersonId: ensureUuid(r.fromPersonId),
+    toPersonId: ensureUuid(r.toPersonId),
+    meta: r.meta || {},
+  }));
+
+  const evidence = (raw.evidence || []).map((e) => ({
+    ...e,
+    id: ensureUuid(e.id),
+    entityId: ensureUuid(e.entityId),
+  }));
+
+  const stories = Array.isArray(raw.stories)
+    ? raw.stories.map((s) => ({
+        ...s,
+        id: ensureUuid(s.id),
+        authorId: s.authorId ? ensureUuid(s.authorId) : null,
+        personIds: Array.isArray(s.personIds) ? s.personIds.map((pid) => ensureUuid(pid)) : [],
+        tags: Array.isArray(s.tags) ? s.tags : [],
+      }))
+    : [];
+
+  return { persons, relationships, evidence, stories };
+}
+
+function isPlaceholderParentPerson(person?: Person | null): boolean {
+  if (!person) return false;
+  return (
+    person.tags.includes('auto-placeholder-parent') ||
+    person.notes === 'Dibuat otomatis sebagai leluhur penghubung saudara kandung'
+  );
 }
 
 interface FamilyState {
@@ -36,7 +96,7 @@ interface FamilyState {
   // Person actions
   addPerson: (person: Omit<Person, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Person>;
   updatePerson: (id: string, updates: Partial<Person>) => Promise<void>;
-  deletePerson: (id: string) => Promise<void>;
+  deletePerson: (id: string, options?: { skipUndo?: boolean }) => Promise<void>;
 
   // Relationship actions
   addRelationship: (relationship: Omit<Relationship, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Relationship>;
@@ -153,14 +213,14 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       ]);
 
       const stories = await storage.getAllStories();
-      
+
       let branches: Branch[] = [];
       try {
         branches = await storage.getAllBranches();
       } catch (e) {
         console.warn('Failed to load branches:', e);
       }
-      
+
       set({ persons, relationships, evidence, auditLogs, branches, stories, isLoading: false });
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -179,19 +239,21 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       updatedAt: now,
     };
 
-    await storage.createPerson(person);
-    try {
-      await storage.createAuditLog({
-        id: uuidv4(),
-        action: 'CREATE',
-        entityType: 'PERSON',
-        entityId: person.id,
-        changes: person,
-        timestamp: now,
-        userId: null,
-      });
-    } catch (auditErr) {
-      console.warn('Non-fatal audit log error on addPerson:', auditErr);
+    if (!get().isDemoMode) {
+      await storage.createPerson(person);
+      try {
+        await storage.createAuditLog({
+          id: uuidv4(),
+          action: 'CREATE',
+          entityType: 'PERSON',
+          entityId: person.id,
+          changes: person,
+          timestamp: now,
+          userId: null,
+        });
+      } catch (auditErr) {
+        console.warn('Non-fatal audit log error on addPerson:', auditErr);
+      }
     }
 
     set(state => ({
@@ -213,67 +275,97 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       updatedAt: now,
     };
 
-    await storage.updatePerson(updated);
-    try {
-      await storage.createAuditLog({
-        id: uuidv4(),
-        action: 'UPDATE',
-        entityType: 'PERSON',
-        entityId: id,
-        changes: updates,
-        timestamp: now,
-        userId: null,
-      });
-    } catch (auditErr) {
-      console.warn('Non-fatal audit log error on updatePerson:', auditErr);
+    if (!state.isDemoMode) {
+      await storage.updatePerson(updated);
+      try {
+        await storage.createAuditLog({
+          id: uuidv4(),
+          action: 'UPDATE',
+          entityType: 'PERSON',
+          entityId: id,
+          changes: updates,
+          timestamp: now,
+          userId: null,
+        });
+      } catch (auditErr) {
+        console.warn('Non-fatal audit log error on updatePerson:', auditErr);
+      }
     }
 
-    set(state => ({
-      persons: state.persons.map(p => p.id === id ? updated : p),
+    set(st => ({
+      persons: st.persons.map(p => p.id === id ? updated : p),
     }));
   },
 
-  deletePerson: async (id) => {
+  deletePerson: async (id, options) => {
     const state = get();
     const person = state.persons.find(p => p.id === id);
     if (!person) return;
 
-    // Get related relationships for undo
     const relatedRelationships = state.relationships.filter(
       r => r.fromPersonId === id || r.toPersonId === id
     );
+    const relatedRelIds = new Set(relatedRelationships.map(r => r.id));
+    const relatedEvidence = state.evidence.filter(
+      e =>
+        (e.entityType === 'PERSON' && e.entityId === id) ||
+        (e.entityType === 'RELATIONSHIP' && relatedRelIds.has(e.entityId))
+    );
 
-    // Delete related relationships first
-    for (const rel of relatedRelationships) {
-      await storage.deleteRelationship(rel.id);
+    if (!state.isDemoMode) {
+      for (const ev of relatedEvidence) {
+        await storage.deleteEvidence(ev.id);
+      }
+      for (const rel of relatedRelationships) {
+        await storage.deleteRelationship(rel.id);
+      }
+      await storage.deletePerson(id);
+      try {
+        await storage.createAuditLog({
+          id: uuidv4(),
+          action: 'DELETE',
+          entityType: 'PERSON',
+          entityId: id,
+          changes: person,
+          timestamp: new Date().toISOString(),
+          userId: null,
+        });
+      } catch (auditErr) {
+        console.warn('Non-fatal audit log error on deletePerson:', auditErr);
+      }
     }
 
-    await storage.deletePerson(id);
-    try {
-      await storage.createAuditLog({
-        id: uuidv4(),
-        action: 'DELETE',
-        entityType: 'PERSON',
-        entityId: id,
-        changes: person,
-        timestamp: new Date().toISOString(),
-        userId: null,
-      });
-    } catch (auditErr) {
-      console.warn('Non-fatal audit log error on deletePerson:', auditErr);
+    const nextHomePersonId = state.homePersonId === id ? null : state.homePersonId;
+    if (state.homePersonId === id && !state.isDemoMode && typeof localStorage !== 'undefined') {
+      localStorage.removeItem(HOME_PERSON_KEY);
     }
 
-    set(state => ({
-      persons: state.persons.filter(p => p.id !== id),
-      relationships: state.relationships.filter(
+    const removedEvidenceIds = new Set(relatedEvidence.map(e => e.id));
+
+    set(st => ({
+      persons: st.persons.filter(p => p.id !== id),
+      relationships: st.relationships.filter(
         r => r.fromPersonId !== id && r.toPersonId !== id
       ),
-      selectedPersonId: state.selectedPersonId === id ? null : state.selectedPersonId,
-      undoStack: [...state.undoStack, {
-        type: 'DELETE_PERSON',
-        data: person,
-        relatedData: relatedRelationships
-      }],
+      evidence: st.evidence.filter(e => !removedEvidenceIds.has(e.id)),
+      stories: st.stories.map(s =>
+        s.personIds.includes(id)
+          ? { ...s, personIds: s.personIds.filter(pid => pid !== id) }
+          : s
+      ),
+      selectedPersonId: st.selectedPersonId === id ? null : st.selectedPersonId,
+      homePersonId: nextHomePersonId,
+      undoStack: options?.skipUndo
+        ? st.undoStack
+        : [
+            ...st.undoStack,
+            {
+              type: 'DELETE_PERSON',
+              data: person,
+              relatedData: relatedRelationships,
+              relatedEvidence,
+            },
+          ],
     }));
   },
 
@@ -287,7 +379,10 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       updatedAt: now,
     };
 
-    await storage.createRelationship(relationship);
+    const isDemo = get().isDemoMode;
+    if (!isDemo) {
+      await storage.createRelationship(relationship);
+    }
     set(state => ({
       relationships: [...state.relationships, relationship],
     }));
@@ -296,24 +391,16 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     if (relData.type === 'PARENT_CHILD') {
       const currentState = get();
       const addedParent = currentState.persons.find(p => p.id === relData.fromPersonId);
-      const isAddedPlaceholder =
-        addedParent?.tags.includes('auto-placeholder-parent') ||
-        addedParent?.notes === 'Dibuat otomatis sebagai leluhur penghubung saudara kandung';
 
-      if (addedParent && !isAddedPlaceholder) {
+      if (addedParent && !isPlaceholderParentPerson(addedParent)) {
         const childParentRels = currentState.relationships.filter(
           r => r.type === 'PARENT_CHILD' && r.toPersonId === relData.toPersonId && r.fromPersonId !== addedParent.id
         );
 
         for (const oldParentRel of childParentRels) {
           const oldParent = currentState.persons.find(p => p.id === oldParentRel.fromPersonId);
-          const isPlaceholder =
-            oldParent &&
-            (oldParent.tags.includes('auto-placeholder-parent') ||
-              oldParent.notes === 'Dibuat otomatis sebagai leluhur penghubung saudara kandung');
 
-          if (isPlaceholder && oldParent) {
-            // Transfer all siblings connected to this placeholder parent to the real parent
+          if (oldParent && isPlaceholderParentPerson(oldParent)) {
             const siblingRels = currentState.relationships.filter(
               r => r.type === 'PARENT_CHILD' && r.fromPersonId === oldParent.id
             );
@@ -335,15 +422,17 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
                   createdAt: now,
                   updatedAt: now,
                 };
-                await storage.createRelationship(transferredRel);
+                if (!get().isDemoMode) {
+                  await storage.createRelationship(transferredRel);
+                }
                 set(st => ({
                   relationships: [...st.relationships, transferredRel],
                 }));
               }
             }
 
-            // Now delete the temporary placeholder parent node (and its old relationships)
-            await get().deletePerson(oldParent.id);
+            // Delete temporary placeholder parent without polluting user's undoStack
+            await get().deletePerson(oldParent.id, { skipUndo: true });
           }
         }
       }
@@ -363,9 +452,11 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    await storage.updateRelationship(updated);
-    set(state => ({
-      relationships: state.relationships.map(r => r.id === id ? updated : r),
+    if (!state.isDemoMode) {
+      await storage.updateRelationship(updated);
+    }
+    set(st => ({
+      relationships: st.relationships.map(r => r.id === id ? updated : r),
     }));
   },
 
@@ -374,10 +465,12 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     const relationship = state.relationships.find(r => r.id === id);
     if (!relationship) return;
 
-    await storage.deleteRelationship(id);
-    set(state => ({
-      relationships: state.relationships.filter(r => r.id !== id),
-      undoStack: [...state.undoStack, { type: 'DELETE_RELATIONSHIP', data: relationship }],
+    if (!state.isDemoMode) {
+      await storage.deleteRelationship(id);
+    }
+    set(st => ({
+      relationships: st.relationships.filter(r => r.id !== id),
+      undoStack: [...st.undoStack, { type: 'DELETE_RELATIONSHIP', data: relationship }],
     }));
   },
 
@@ -389,7 +482,9 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       createdAt: now,
     };
 
-    await storage.createEvidence(evidence);
+    if (!get().isDemoMode) {
+      await storage.createEvidence(evidence);
+    }
     set(state => ({
       evidence: [...state.evidence, evidence],
     }));
@@ -407,45 +502,49 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       ...updates,
     };
 
-    await storage.updateEvidence(updated);
-    try {
-      await storage.createAuditLog({
-        id: uuidv4(),
-        action: 'UPDATE',
-        entityType: 'EVIDENCE',
-        entityId: id,
-        changes: updates,
-        timestamp: new Date().toISOString(),
-        userId: null,
-      });
-    } catch (auditErr) {
-      console.warn('Non-fatal audit log error on updateEvidence:', auditErr);
+    if (!state.isDemoMode) {
+      await storage.updateEvidence(updated);
+      try {
+        await storage.createAuditLog({
+          id: uuidv4(),
+          action: 'UPDATE',
+          entityType: 'EVIDENCE',
+          entityId: id,
+          changes: updates,
+          timestamp: new Date().toISOString(),
+          userId: null,
+        });
+      } catch (auditErr) {
+        console.warn('Non-fatal audit log error on updateEvidence:', auditErr);
+      }
     }
 
-    set(state => ({
-      evidence: state.evidence.map(e => e.id === id ? updated : e),
+    set(st => ({
+      evidence: st.evidence.map(e => e.id === id ? updated : e),
     }));
   },
 
   deleteEvidence: async (id) => {
     const state = get();
     const existing = state.evidence.find(e => e.id === id);
-    if (existing?.filePath) {
-      try {
-        await deleteEvidenceFile(existing.filePath);
-      } catch (error) {
-        console.warn('Failed to delete evidence file:', error);
+    if (!state.isDemoMode) {
+      if (existing?.filePath) {
+        try {
+          await deleteEvidenceFile(existing.filePath);
+        } catch (error) {
+          console.warn('Failed to delete evidence file:', error);
+        }
       }
+      await storage.deleteEvidence(id);
     }
-    await storage.deleteEvidence(id);
-    set(state => ({
-      evidence: state.evidence.filter(e => e.id !== id),
+    set(st => ({
+      evidence: st.evidence.filter(e => e.id !== id),
     }));
   },
 
   setSelectedPerson: (id) => set({ selectedPersonId: id }),
   setHomePerson: (id) => {
-    if (typeof localStorage !== 'undefined') {
+    if (!get().isDemoMode && typeof localStorage !== 'undefined') {
       if (id) {
         localStorage.setItem(HOME_PERSON_KEY, id);
       } else {
@@ -463,28 +562,48 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
 
     if (lastAction.type === 'DELETE_PERSON') {
       const person = lastAction.data as Person;
-      await storage.createPerson(person);
+      if (!state.isDemoMode) {
+        await storage.createPerson(person);
 
-      // Restore related relationships
-      if (lastAction.relatedData) {
-        for (const rel of lastAction.relatedData) {
-          await storage.createRelationship(rel);
+        if (lastAction.relatedData) {
+          for (const rel of lastAction.relatedData) {
+            await storage.createRelationship(rel);
+          }
+        }
+        if (lastAction.relatedEvidence) {
+          for (const ev of lastAction.relatedEvidence) {
+            await storage.createEvidence(ev);
+          }
         }
       }
 
-      set(state => ({
-        persons: [...state.persons, person],
+      set(st => ({
+        persons: [...st.persons, person],
         relationships: lastAction.relatedData
-          ? [...state.relationships, ...lastAction.relatedData]
-          : state.relationships,
-        undoStack: state.undoStack.slice(0, -1),
+          ? [...st.relationships, ...lastAction.relatedData]
+          : st.relationships,
+        evidence: lastAction.relatedEvidence
+          ? [...st.evidence, ...lastAction.relatedEvidence]
+          : st.evidence,
+        undoStack: st.undoStack.slice(0, -1),
       }));
     } else if (lastAction.type === 'DELETE_RELATIONSHIP') {
       const relationship = lastAction.data as Relationship;
-      await storage.createRelationship(relationship);
-      set(state => ({
-        relationships: [...state.relationships, relationship],
-        undoStack: state.undoStack.slice(0, -1),
+      if (!state.isDemoMode) {
+        await storage.createRelationship(relationship);
+      }
+      set(st => ({
+        relationships: [...st.relationships, relationship],
+        undoStack: st.undoStack.slice(0, -1),
+      }));
+    } else if (lastAction.type === 'DELETE_STORY') {
+      const story = lastAction.data as Story;
+      if (!state.isDemoMode) {
+        await storage.createStory(story);
+      }
+      set(st => ({
+        stories: [...st.stories, story],
+        undoStack: st.undoStack.slice(0, -1),
       }));
     }
   },
@@ -505,10 +624,33 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
 
   importData: async (jsonData) => {
     try {
-      const data = JSON.parse(jsonData);
-      await storage.importData(data.persons || [], data.relationships || [], data.evidence || []);
-      if (Array.isArray(data.stories)) {
-        for (const story of data.stories) {
+      const parsed = JSON.parse(jsonData);
+      if (!parsed || !Array.isArray(parsed.persons)) {
+        throw new Error('Format JSON tidak valid: daftar "persons" tidak ditemukan');
+      }
+
+      const normalized = normalizeImportedIds(parsed);
+
+      if (get().isDemoMode) {
+        set({
+          persons: normalized.persons,
+          relationships: normalized.relationships,
+          evidence: normalized.evidence,
+          stories: normalized.stories,
+          selectedPersonId: null,
+          undoStack: [],
+        });
+        return;
+      }
+
+      await storage.importData(
+        normalized.persons,
+        normalized.relationships,
+        normalized.evidence
+      );
+
+      if (normalized.stories.length > 0) {
+        for (const story of normalized.stories) {
           try {
             await storage.createStory(story);
           } catch (error) {
@@ -519,12 +661,17 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       await get().loadData();
     } catch (error) {
       console.error('Import failed:', error);
-      throw new Error('Invalid import data');
+      throw error instanceof Error ? error : new Error('Gagal mengimpor data silsilah');
     }
   },
 
   clearAllData: async () => {
-    await storage.clearAll();
+    if (!get().isDemoMode) {
+      await storage.clearAll();
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(HOME_PERSON_KEY);
+      }
+    }
     set({
       persons: [],
       relationships: [],
@@ -532,6 +679,7 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       auditLogs: [],
       stories: [],
       selectedPersonId: null,
+      homePersonId: null,
       undoStack: [],
     });
   },
@@ -638,7 +786,9 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       updatedAt: now,
     };
 
-    await storage.createStory(story);
+    if (!get().isDemoMode) {
+      await storage.createStory(story);
+    }
 
     set(state => ({
       stories: [...state.stories, story],
@@ -658,17 +808,26 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    await storage.updateStory(updated);
+    if (!state.isDemoMode) {
+      await storage.updateStory(updated);
+    }
 
-    set(state => ({
-      stories: state.stories.map(s => s.id === id ? updated : s),
+    set(st => ({
+      stories: st.stories.map(s => s.id === id ? updated : s),
     }));
   },
 
   deleteStory: async (id) => {
-    await storage.deleteStory(id);
-    set(state => ({
-      stories: state.stories.filter(s => s.id !== id),
+    const state = get();
+    const story = state.stories.find(s => s.id === id);
+    if (!story) return;
+
+    if (!state.isDemoMode) {
+      await storage.deleteStory(id);
+    }
+    set(st => ({
+      stories: st.stories.filter(s => s.id !== id),
+      undoStack: [...st.undoStack, { type: 'DELETE_STORY', data: story }],
     }));
   },
 
@@ -716,7 +875,11 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   },
 
   exitDemoMode: async () => {
-    set({ isDemoMode: false });
+    set({
+      isDemoMode: false,
+      homePersonId: getInitialHomePersonId(),
+      undoStack: [],
+    });
     await get().loadData();
   },
 }));

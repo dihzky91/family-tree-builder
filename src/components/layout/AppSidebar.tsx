@@ -24,7 +24,8 @@ import {
   Upload,
   X,
   Cake,
-  Mouse
+  Mouse,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -42,7 +43,7 @@ import { usePendingSubmissionCount } from '@/hooks/usePendingSubmissionCount';
 interface NavItem {
   title: string;
   url: string;
-  icon: any;
+  icon: LucideIcon;
   badge?: () => number | null;
 }
 

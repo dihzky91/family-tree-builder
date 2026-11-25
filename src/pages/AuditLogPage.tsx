@@ -84,7 +84,7 @@ export default function AuditLogPage() {
     return entityId.slice(0, 8) + '...';
   };
 
-  const formatChanges = (changes: Record<string, any> | null | undefined): string[] => {
+  const formatChanges = (changes: Record<string, unknown> | null | undefined): string[] => {
     if (!changes) return [];
     
     const formatted: string[] = [];

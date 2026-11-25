@@ -29,6 +29,24 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
+interface ImportPreviewSummary {
+  version: string;
+  personsCount: number;
+  relationshipsCount: number;
+  evidenceCount: number;
+  storiesCount: number;
+  exportedAt?: string;
+}
+
+function escapeCsvCell(val: string | number | null | undefined): string {
+  if (val === null || val === undefined) return '';
+  const str = String(val);
+  if (/[",\r\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 export default function DataPage() {
   const { exportData, importData, clearAllData, persons, relationships, evidence, stories } = useFamilyStore();
   const [importText, setImportText] = useState('');
@@ -36,7 +54,7 @@ export default function DataPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreviewSummary | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -67,20 +85,36 @@ export default function DataPage() {
   };
 
   const handleExportCSV = () => {
-    // Export persons as CSV
-    const headers = ['id', 'fullName', 'gender', 'birthDate', 'deathDate', 'notes', 'tags', 'confidenceScore'];
-    const rows = persons.map(p => [
-      p.id,
-      `"${p.fullName}"`,
-      p.gender,
-      p.birthDate || '',
-      p.deathDate || '',
-      `"${(p.notes || '').replace(/"/g, '""')}"`,
-      `"${p.tags.join(', ')}"`,
-      p.confidenceScore,
-    ]);
+    const headers = [
+      'id',
+      'fullName',
+      'gender',
+      'birthDate',
+      'birthPlace',
+      'deathDate',
+      'deathPlace',
+      'residence',
+      'notes',
+      'tags',
+      'confidenceScore',
+    ];
+    const rows = persons.map((p) =>
+      [
+        escapeCsvCell(p.id),
+        escapeCsvCell(p.fullName),
+        escapeCsvCell(p.gender),
+        escapeCsvCell(p.birthDate),
+        escapeCsvCell(p.birthPlace),
+        escapeCsvCell(p.deathDate),
+        escapeCsvCell(p.deathPlace),
+        escapeCsvCell(p.residence),
+        escapeCsvCell(p.notes),
+        escapeCsvCell(p.tags.join(', ')),
+        escapeCsvCell(p.confidenceScore),
+      ].join(',')
+    );
 
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -127,8 +161,8 @@ export default function DataPage() {
         storiesCount: data.stories?.length || 0,
         exportedAt: data.exportedAt,
       });
-    } catch (error: any) {
-      setImportError(error.message || 'Format JSON tidak valid');
+    } catch (error: unknown) {
+      setImportError(error instanceof Error ? error.message : 'Format JSON tidak valid');
     }
   };
 
@@ -144,10 +178,10 @@ export default function DataPage() {
         title: 'Import berhasil',
         description: 'Data telah berhasil diimpor',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Import gagal',
-        description: error.message || 'Terjadi kesalahan saat mengimpor data',
+        description: error instanceof Error ? error.message : 'Terjadi kesalahan saat mengimpor data',
         variant: 'destructive',
       });
     } finally {

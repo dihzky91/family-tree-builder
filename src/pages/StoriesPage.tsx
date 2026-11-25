@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import type { Story } from '@/types';
 import { StoryGeneratorPage } from '@/features/stories/StoryGeneratorPage';
+import { formatFlexibleDate } from '@/lib/flexibleDateUtils';
 
 export default function StoriesPage() {
   const { stories, persons, addStory, updateStory, deleteStory } = useFamilyStore();
@@ -237,7 +238,7 @@ export default function StoriesPage() {
                       <div className="flex items-center gap-1 text-xs text-muted-foreground relative z-10">
                         <Calendar className="w-3 h-3" />
                         <span>
-                          {new Date(story.date).toLocaleDateString('id-ID', { dateStyle: 'long' })}
+                          {formatFlexibleDate(story.date) || story.date}
                         </span>
                       </div>
                     )}
@@ -427,7 +428,7 @@ export default function StoriesPage() {
                   {viewStory.date && (
                     <div className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
-                      {new Date(viewStory.date).toLocaleDateString('id-ID', { dateStyle: 'full' })}
+                      {formatFlexibleDate(viewStory.date) || viewStory.date}
                     </div>
                   )}
                   {viewStory.tags.length > 0 && (

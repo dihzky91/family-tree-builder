@@ -11,6 +11,7 @@ import type {
 import { v4 as uuidv4 } from 'uuid';
 
 const LOCAL_SHARES_KEY = 'silsilah-public-shares-v1';
+const LOCAL_OWNER_PINS_KEY = 'silsilah-owner-share-pins-v1';
 const CLOUD_SHARE_PREFIX = '__PUBLIC_SHARE_V1__:';
 
 interface StoredLocalShare extends ShareLink {
@@ -22,7 +23,186 @@ interface StoredLocalShare extends ShareLink {
   };
 }
 
+interface EncryptedSnapshotEnvelope {
+  alg: 'AES-GCM-256/PBKDF2-SHA256';
+  iter: number;
+  salt: string;
+  iv: string;
+  ct: string;
+}
+
 interface CloudBranchPayload {
+  title: string;
+  description?: string;
+  scopeType: ShareScopeType;
+  branchId?: string | null;
+  branchCode?: string | null;
+  branchName?: string | null;
+  rootPersonId?: string | null;
+  hasPin?: boolean;
+  /** Legacy field kept only for reading old records before re-encryption */
+  pinCode?: string;
+  hideLivingDetails: boolean;
+  updatedAt: string;
+  personsCount?: number;
+  snapshotData?: {
+    persons: Person[];
+    relationships: Relationship[];
+  };
+  encryptedSnapshot?: EncryptedSnapshotEnvelope;
+}
+
+interface DbBranchShareRow {
+  id: string;
+  code: string;
+  name: string;
+  root_person_id: string | null;
+  description: string | null;
+  is_active: boolean | null;
+  submission_count: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+interface DbPublicShareRow {
+  id: string;
+  code: string;
+  title: string;
+  description?: string | null;
+  scope_type?: string | null;
+  branch_id?: string | null;
+  root_person_id?: string | null;
+  pin_code?: string | null;
+  hide_living_details?: boolean | null;
+  is_active?: boolean | null;
+  view_count?: number | null;
+  snapshot_data?: {
+    persons?: unknown[];
+    relationships?: unknown[];
+  } | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function derivePinKey(
+  pin: string,
+  salt: Uint8Array,
+  iterations: number,
+  usage: KeyUsage[]
+): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(pin),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: salt as BufferSource,
+      iterations,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    usage
+  );
+}
+
+async function encryptSnapshotWithPin(
+  snapshotData: { persons: Person[]; relationships: Relationship[] },
+  pin: string
+): Promise<EncryptedSnapshotEnvelope> {
+  const iter = 100_000;
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await derivePinKey(pin, salt, iter, ['encrypt']);
+  const plaintext = new TextEncoder().encode(JSON.stringify(snapshotData));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv as BufferSource },
+    key,
+    plaintext
+  );
+  return {
+    alg: 'AES-GCM-256/PBKDF2-SHA256',
+    iter,
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    ct: bytesToBase64(new Uint8Array(ciphertext)),
+  };
+}
+
+async function decryptSnapshotWithPin(
+  envelope: EncryptedSnapshotEnvelope,
+  pin: string
+): Promise<{ persons: Person[]; relationships: Relationship[] } | null> {
+  try {
+    const salt = base64ToBytes(envelope.salt);
+    const iv = base64ToBytes(envelope.iv);
+    const ct = base64ToBytes(envelope.ct);
+    const key = await derivePinKey(pin, salt, envelope.iter || 100_000, ['decrypt']);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv as BufferSource },
+      key,
+      ct as BufferSource
+    );
+    const json = new TextDecoder().decode(decrypted);
+    const parsed = JSON.parse(json) as { persons?: Person[]; relationships?: Relationship[] };
+    return {
+      persons: Array.isArray(parsed.persons) ? parsed.persons : [],
+      relationships: Array.isArray(parsed.relationships) ? parsed.relationships : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readOwnerPins(): Record<string, string> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(LOCAL_OWNER_PINS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveOwnerPin(code: string, pin?: string) {
+  if (typeof localStorage === 'undefined') return;
+  const pins = readOwnerPins();
+  const cleanCode = code.trim().toLowerCase();
+  const cleanPin = pin?.trim() || '';
+  if (cleanPin) {
+    pins[cleanCode] = cleanPin;
+  } else {
+    delete pins[cleanCode];
+  }
+  localStorage.setItem(LOCAL_OWNER_PINS_KEY, JSON.stringify(pins));
+}
+
+async function buildCloudBranchPayload(params: {
   title: string;
   description?: string;
   scopeType: ShareScopeType;
@@ -33,14 +213,30 @@ interface CloudBranchPayload {
   pinCode?: string;
   hideLivingDetails: boolean;
   updatedAt: string;
-  snapshotData: {
-    persons: Person[];
-    relationships: Relationship[];
+  snapshotData: { persons: Person[]; relationships: Relationship[] };
+}): Promise<string> {
+  const cleanPin = params.pinCode?.trim() || '';
+  const base: CloudBranchPayload = {
+    title: params.title,
+    description: params.description,
+    scopeType: params.scopeType,
+    branchId: params.branchId || null,
+    branchCode: params.branchCode || null,
+    branchName: params.branchName || null,
+    rootPersonId: params.rootPersonId || null,
+    hasPin: cleanPin.length > 0,
+    hideLivingDetails: params.hideLivingDetails,
+    updatedAt: params.updatedAt,
+    personsCount: params.snapshotData.persons.length,
   };
-}
 
-function encodeCloudBranchPayload(payload: CloudBranchPayload): string {
-  return `${CLOUD_SHARE_PREFIX}${JSON.stringify(payload)}`;
+  if (cleanPin.length > 0 && typeof crypto !== 'undefined' && crypto.subtle) {
+    base.encryptedSnapshot = await encryptSnapshotWithPin(params.snapshotData, cleanPin);
+  } else {
+    base.snapshotData = params.snapshotData;
+  }
+
+  return `${CLOUD_SHARE_PREFIX}${JSON.stringify(base)}`;
 }
 
 function decodeCloudBranchPayload(raw: string | null | undefined): CloudBranchPayload | null {
@@ -52,14 +248,20 @@ function decodeCloudBranchPayload(raw: string | null | undefined): CloudBranchPa
   }
 }
 
-function mapBranchRowToShareLink(row: any): ShareLink | null {
+function mapBranchRowToShareLink(row: DbBranchShareRow): ShareLink | null {
   const decoded = decodeCloudBranchPayload(row.description);
   if (!decoded) return null;
 
-  const rawPin = decoded.pinCode ? String(decoded.pinCode).trim() : '';
-  const snapshotPersons = Array.isArray(decoded.snapshotData?.persons)
-    ? decoded.snapshotData.persons.length
-    : 0;
+  const ownerPins = readOwnerPins();
+  const legacyPin = decoded.pinCode ? String(decoded.pinCode).trim() : '';
+  const cachedOwnerPin = ownerPins[row.code.trim().toLowerCase()] || legacyPin;
+  const hasPin = Boolean(decoded.hasPin || decoded.encryptedSnapshot || legacyPin.length > 0);
+  const snapshotPersons =
+    typeof decoded.personsCount === 'number'
+      ? decoded.personsCount
+      : Array.isArray(decoded.snapshotData?.persons)
+        ? decoded.snapshotData.persons.length
+        : 0;
 
   return {
     id: row.id,
@@ -69,8 +271,8 @@ function mapBranchRowToShareLink(row: any): ShareLink | null {
     scopeType: decoded.scopeType || 'full',
     branchId: decoded.branchId || null,
     rootPersonId: decoded.rootPersonId || row.root_person_id || null,
-    hasPin: rawPin.length > 0,
-    pinCode: rawPin || undefined,
+    hasPin,
+    pinCode: hasPin && cachedOwnerPin ? cachedOwnerPin : undefined,
     hideLivingDetails: Boolean(decoded.hideLivingDetails),
     isActive: row.is_active ?? true,
     viewCount: row.submission_count ?? 0,
@@ -127,14 +329,14 @@ function sanitizePlaceToCityOnly(rawPlace?: string | null): string | null {
   if (!trimmed) return null;
 
   const streetPattern =
-    /\b(jl\.?|jln\.?|jalan|gg\.?|gang|no\.?\s*\d|rt\.?\s*\d|rw\.?\s*\d|blok\s+[a-z0-9]|perum\.?|perumahan|komp\.?|komplek|kav\.?|apartemen|cluster)\b/i;
+    /(?:^|\b)(?:jl\.?(?=\s|$)|jln\.?(?=\s|$)|jalan\b|gg\.?(?=\s|$)|gang\b|no\.?\s*\d+|rt\.?\s*\d+|rw\.?\s*\d+|blok\s+[a-z0-9]+|perum\.?(?=\s|$)|perumahan\b|komp\.?(?=\s|$)|komplek\b|kav\.?(?=\s|$)|apartemen\b|cluster\b|rs\.?\s+\w+|rsud\b|rsia\b|rumah\s+sakit\b)/i;
 
   const segments = trimmed
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // Filter out segments that look like street/house numbers
+  // Filter out segments that look like street/house numbers or hospital names
   const citySegments = segments.filter((seg) => !streetPattern.test(seg));
 
   if (citySegments.length > 0) {
@@ -220,11 +422,12 @@ export function computeScopedShareData(
   const sanitizedPersons = scopedPersons.map((person) => {
     const isLiving = !person.deathDate;
     if (options.hideLivingDetails && isLiving) {
-      // Keep only birth year (YYYY) if birthDate exists, keep city/regency for GeoMapView markers (strip street addresses), and hide personal notes
+      // Keep only birth year (YYYY) if birthDate exists, keep city/regency only for birthPlace & residence, and hide personal notes
       const yearMatch = person.birthDate?.match(/\d{4}/);
       return {
         ...person,
         birthDate: yearMatch ? yearMatch[0] : null,
+        birthPlace: sanitizePlaceToCityOnly(person.birthPlace),
         residence: sanitizePlaceToCityOnly(person.residence),
         notes: null,
       };
@@ -243,11 +446,14 @@ export function computeScopedShareData(
   };
 }
 
-function mapDbRowToShareLink(row: any): ShareLink {
+function mapDbRowToShareLink(row: DbPublicShareRow): ShareLink {
   const snapshotPersons = Array.isArray(row.snapshot_data?.persons)
     ? row.snapshot_data.persons.length
     : 0;
   const rawPin = row.pin_code ? String(row.pin_code).trim() : '';
+  if (rawPin) {
+    saveOwnerPin(row.code, rawPin);
+  }
 
   return {
     id: row.id,
@@ -281,7 +487,7 @@ export async function getAllShareLinks(): Promise<ShareLink[]> {
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        return data.map(mapDbRowToShareLink);
+        return (data as DbPublicShareRow[]).map(mapDbRowToShareLink);
       }
 
       // 2. Fallback: read public share records stored inside the existing `branches` table
@@ -293,7 +499,7 @@ export async function getAllShareLinks(): Promise<ShareLink[]> {
 
       if (!branchErr && Array.isArray(branchRows)) {
         const cloudLinks = branchRows
-          .map(mapBranchRowToShareLink)
+          .map((row) => mapBranchRowToShareLink(row as DbBranchShareRow))
           .filter((item): item is ShareLink => item !== null);
         // Auto-sync any local-only links into cloud so they immediately work in Incognito / other browsers!
         const cloudCodes = new Set(cloudLinks.map((s) => s.code));
@@ -305,7 +511,7 @@ export async function getAllShareLinks(): Promise<ShareLink[]> {
           if (!fallbackRootId) continue;
 
           try {
-            const encodedDescription = encodeCloudBranchPayload({
+            const encodedDescription = await buildCloudBranchPayload({
               title: localItem.title,
               description: localItem.description,
               scopeType: localItem.scopeType,
@@ -339,7 +545,7 @@ export async function getAllShareLinks(): Promise<ShareLink[]> {
               .single();
 
             if (!syncErr && syncedRow) {
-              const mapped = mapBranchRowToShareLink(syncedRow);
+              const mapped = mapBranchRowToShareLink(syncedRow as DbBranchShareRow);
               if (mapped) {
                 cloudLinks.push(mapped);
                 cloudCodes.add(mapped.code);
@@ -376,6 +582,7 @@ export interface CreateOrUpdateShareInput {
   branch?: Branch | null;
   rootPersonId?: string | null;
   pinCode?: string;
+  preservePinIfEmpty?: boolean;
   hideLivingDetails: boolean;
   isActive?: boolean;
   allPersons: Person[];
@@ -386,6 +593,7 @@ export async function createShareLink(input: CreateOrUpdateShareInput): Promise<
   const now = new Date().toISOString();
   const cleanCode = input.code.trim().toLowerCase();
   const cleanPin = input.pinCode?.trim() || '';
+  saveOwnerPin(cleanCode, cleanPin);
 
   const effectiveRootId =
     input.scopeType === 'branch'
@@ -429,19 +637,19 @@ export async function createShareLink(input: CreateOrUpdateShareInput): Promise<
           .single();
 
         if (!error && data) {
-          // Also mirror to localStorage so instant local preview always works
-          mirrorShareToLocal(mapDbRowToShareLink(data), snapshotData, input.branch);
-          return mapDbRowToShareLink(data);
+          const mapped = mapDbRowToShareLink(data as DbPublicShareRow);
+          mirrorShareToLocal(mapped, snapshotData, input.branch);
+          return mapped;
         }
 
-        // Fallback to existing `branches` table in Supabase (which already has anon SELECT RLS!)
+        // Fallback to existing `branches` table in Supabase with AES-GCM encryption when PIN is set
         const fallbackRootId =
           effectiveRootId ||
           snapshotData.persons[0]?.id ||
           input.allPersons[0]?.id;
 
         if (fallbackRootId) {
-          const encodedDescription = encodeCloudBranchPayload({
+          const encodedDescription = await buildCloudBranchPayload({
             title: input.title.trim(),
             description: input.description?.trim() || undefined,
             scopeType: input.scopeType,
@@ -471,7 +679,7 @@ export async function createShareLink(input: CreateOrUpdateShareInput): Promise<
             .single();
 
           if (!branchErr && branchRow) {
-            const mapped = mapBranchRowToShareLink(branchRow);
+            const mapped = mapBranchRowToShareLink(branchRow as DbBranchShareRow);
             if (mapped) {
               mirrorShareToLocal(mapped, snapshotData, input.branch);
               return mapped;
@@ -521,7 +729,17 @@ export async function updateShareLink(
 ): Promise<ShareLink> {
   const now = new Date().toISOString();
   const cleanCode = input.code.trim().toLowerCase();
-  const cleanPin = input.pinCode?.trim() || '';
+  const cachedPin = readOwnerPins()[cleanCode] || '';
+  const cleanPin =
+    input.pinCode && input.pinCode.trim().length > 0
+      ? input.pinCode.trim()
+      : input.preservePinIfEmpty
+        ? cachedPin
+        : '';
+
+  if (!input.preservePinIfEmpty || cleanPin) {
+    saveOwnerPin(cleanCode, cleanPin);
+  }
 
   const effectiveRootId =
     input.scopeType === 'branch'
@@ -537,30 +755,34 @@ export async function updateShareLink(
 
   if (isSupabaseConfigured()) {
     try {
+      const updatePayload: Record<string, unknown> = {
+        code: cleanCode,
+        title: input.title.trim(),
+        description: input.description?.trim() || null,
+        scope_type: input.scopeType,
+        branch_id: input.branch?.id || null,
+        branch_code: input.branch?.code || null,
+        branch_name: input.branch?.name || null,
+        root_person_id: effectiveRootId,
+        hide_living_details: input.hideLivingDetails,
+        ...(input.isActive !== undefined && { is_active: input.isActive }),
+        snapshot_data: snapshotData,
+        updated_at: now,
+      };
+      if (!input.preservePinIfEmpty || cleanPin) {
+        updatePayload.pin_code = cleanPin || null;
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('public_shares')
-        .update({
-          code: cleanCode,
-          title: input.title.trim(),
-          description: input.description?.trim() || null,
-          scope_type: input.scopeType,
-          branch_id: input.branch?.id || null,
-          branch_code: input.branch?.code || null,
-          branch_name: input.branch?.name || null,
-          root_person_id: effectiveRootId,
-          pin_code: cleanPin || null,
-          hide_living_details: input.hideLivingDetails,
-          ...(input.isActive !== undefined && { is_active: input.isActive }),
-          snapshot_data: snapshotData,
-          updated_at: now,
-        })
+        .update(updatePayload)
         .eq('id', id)
         .select('*')
         .single();
 
       if (!error && data) {
-        const mapped = mapDbRowToShareLink(data);
+        const mapped = mapDbRowToShareLink(data as DbPublicShareRow);
         mirrorShareToLocal(mapped, snapshotData, input.branch);
         return mapped;
       }
@@ -572,7 +794,20 @@ export async function updateShareLink(
         input.allPersons[0]?.id;
 
       if (fallbackRootId) {
-        const encodedDescription = encodeCloudBranchPayload({
+        // If preservePinIfEmpty is true and we don't know the PIN on this device, skip overwriting an encrypted cloud branch row
+        if (input.preservePinIfEmpty && !cleanPin) {
+          const { data: existingBranch } = await supabase
+            .from('branches')
+            .select('description')
+            .eq('id', id)
+            .maybeSingle();
+          const existingDecoded = decodeCloudBranchPayload(existingBranch?.description);
+          if (existingDecoded?.hasPin || existingDecoded?.encryptedSnapshot) {
+            throw new Error('Tidak dapat menyinkronkan tautan ber-PIN tanpa kode PIN pada perangkat ini');
+          }
+        }
+
+        const encodedDescription = await buildCloudBranchPayload({
           title: input.title.trim(),
           description: input.description?.trim() || undefined,
           scopeType: input.scopeType,
@@ -586,7 +821,7 @@ export async function updateShareLink(
           snapshotData,
         });
 
-        // Try updating existing row by id or code
+        // Try updating existing row by id
         const { data: updatedBranch, error: updErr } = await supabase
           .from('branches')
           .update({
@@ -602,7 +837,7 @@ export async function updateShareLink(
           .maybeSingle();
 
         if (!updErr && updatedBranch) {
-          const mapped = mapBranchRowToShareLink(updatedBranch);
+          const mapped = mapBranchRowToShareLink(updatedBranch as DbBranchShareRow);
           if (mapped) {
             mirrorShareToLocal(mapped, snapshotData, input.branch);
             return mapped;
@@ -630,7 +865,7 @@ export async function updateShareLink(
           .single();
 
         if (!insErr && insertedBranch) {
-          const mapped = mapBranchRowToShareLink(insertedBranch);
+          const mapped = mapBranchRowToShareLink(insertedBranch as DbBranchShareRow);
           if (mapped) {
             mirrorShareToLocal(mapped, snapshotData, input.branch);
             return mapped;
@@ -648,6 +883,9 @@ export async function updateShareLink(
     throw new Error('Tautan berbagi tidak ditemukan');
   }
 
+  const finalPin =
+    input.preservePinIfEmpty && !cleanPin ? localShares[idx].pinCode || '' : cleanPin;
+
   const updated: StoredLocalShare = {
     ...localShares[idx],
     code: cleanCode,
@@ -658,8 +896,8 @@ export async function updateShareLink(
     branchCode: input.branch?.code || null,
     branchName: input.branch?.name || null,
     rootPersonId: effectiveRootId,
-    hasPin: cleanPin.length > 0,
-    pinCode: cleanPin || undefined,
+    hasPin: finalPin.length > 0,
+    pinCode: finalPin || undefined,
     hideLivingDetails: input.hideLivingDetails,
     isActive: input.isActive ?? localShares[idx].isActive,
     snapshotPersonsCount: snapshotData.persons.length,
@@ -700,6 +938,12 @@ export async function toggleShareLinkActive(id: string, isActive: boolean): Prom
 }
 
 export async function deleteShareLink(id: string): Promise<void> {
+  const localShares = readLocalShares();
+  const target = localShares.find((s) => s.id === id);
+  if (target) {
+    saveOwnerPin(target.code, '');
+  }
+
   if (isSupabaseConfigured()) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -712,7 +956,6 @@ export async function deleteShareLink(id: string): Promise<void> {
     }
   }
 
-  const localShares = readLocalShares();
   writeLocalShares(localShares.filter((s) => s.id !== id));
 }
 
@@ -738,7 +981,7 @@ function mirrorShareToLocal(
 export async function findPublicShareForBranch(
   branchCode: string,
   branchId?: string
-): Promise<{ code: string; title: string; scopeType: ShareScopeType } | null> {
+): Promise<{ code: string; title: string; scopeType: ShareScopeType; hasPin: boolean } | null> {
   const cleanBranchCode = branchCode.trim().toLowerCase();
   const expectedShareCode = `pohon-${cleanBranchCode}`;
 
@@ -749,6 +992,7 @@ export async function findPublicShareForBranch(
       code: directMeta.code,
       title: directMeta.title,
       scopeType: directMeta.scopeType,
+      hasPin: directMeta.hasPin,
     };
   }
 
@@ -774,6 +1018,11 @@ export async function findPublicShareForBranch(
               code: r.code,
               title: decoded.title || r.name,
               scopeType: decoded.scopeType || 'branch',
+              hasPin: Boolean(
+                decoded.hasPin ||
+                  decoded.encryptedSnapshot ||
+                  (decoded.pinCode && decoded.pinCode.trim().length > 0)
+              ),
             };
           }
         }
@@ -785,6 +1034,11 @@ export async function findPublicShareForBranch(
               code: r.code,
               title: decoded.title || r.name,
               scopeType: 'full',
+              hasPin: Boolean(
+                decoded.hasPin ||
+                  decoded.encryptedSnapshot ||
+                  (decoded.pinCode && decoded.pinCode.trim().length > 0)
+              ),
             };
           }
         }
@@ -795,6 +1049,11 @@ export async function findPublicShareForBranch(
             code: rows[0].code,
             title: firstDecoded.title || rows[0].name,
             scopeType: firstDecoded.scopeType || 'full',
+            hasPin: Boolean(
+              firstDecoded.hasPin ||
+                firstDecoded.encryptedSnapshot ||
+                (firstDecoded.pinCode && firstDecoded.pinCode.trim().length > 0)
+            ),
           };
         }
       }
@@ -817,6 +1076,7 @@ export async function findPublicShareForBranch(
       code: matchedLocal.code,
       title: matchedLocal.title,
       scopeType: matchedLocal.scopeType,
+      hasPin: Boolean(matchedLocal.hasPin || (matchedLocal.pinCode && matchedLocal.pinCode.trim().length > 0)),
     };
   }
 
@@ -848,6 +1108,7 @@ export async function syncAllActiveShareSnapshots(
         branch,
         rootPersonId: link.rootPersonId,
         pinCode: link.pinCode,
+        preservePinIfEmpty: link.hasPin,
         hideLivingDetails: link.hideLivingDetails,
         isActive: link.isActive,
         allPersons,
@@ -876,7 +1137,7 @@ export async function getPublicShareMeta(code: string): Promise<PublicShareMeta 
         return data as PublicShareMeta;
       }
 
-      // 2. Fallback: query `branches` table (public anon SELECT is allowed when is_active = true!)
+      // 2. Fallback: query `branches` table
       const { data: branchRow, error: branchErr } = await supabase
         .from('branches')
         .select('*')
@@ -897,7 +1158,11 @@ export async function getPublicShareMeta(code: string): Promise<PublicShareMeta 
             branchCode: decoded.branchCode || null,
             branchName: decoded.branchName || null,
             rootPersonId: decoded.rootPersonId || branchRow.root_person_id,
-            hasPin: Boolean(decoded.pinCode && decoded.pinCode.trim().length > 0),
+            hasPin: Boolean(
+              decoded.hasPin ||
+                decoded.encryptedSnapshot ||
+                (decoded.pinCode && decoded.pinCode.trim().length > 0)
+            ),
             hideLivingDetails: Boolean(decoded.hideLivingDetails),
             updatedAt: decoded.updatedAt || branchRow.updated_at || new Date().toISOString(),
           };
@@ -921,7 +1186,7 @@ export async function getPublicShareMeta(code: string): Promise<PublicShareMeta 
     branchCode: local.branchCode,
     branchName: local.branchName,
     rootPersonId: local.rootPersonId,
-    hasPin: Boolean(local.pinCode && local.pinCode.trim().length > 0),
+    hasPin: Boolean(local.hasPin || (local.pinCode && local.pinCode.trim().length > 0)),
     hideLivingDetails: local.hideLivingDetails,
     updatedAt: local.updatedAt,
   };
@@ -954,7 +1219,7 @@ export async function unlockPublicShare(
         }
       }
 
-      // 2. Fallback: query `branches` table (public anon SELECT is allowed when is_active = true!)
+      // 2. Fallback: query `branches` table (AES-GCM encrypted if PIN-protected)
       const { data: branchRow, error: branchErr } = await supabase
         .from('branches')
         .select('*')
@@ -965,10 +1230,25 @@ export async function unlockPublicShare(
       if (!branchErr && branchRow) {
         const decoded = decodeCloudBranchPayload(branchRow.description);
         if (decoded) {
-          const expectedPin = decoded.pinCode?.trim() || '';
-          if (expectedPin.length > 0) {
-            if (!pin || pin.trim() !== expectedPin) {
+          let resolvedPersons = decoded.snapshotData?.persons || [];
+          let resolvedRelationships = decoded.snapshotData?.relationships || [];
+
+          if (decoded.encryptedSnapshot) {
+            if (!pin || !pin.trim()) {
               return { status: 'invalid_pin' };
+            }
+            const decrypted = await decryptSnapshotWithPin(decoded.encryptedSnapshot, pin.trim());
+            if (!decrypted) {
+              return { status: 'invalid_pin' };
+            }
+            resolvedPersons = decrypted.persons;
+            resolvedRelationships = decrypted.relationships;
+          } else {
+            const legacyPin = decoded.pinCode?.trim() || '';
+            if (legacyPin.length > 0) {
+              if (!pin || pin.trim() !== legacyPin) {
+                return { status: 'invalid_pin' };
+              }
             }
           }
 
@@ -988,8 +1268,8 @@ export async function unlockPublicShare(
                 hideLivingDetails: Boolean(decoded.hideLivingDetails),
                 updatedAt: decoded.updatedAt || branchRow.updated_at || new Date().toISOString(),
               },
-              persons: decoded.snapshotData?.persons || [],
-              relationships: decoded.snapshotData?.relationships || [],
+              persons: resolvedPersons,
+              relationships: resolvedRelationships,
             },
           };
         }

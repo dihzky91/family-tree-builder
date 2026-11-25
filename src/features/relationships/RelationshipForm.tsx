@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState, useEffect } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
-import { RelationshipTypeEnum, SpouseStatusEnum, type Relationship } from '@/types';
+import { RelationshipTypeEnum, SpouseStatusEnum, type Relationship, type SpouseStatus } from '@/types';
 import { validateRelationship } from '@/lib/relationshipValidation';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -275,7 +275,7 @@ export function RelationshipForm({
             <Label>Status Pernikahan</Label>
             <Select 
               value={watch('status') || 'married'}
-              onValueChange={(value) => setValue('status', value as any)}
+              onValueChange={(value) => setValue('status', value as SpouseStatus)}
             >
               <SelectTrigger className="mt-1">
                 <SelectValue />

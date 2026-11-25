@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFamilyStore } from '@/store/familyStore';
-import { PersonFormSchema, type PersonFormData, type Person } from '@/types';
+import { PersonFormSchema, type PersonFormData, type Person, type Gender } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -46,6 +46,7 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<PersonFormData>({
     resolver: zodResolver(PersonFormSchema),
@@ -60,11 +61,29 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
       photoUrl: person?.photoUrl || '',
       notes: person?.notes || '',
       tags: person?.tags || [],
-      confidenceScore: person?.confidenceScore || 50,
+      confidenceScore: person?.confidenceScore ?? 50,
     },
   });
 
+  useEffect(() => {
+    reset({
+      fullName: person?.fullName || '',
+      gender: person?.gender || 'unknown',
+      birthDate: person?.birthDate || '',
+      deathDate: person?.deathDate || '',
+      birthPlace: person?.birthPlace || '',
+      deathPlace: person?.deathPlace || '',
+      residence: person?.residence || '',
+      photoUrl: person?.photoUrl || '',
+      notes: person?.notes || '',
+      tags: person?.tags || [],
+      confidenceScore: person?.confidenceScore ?? 50,
+    });
+    setTags(person?.tags || []);
+  }, [person, reset]);
+
   const watchName = watch('fullName');
+  const watchGender = watch('gender');
   const watchBirthDate = watch('birthDate');
   const watchConfidence = watch('confidenceScore');
 
@@ -89,13 +108,17 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
         await addPerson({ ...data, tags });
       }
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to save person:', error);
       const detail =
         error instanceof Error
           ? error.message
-          : typeof error?.message === 'string' && error.message.trim()
-            ? error.message
+          : typeof error === 'object' &&
+              error !== null &&
+              'message' in error &&
+              typeof (error as { message?: unknown }).message === 'string' &&
+              (error as { message: string }).message.trim()
+            ? (error as { message: string }).message
             : 'Gagal menyimpan data anggota. Silakan coba lagi.';
       setSubmitError(detail);
     } finally {
@@ -160,8 +183,8 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
         <div>
           <Label htmlFor="gender">Jenis Kelamin</Label>
           <Select
-            defaultValue={person?.gender || 'unknown'}
-            onValueChange={(value) => setValue('gender', value as any)}
+            value={watchGender || 'unknown'}
+            onValueChange={(value) => setValue('gender', value as Gender, { shouldDirty: true })}
           >
             <SelectTrigger className="mt-1">
               <SelectValue placeholder="Pilih jenis kelamin" />
@@ -301,10 +324,10 @@ export function PersonForm({ person, onSuccess }: PersonFormProps) {
           <span className="text-sm font-medium">{watchConfidence}%</span>
         </div>
         <Slider
-          defaultValue={[person?.confidenceScore || 50]}
+          value={[watchConfidence ?? 50]}
           max={100}
           step={5}
-          onValueChange={(value) => setValue('confidenceScore', value[0])}
+          onValueChange={(value) => setValue('confidenceScore', value[0], { shouldDirty: true })}
           className="w-full"
         />
         <div className="flex justify-between text-xs text-muted-foreground mt-1">

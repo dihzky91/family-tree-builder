@@ -5,6 +5,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import Cropper, { Area } from 'react-easy-crop';
 import { uploadAvatar, deleteAvatar } from '@/lib/avatarStorage';
+import { useFamilyStore } from '@/store/familyStore';
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Gagal membaca gambar'));
+    reader.readAsDataURL(file);
+  });
+}
 
 interface PhotoUploaderProps {
   currentPhotoUrl?: string | null;
@@ -13,6 +23,7 @@ interface PhotoUploaderProps {
 }
 
 export function PhotoUploader({ currentPhotoUrl, onPhotoChange, onPhotoDelete }: PhotoUploaderProps) {
+  const { isDemoMode, isPrivateMode } = useFamilyStore();
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -131,8 +142,8 @@ export function PhotoUploader({ currentPhotoUrl, onPhotoChange, onPhotoDelete }:
         return;
       }
 
-      // Delete old avatar if exists
-      if (currentPhotoUrl) {
+      // Delete old avatar if exists in cloud mode
+      if (currentPhotoUrl && !isDemoMode && !isPrivateMode && !currentPhotoUrl.startsWith('data:')) {
         try {
           await deleteAvatar(currentPhotoUrl);
         } catch (error) {
@@ -141,21 +152,24 @@ export function PhotoUploader({ currentPhotoUrl, onPhotoChange, onPhotoDelete }:
         }
       }
 
-      // Upload to Supabase
-      const photoUrl = await uploadAvatar(croppedFile);
-      
+      // Encode locally in Private/Demo mode, or upload to Supabase Storage in Cloud mode
+      const photoUrl =
+        isDemoMode || isPrivateMode
+          ? await fileToDataUrl(croppedFile)
+          : await uploadAvatar(croppedFile);
+
       onPhotoChange(photoUrl);
       toast.success('Foto berhasil diunggah');
-      
+
       // Reset states
       setShowCropDialog(false);
       setPreviewUrl(null);
       setSelectedFile(null);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
-      toast.error(error.message || 'Gagal mengunggah foto');
+      toast.error(error instanceof Error ? error.message : 'Gagal mengunggah foto');
     } finally {
       setIsUploading(false);
     }
@@ -165,7 +179,9 @@ export function PhotoUploader({ currentPhotoUrl, onPhotoChange, onPhotoDelete }:
     if (!currentPhotoUrl) return;
 
     try {
-      await deleteAvatar(currentPhotoUrl);
+      if (!isDemoMode && !isPrivateMode && !currentPhotoUrl.startsWith('data:')) {
+        await deleteAvatar(currentPhotoUrl);
+      }
       onPhotoChange(null);
       onPhotoDelete?.();
       toast.success('Foto berhasil dihapus');

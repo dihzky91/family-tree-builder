@@ -1,7 +1,20 @@
 import type { StorageAdapter } from '../StorageAdapter';
-import type { Person, Relationship, Evidence, AuditLog, Story } from '@/types';
-import type { Tables, TablesInsert } from '@/integrations/supabase/types';
+import type {
+  Person,
+  Relationship,
+  Evidence,
+  AuditLog,
+  Story,
+  Gender,
+  RelationshipType,
+  SpouseStatus,
+  EntityType,
+  DocumentType,
+  VerificationStatus,
+} from '@/types';
+import type { Json, Tables, TablesInsert } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
+import { getAllBranches } from './branchQueries';
 
 // Helper to get current user id
 async function getCurrentUserId(): Promise<string> {
@@ -23,6 +36,13 @@ async function getStoriesStorageKey(): Promise<string> {
 
 type DbStory = Tables<'stories'>;
 type DbStoryInsert = TablesInsert<'stories'>;
+type DbPerson = Tables<'persons'>;
+type DbPersonInsert = TablesInsert<'persons'>;
+type DbRelationship = Tables<'relationships'>;
+type DbRelationshipInsert = TablesInsert<'relationships'>;
+type DbEvidence = Tables<'evidence'>;
+type DbEvidenceInsert = TablesInsert<'evidence'>;
+type DbAuditLog = Tables<'audit_logs'>;
 
 function dbToStory(row: DbStory): Story {
   return {
@@ -73,11 +93,11 @@ function writeStories(storageKey: string, stories: Story[]): void {
 }
 
 // Transform DB row to Person type
-function dbToPerson(row: any): Person {
+function dbToPerson(row: DbPerson): Person {
   return {
     id: row.id,
     fullName: row.full_name,
-    gender: row.gender,
+    gender: row.gender as Gender,
     birthDate: row.birth_date,
     deathDate: row.death_date,
     birthPlace: row.birth_place,
@@ -86,14 +106,14 @@ function dbToPerson(row: any): Person {
     photoUrl: row.photo_url,
     notes: row.notes,
     tags: row.tags || [],
-    confidenceScore: row.confidence_score || 50,
+    confidenceScore: row.confidence_score ?? 50,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
 // Transform Person to DB row
-function personToDb(person: Person, userId: string): any {
+function personToDb(person: Person, userId: string): DbPersonInsert {
   return {
     id: person.id,
     user_id: userId,
@@ -107,19 +127,19 @@ function personToDb(person: Person, userId: string): any {
     photo_url: person.photoUrl || null,
     notes: person.notes || null,
     tags: person.tags || [],
-    confidence_score: person.confidenceScore || 50,
+    confidence_score: person.confidenceScore ?? 50,
   };
 }
 
 // Transform DB row to Relationship type
-function dbToRelationship(row: any): Relationship {
+function dbToRelationship(row: DbRelationship): Relationship {
   return {
     id: row.id,
-    type: row.type,
+    type: row.type as RelationshipType,
     fromPersonId: row.from_person_id,
     toPersonId: row.to_person_id,
     meta: {
-      status: row.status,
+      status: (row.status as SpouseStatus | null) || undefined,
       startDate: row.start_date,
       endDate: row.end_date,
     },
@@ -129,7 +149,7 @@ function dbToRelationship(row: any): Relationship {
 }
 
 // Transform Relationship to DB row
-function relationshipToDb(rel: Relationship, userId: string): any {
+function relationshipToDb(rel: Relationship, userId: string): DbRelationshipInsert {
   return {
     id: rel.id,
     user_id: userId,
@@ -143,32 +163,32 @@ function relationshipToDb(rel: Relationship, userId: string): any {
 }
 
 // Transform DB row to Evidence type
-function dbToEvidence(row: any): Evidence {
+function dbToEvidence(row: DbEvidence): Evidence {
   return {
     id: row.id,
-    entityType: row.entity_type,
+    entityType: row.entity_type as EntityType,
     entityId: row.entity_id,
     fileData: row.file_data, // deprecated
     fileName: row.file_name,
     fileUrl: row.file_url,
     filePath: row.file_path,
-    docType: row.doc_type,
+    docType: row.doc_type as DocumentType,
     source: row.source,
     date: row.date,
     description: row.description,
-    status: row.status,
+    status: row.status as VerificationStatus,
     createdAt: row.created_at,
   };
 }
 
 // Transform Evidence to DB row
-function evidenceToDb(evidence: Evidence, userId: string): any {
+function evidenceToDb(evidence: Evidence, userId: string): DbEvidenceInsert {
   return {
     id: evidence.id,
     user_id: userId,
     entity_type: evidence.entityType,
     entity_id: evidence.entityId,
-    file_data: null, // deprecated - no longer store base64
+    file_data: evidence.fileData || null,
     file_name: evidence.fileName || null,
     file_url: evidence.fileUrl || null,
     file_path: evidence.filePath || null,
@@ -181,13 +201,18 @@ function evidenceToDb(evidence: Evidence, userId: string): any {
 }
 
 // Transform DB row to AuditLog type
-function dbToAuditLog(row: any): AuditLog {
+function dbToAuditLog(row: DbAuditLog): AuditLog {
+  const changesObj =
+    row.changes && typeof row.changes === 'object' && !Array.isArray(row.changes)
+      ? (row.changes as Record<string, unknown>)
+      : null;
+
   return {
     id: row.id,
     action: row.action,
     entityType: row.entity_type,
     entityId: row.entity_id,
-    changes: row.changes,
+    changes: changesObj,
     timestamp: row.timestamp,
     userId: row.user_id,
   };
@@ -200,7 +225,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .from('persons')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return (data || []).map(dbToPerson);
   }
@@ -211,7 +236,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .select('*')
       .eq('id', id)
       .maybeSingle();
-    
+
     if (error) throw error;
     return data ? dbToPerson(data) : undefined;
   }
@@ -223,7 +248,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .insert(personToDb(person, userId))
       .select()
       .single();
-    
+
     if (error) throw error;
     return dbToPerson(data);
   }
@@ -242,7 +267,7 @@ export class SupabaseAdapter implements StorageAdapter {
         photo_url: person.photoUrl || null,
         notes: person.notes || null,
         tags: person.tags || [],
-        confidence_score: person.confidenceScore || 50,
+        confidence_score: person.confidenceScore ?? 50,
       })
       .eq('id', person.id)
       .select()
@@ -257,7 +282,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .from('persons')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
   }
 
@@ -267,7 +292,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .from('relationships')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return (data || []).map(dbToRelationship);
   }
@@ -278,7 +303,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .select('*')
       .eq('id', id)
       .maybeSingle();
-    
+
     if (error) throw error;
     return data ? dbToRelationship(data) : undefined;
   }
@@ -288,7 +313,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .from('relationships')
       .select('*')
       .or(`from_person_id.eq.${personId},to_person_id.eq.${personId}`);
-    
+
     if (error) throw error;
     return (data || []).map(dbToRelationship);
   }
@@ -300,7 +325,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .insert(relationshipToDb(relationship, userId))
       .select()
       .single();
-    
+
     if (error) throw error;
     return dbToRelationship(data);
   }
@@ -319,7 +344,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .eq('id', relationship.id)
       .select()
       .single();
-    
+
     if (error) throw error;
     return dbToRelationship(data);
   }
@@ -329,7 +354,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .from('relationships')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
   }
 
@@ -339,7 +364,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .from('evidence')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return (data || []).map(dbToEvidence);
   }
@@ -349,7 +374,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .from('evidence')
       .select('*')
       .eq('entity_id', entityId);
-    
+
     if (error) throw error;
     return (data || []).map(dbToEvidence);
   }
@@ -361,7 +386,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .insert(evidenceToDb(evidence, userId))
       .select()
       .single();
-    
+
     if (error) throw error;
     return dbToEvidence(data);
   }
@@ -384,7 +409,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .eq('id', evidence.id)
       .select()
       .single();
-    
+
     if (error) throw error;
     return dbToEvidence(data);
   }
@@ -394,7 +419,7 @@ export class SupabaseAdapter implements StorageAdapter {
       .from('evidence')
       .delete()
       .eq('id', id);
-    
+
     if (error) throw error;
   }
 
@@ -414,7 +439,7 @@ export class SupabaseAdapter implements StorageAdapter {
     });
 
     if (!error && data) {
-      return dbToAuditLog(data);
+      return dbToAuditLog(data as DbAuditLog);
     }
 
     // 2. Fallback to direct table insert if the RPC migration hasn't been applied to Supabase Cloud yet
@@ -426,7 +451,7 @@ export class SupabaseAdapter implements StorageAdapter {
         action: log.action,
         entity_type: log.entityType,
         entity_id: log.entityId,
-        changes: (log.changes as any) || null,
+        changes: ((log.changes as Json) ?? null),
         timestamp: log.timestamp,
       })
       .select()
@@ -449,12 +474,12 @@ export class SupabaseAdapter implements StorageAdapter {
       .select('*')
       .order('timestamp', { ascending: false })
       .limit(100);
-    
+
     if (error) throw error;
     return (data || []).map(dbToAuditLog);
   }
 
-  // Story operations (local-only for now)
+  // Story operations
   async getAllStories(): Promise<Story[]> {
     try {
       const { data, error } = await storiesTable()
@@ -475,7 +500,7 @@ export class SupabaseAdapter implements StorageAdapter {
     try {
       const userId = await getCurrentUserId();
       const { data, error } = await storiesTable()
-        .insert(storyToDb(story, userId))
+        .upsert(storyToDb(story, userId), { onConflict: 'id' })
         .select()
         .single();
 
@@ -535,43 +560,93 @@ export class SupabaseAdapter implements StorageAdapter {
     }
   }
 
-  // Bulk operations
+  async getAllBranches() {
+    return getAllBranches();
+  }
+
+  // Safe bulk import: upsert new records FIRST, then remove stale records only AFTER all inserts succeed!
   async importData(persons: Person[], relationships: Relationship[], evidence: Evidence[]): Promise<void> {
     const userId = await getCurrentUserId();
-    
-    // Clear existing data first
-    await this.clearAll();
-    
-    // Insert persons
+
+    const [existingPersonsRes, existingRelsRes, existingEvRes] = await Promise.all([
+      supabase.from('persons').select('id'),
+      supabase.from('relationships').select('id'),
+      supabase.from('evidence').select('id'),
+    ]);
+
+    const importedPersonIds = new Set(persons.map(p => p.id));
+    const importedRelIds = new Set(relationships.map(r => r.id));
+    const importedEvIds = new Set(evidence.map(e => e.id));
+
+    // 1. Upsert persons first (parent FK dependency)
     if (persons.length > 0) {
       const { error: personsError } = await supabase
         .from('persons')
-        .insert(persons.map(p => personToDb(p, userId)));
+        .upsert(persons.map(p => personToDb(p, userId)), { onConflict: 'id' });
       if (personsError) throw personsError;
     }
-    
-    // Insert relationships
+
+    // 2. Upsert relationships second
     if (relationships.length > 0) {
       const { error: relsError } = await supabase
         .from('relationships')
-        .insert(relationships.map(r => relationshipToDb(r, userId)));
+        .upsert(relationships.map(r => relationshipToDb(r, userId)), { onConflict: 'id' });
       if (relsError) throw relsError;
     }
-    
-    // Insert evidence
+
+    // 3. Upsert evidence third
     if (evidence.length > 0) {
       const { error: evidenceError } = await supabase
         .from('evidence')
-        .insert(evidence.map(e => evidenceToDb(e, userId)));
+        .upsert(evidence.map(e => evidenceToDb(e, userId)), { onConflict: 'id' });
       if (evidenceError) throw evidenceError;
+    }
+
+    // 4. Only now delete stale rows that were not part of the imported snapshot
+    const staleEvIds = (existingEvRes.data || [])
+      .map(r => r.id)
+      .filter(id => !importedEvIds.has(id));
+    const staleRelIds = (existingRelsRes.data || [])
+      .map(r => r.id)
+      .filter(id => !importedRelIds.has(id));
+    const stalePersonIds = (existingPersonsRes.data || [])
+      .map(r => r.id)
+      .filter(id => !importedPersonIds.has(id));
+
+    if (staleEvIds.length > 0) {
+      const { error } = await supabase.from('evidence').delete().in('id', staleEvIds);
+      if (error) throw error;
+    }
+    if (staleRelIds.length > 0) {
+      const { error } = await supabase.from('relationships').delete().in('id', staleRelIds);
+      if (error) throw error;
+    }
+    if (stalePersonIds.length > 0) {
+      const { error } = await supabase.from('persons').delete().in('id', stalePersonIds);
+      if (error) throw error;
     }
   }
 
   async clearAll(): Promise<void> {
     // Delete in order to respect foreign keys
-    await supabase.from('evidence').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('relationships').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('persons').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    const { error: evErr } = await supabase
+      .from('evidence')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    if (evErr) throw evErr;
+
+    const { error: relErr } = await supabase
+      .from('relationships')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    if (relErr) throw relErr;
+
+    const { error: personErr } = await supabase
+      .from('persons')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    if (personErr) throw personErr;
+
     await supabase.from('audit_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
     try {

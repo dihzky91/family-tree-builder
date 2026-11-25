@@ -57,7 +57,17 @@ export function InheritanceTreeView({ persons, relationships, selectedPersonId, 
 
         const cache = new Map<string, TreeNode>();
 
-        function buildNode(personId: string, depth: number, pathType: 'root' | 'paternal' | 'maternal' | 'pg' | 'pgm' | 'mg' | 'mgm'): TreeNode | null {
+        type PathTag =
+            | 'root'
+            | 'paternal'
+            | 'maternal'
+            | 'pg'
+            | 'pgm'
+            | 'mg'
+            | 'mgm'
+            | `${'pg' | 'pgm' | 'mg' | 'mgm'}-${'f' | 'm'}`;
+
+        function buildNode(personId: string, depth: number, pathType: PathTag): TreeNode | null {
             if (depth > 4) return null;
             if (cache.has(personId)) return cache.get(personId)!;
 
@@ -91,9 +101,16 @@ export function InheritanceTreeView({ persons, relationships, selectedPersonId, 
                 };
             } else if (depth === 1) {
                 // Parents - build their lineage from grandparents
-                const newPathType = pathType === 'paternal' ? (person.gender === 'male' ? 'pg' : 'pgm') : (person.gender === 'male' ? 'mg' : 'mgm');
-                const fatherNode = father ? buildNode(father.id, depth + 1, newPathType + '-f' as any) : null;
-                const motherNode = mother ? buildNode(mother.id, depth + 1, newPathType + '-m' as any) : null;
+                const newPathType: 'pg' | 'pgm' | 'mg' | 'mgm' =
+                    pathType === 'paternal'
+                        ? person.gender === 'male'
+                            ? 'pg'
+                            : 'pgm'
+                        : person.gender === 'male'
+                            ? 'mg'
+                            : 'mgm';
+                const fatherNode = father ? buildNode(father.id, depth + 1, `${newPathType}-f`) : null;
+                const motherNode = mother ? buildNode(mother.id, depth + 1, `${newPathType}-m`) : null;
 
                 const fatherLineage = fatherNode?.lineage || { paternalGrandfather: 0, paternalGrandmother: 0, maternalGrandfather: 0, maternalGrandmother: 0 };
                 const motherLineage = motherNode?.lineage || { paternalGrandfather: 0, paternalGrandmother: 0, maternalGrandfather: 0, maternalGrandmother: 0 };
@@ -160,20 +177,20 @@ export function InheritanceTreeView({ persons, relationships, selectedPersonId, 
             .append('g');
 
         // Add zoom behavior
-        const zoom = d3.zoom()
+        const zoom = d3.zoom<SVGSVGElement, unknown>()
             .scaleExtent([0.3, 3])
             .on('zoom', (event) => {
                 g.attr('transform', event.transform);
             });
 
-        svg.call(zoom as any);
+        svg.call(zoom);
 
         // Set initial zoom to fit content
         const initialTransform = d3.zoomIdentity
             .translate(80, height / 2)
             .scale(0.8);
 
-        svg.call(zoom.transform as any, initialTransform);
+        svg.call(zoom.transform, initialTransform);
 
         // Convert to D3 hierarchy
         const root = d3.hierarchy(treeData, d => [d.father, d.mother].filter(Boolean) as TreeNode[]);
@@ -186,13 +203,16 @@ export function InheritanceTreeView({ persons, relationships, selectedPersonId, 
         treeLayout(root);
 
         // Draw links
+        const linkGen = d3
+            .linkHorizontal<d3.HierarchyPointLink<TreeNode>, d3.HierarchyPointNode<TreeNode>>()
+            .x(d => d.y)
+            .y(d => d.x);
+
         g.append('g')
             .selectAll('path')
-            .data(root.links())
+            .data(root.links() as d3.HierarchyPointLink<TreeNode>[])
             .join('path')
-            .attr('d', d3.linkHorizontal<any, any>()
-                .x(d => d.y)
-                .y(d => d.x))
+            .attr('d', d => linkGen(d))
             .attr('fill', 'none')
             .attr('stroke', '#d1d5db')
             .attr('stroke-width', 2)

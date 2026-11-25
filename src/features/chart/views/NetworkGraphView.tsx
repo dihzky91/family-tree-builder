@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
+import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d';
 import * as d3 from 'd3';
 import { useTheme } from 'next-themes';
 import { Card } from '@/components/ui/card';
@@ -106,7 +106,7 @@ export function NetworkGraphView({
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const isMobile = useIsMobile();
-  const graphRef = useRef<any>(null);
+  const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
@@ -281,8 +281,8 @@ export function NetworkGraphView({
     fg.d3Force(
       'collide',
       d3
-        .forceCollide()
-        .radius((node: any) => (node.radius || 9) + 19)
+        .forceCollide<GraphNode>()
+        .radius((node) => (node.radius || 9) + 19)
         .strength(0.85)
         .iterations(2)
     );
@@ -401,18 +401,18 @@ export function NetworkGraphView({
         d3AlphaDecay={0.014}
         d3VelocityDecay={0.22}
         backgroundColor="rgba(0,0,0,0)"
-        onNodeClick={(node: any) => onSelectPerson?.(node.id)}
-        onNodeHover={(node: any) => setHoveredNodeId(node ? node.id : null)}
-        onNodeDragEnd={(node: any) => {
+        onNodeClick={(node: GraphNode) => onSelectPerson?.(node.id)}
+        onNodeHover={(node: GraphNode | null) => setHoveredNodeId(node ? node.id : null)}
+        onNodeDragEnd={(node: GraphNode) => {
           // Release fixed coordinates after drag so node bounces back organically with its cluster
           node.fx = undefined;
           node.fy = undefined;
         }}
-        linkCurvature={(link: any) => (link.type === 'SPOUSE' ? 0.2 : 0.04)}
-        linkLineDash={(link: any) => (link.type === 'SPOUSE' ? [5, 4] : null)}
-        linkDirectionalArrowLength={(link: any) => (link.type === 'PARENT_CHILD' ? 4 : 0)}
+        linkCurvature={(link: GraphLink) => (link.type === 'SPOUSE' ? 0.2 : 0.04)}
+        linkLineDash={(link: GraphLink) => (link.type === 'SPOUSE' ? [5, 4] : null)}
+        linkDirectionalArrowLength={(link: GraphLink) => (link.type === 'PARENT_CHILD' ? 4 : 0)}
         linkDirectionalArrowRelPos={0.88}
-        linkDirectionalParticles={(link: any) => {
+        linkDirectionalParticles={(link: GraphLink) => {
           const srcId = typeof link.source === 'object' ? link.source.id : link.source;
           const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
           const isDirectFocusLink =
@@ -434,7 +434,7 @@ export function NetworkGraphView({
           // Continuous neural synapse flow across all lineage and spouse connections
           return link.type === 'PARENT_CHILD' ? 2 : 1;
         }}
-        linkDirectionalParticleWidth={(link: any) => {
+        linkDirectionalParticleWidth={(link: GraphLink) => {
           const srcId = typeof link.source === 'object' ? link.source.id : link.source;
           const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
           const isDirectFocusLink =
@@ -442,14 +442,14 @@ export function NetworkGraphView({
           if (isDirectFocusLink) return 3.6;
           return link.type === 'SPOUSE' ? 2 : 2.4;
         }}
-        linkDirectionalParticleSpeed={(link: any) => {
+        linkDirectionalParticleSpeed={(link: GraphLink) => {
           const srcId = typeof link.source === 'object' ? link.source.id : link.source;
           const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
           const isDirectFocusLink =
             activeFocusId && (srcId === activeFocusId || tgtId === activeFocusId);
           return isDirectFocusLink ? 0.0095 : 0.0052;
         }}
-        linkDirectionalParticleColor={(link: any) => {
+        linkDirectionalParticleColor={(link: GraphLink) => {
           const srcId = typeof link.source === 'object' ? link.source.id : link.source;
           const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
           const isDirectFocusLink =
@@ -463,7 +463,7 @@ export function NetworkGraphView({
           }
           return isDark ? '#60A5FA' : '#3B82F6';
         }}
-        linkWidth={(link: any) => {
+        linkWidth={(link: GraphLink) => {
           const srcId = typeof link.source === 'object' ? link.source.id : link.source;
           const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
           const isDirectFocusLink =
@@ -471,7 +471,7 @@ export function NetworkGraphView({
           if (isDirectFocusLink) return 2.6;
           return link.type === 'SPOUSE' ? 1.5 : 1.4;
         }}
-        linkColor={(link: any) => {
+        linkColor={(link: GraphLink) => {
           const srcId = typeof link.source === 'object' ? link.source.id : link.source;
           const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
           const isDirectFocusLink =
@@ -497,14 +497,15 @@ export function NetworkGraphView({
               ? 'rgba(148, 163, 184, 0.45)'
               : 'rgba(100, 116, 139, 0.42)';
         }}
-        nodePointerAreaPaint={(node: any, color, ctx) => {
+        nodePointerAreaPaint={(node: GraphNode, color, ctx) => {
+          if (typeof node.x !== 'number' || typeof node.y !== 'number') return;
           const r = (node.radius || 9) + 6;
           ctx.fillStyle = color;
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
           ctx.fill();
         }}
-        nodeCanvasObject={(node: any, ctx, globalScale) => {
+        nodeCanvasObject={(node: GraphNode, ctx, globalScale) => {
           if (typeof node.x !== 'number' || typeof node.y !== 'number') return;
 
           const gNode = node as GraphNode;

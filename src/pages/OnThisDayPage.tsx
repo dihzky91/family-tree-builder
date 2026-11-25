@@ -21,6 +21,7 @@ export default function OnThisDayPage() {
     const { persons } = useFamilyStore();
     const navigate = useNavigate();
     const today = new Date();
+    const currentYear = today.getFullYear();
     const currentMonth = today.getMonth();
     const currentDay = today.getDate();
 
@@ -51,9 +52,9 @@ export default function OnThisDayPage() {
                     const monthIdx = parsed.date1.month - 1;
                     const day = parsed.date1.day;
                     if (monthIdx === currentMonth) {
-                        const age = parsed.estimatedYear !== null ? today.getFullYear() - parsed.estimatedYear : null;
+                        const age = parsed.estimatedYear !== null ? currentYear - parsed.estimatedYear : null;
                         const isToday = day === currentDay;
-                        const eventDate = new Date(parsed.estimatedYear ?? today.getFullYear(), monthIdx, day);
+                        const eventDate = new Date(parsed.estimatedYear ?? currentYear, monthIdx, day);
 
                         monthEvents.push({
                             person,
@@ -75,9 +76,9 @@ export default function OnThisDayPage() {
                     const monthIdx = parsed.date1.month - 1;
                     const day = parsed.date1.day;
                     if (monthIdx === currentMonth) {
-                        const years = parsed.estimatedYear !== null ? today.getFullYear() - parsed.estimatedYear : null;
+                        const years = parsed.estimatedYear !== null ? currentYear - parsed.estimatedYear : null;
                         const isToday = day === currentDay;
-                        const eventDate = new Date(parsed.estimatedYear ?? today.getFullYear(), monthIdx, day);
+                        const eventDate = new Date(parsed.estimatedYear ?? currentYear, monthIdx, day);
 
                         monthEvents.push({
                             person,
@@ -95,7 +96,7 @@ export default function OnThisDayPage() {
 
         // Sort by day of month
         return monthEvents.sort((a, b) => a.date.getDate() - b.date.getDate());
-    }, [persons, currentMonth, currentDay]);
+    }, [persons, currentYear, currentMonth, currentDay]);
 
     const todayEvents = events.filter(e => e.isToday);
     const upcomingEvents = events.filter(e => e.date.getDate() > currentDay);

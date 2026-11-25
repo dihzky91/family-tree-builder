@@ -444,9 +444,14 @@ export default function BranchManagementPage() {
         toast.success('Cabang berhasil diperbarui');
       } else {
         await createBranch({
-          ...payload,
+          code: payload.code,
+          name: payload.name,
+          rootPersonId: payload.rootPersonId,
+          coordinatorName: payload.coordinatorName,
+          coordinatorEmail: payload.coordinatorEmail,
+          description: payload.description,
           isActive: true,
-        } as any);
+        });
         toast.success(
           rootMode === 'new'
             ? `Tokoh "${newHeadName.trim()}" & Cabang "${data.name}" berhasil dibuat!`

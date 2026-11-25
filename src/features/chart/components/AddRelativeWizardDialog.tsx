@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import type { Person, SpouseStatus } from '@/types';
 import { validateRelationship } from '@/lib/relationshipValidation';
@@ -149,10 +149,12 @@ export function AddRelativeWizardDialog({
     [persons, anchorPersonId]
   );
 
-  const relatives = useMemo(
-    () => (anchorPerson ? getPersonRelatives(anchorPerson.id) : null),
-    [anchorPerson, getPersonRelatives, persons, relationships]
-  );
+  const relatives = useMemo(() => {
+    if (!anchorPerson) return null;
+    void persons;
+    void relationships;
+    return getPersonRelatives(anchorPerson.id);
+  }, [anchorPerson, getPersonRelatives, persons, relationships]);
 
   const existingFather = useMemo(
     () => relatives?.parents.find((p) => p.gender === 'male') || null,
@@ -193,59 +195,60 @@ export function AddRelativeWizardDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const getDefaultPartnerGender = useCallback((): 'male' | 'female' | 'unknown' => {
+    if (!anchorPerson) return 'unknown';
+    if (anchorPerson.gender === 'male') return 'female';
+    if (anchorPerson.gender === 'female') return 'male';
+    return 'unknown';
+  }, [anchorPerson]);
+
+  const resetFormForRole = useCallback(
+    (role: RelativeRole | null) => {
+      setMode('create');
+      setFullName('');
+      setIsLiving(true);
+      setBirthDate('');
+      setBirthPlace('');
+      setDeathDate('');
+      setDeathPlace('');
+      setResidence(anchorPerson?.residence || '');
+      setPhotoUrl('');
+      setNotes('');
+      setShowMoreFields(false);
+      setSpouseStatus('married');
+      setMarriageDate('');
+      setExistingPersonId('');
+      setExistingSearch('');
+      setErrorMessage(null);
+      setAlsoLinkOtherParent(true);
+
+      if (relatives && relatives.spouses.length >= 1) {
+        setCoParentId(relatives.spouses[0].id);
+      } else {
+        setCoParentId('none');
+      }
+
+      if (!role) {
+        setGender('unknown');
+        return;
+      }
+
+      if (role === 'partner') {
+        setGender(getDefaultPartnerGender());
+      } else {
+        setGender(ROLE_CONFIGS[role].defaultGender);
+      }
+    },
+    [anchorPerson?.residence, relatives, getDefaultPartnerGender]
+  );
+
   // Reset when dialog opens or anchor person / initialRole changes
   useEffect(() => {
     if (open) {
       setSelectedRole(initialRole || null);
       resetFormForRole(initialRole || null);
     }
-  }, [open, anchorPersonId, initialRole]);
-
-  const getDefaultPartnerGender = (): 'male' | 'female' | 'unknown' => {
-    if (!anchorPerson) return 'unknown';
-    if (anchorPerson.gender === 'male') return 'female';
-    if (anchorPerson.gender === 'female') return 'male';
-    return 'unknown';
-  };
-
-  const resetFormForRole = (role: RelativeRole | null) => {
-    setMode('create');
-    setFullName('');
-    setIsLiving(true);
-    setBirthDate('');
-    setBirthPlace('');
-    setDeathDate('');
-    setDeathPlace('');
-    setResidence(anchorPerson?.residence || '');
-    setPhotoUrl('');
-    setNotes('');
-    setShowMoreFields(false);
-    setSpouseStatus('married');
-    setMarriageDate('');
-    setExistingPersonId('');
-    setExistingSearch('');
-    setErrorMessage(null);
-    setAlsoLinkOtherParent(true);
-
-    if (relatives && relatives.spouses.length === 1) {
-      setCoParentId(relatives.spouses[0].id);
-    } else if (relatives && relatives.spouses.length > 1) {
-      setCoParentId(relatives.spouses[0].id);
-    } else {
-      setCoParentId('none');
-    }
-
-    if (!role) {
-      setGender('unknown');
-      return;
-    }
-
-    if (role === 'partner') {
-      setGender(getDefaultPartnerGender());
-    } else {
-      setGender(ROLE_CONFIGS[role].defaultGender);
-    }
-  };
+  }, [open, anchorPersonId, initialRole, resetFormForRole]);
 
   const handleSelectRole = (role: RelativeRole) => {
     setSelectedRole(role);
@@ -463,7 +466,7 @@ export function AddRelativeWizardDialog({
           fullName: `Orang Tua ${anchorPerson.fullName.split(' ')[0]}`,
           gender: 'unknown',
           notes: 'Dibuat otomatis sebagai leluhur penghubung saudara kandung',
-          tags: ['needs review'],
+          tags: ['auto-placeholder-parent', 'needs review'],
           confidenceScore: 40,
         });
 

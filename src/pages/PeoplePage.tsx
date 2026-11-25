@@ -228,7 +228,10 @@ export default function PeoplePage() {
 
   const hasActiveQuery = Boolean(localSearch || activeFilterCount > 0 || quickFilter !== 'all');
 
-  const removeFilter = (type: 'generation' | 'verification' | 'age' | 'completeness', value?: any) => {
+  const removeFilter = (
+    type: 'generation' | 'verification' | 'age' | 'completeness',
+    value?: number | string
+  ) => {
     switch (type) {
       case 'generation':
         setFilters({ ...filters, generations: filters.generations.filter((g) => g !== value) });

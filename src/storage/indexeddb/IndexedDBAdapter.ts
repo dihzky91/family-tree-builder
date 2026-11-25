@@ -172,11 +172,15 @@ export const indexedDBAdapter: StorageAdapter = {
     await db.delete('stories', id);
   },
   
-  // Bulk operations
+  // Bulk operations (atomic single-transaction replacement; auto-rollbacks on any error)
   async importData(persons: Person[], relationships: Relationship[], evidence: Evidence[]) {
     const db = await getDB();
     const tx = db.transaction(['persons', 'relationships', 'evidence'], 'readwrite');
-    
+
+    await tx.objectStore('persons').clear();
+    await tx.objectStore('relationships').clear();
+    await tx.objectStore('evidence').clear();
+
     for (const person of persons) {
       await tx.objectStore('persons').put(person);
     }
@@ -186,7 +190,7 @@ export const indexedDBAdapter: StorageAdapter = {
     for (const ev of evidence) {
       await tx.objectStore('evidence').put(ev);
     }
-    
+
     await tx.done;
   },
   

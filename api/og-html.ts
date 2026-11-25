@@ -58,18 +58,19 @@ async function fetchBranchMeta(
       description?: string | null;
     }>;
     const row = rows?.[0];
-    if (!row || !row.name) return null;
+    if (
+      !row ||
+      !row.name ||
+      row.coordinator_name === '__PUBLIC_SHARE__' ||
+      row.description?.startsWith(CLOUD_SHARE_PREFIX)
+    ) {
+      return null;
+    }
 
     return {
       name: row.name,
-      coordinatorName:
-        row.coordinator_name && row.coordinator_name !== '__PUBLIC_SHARE__'
-          ? row.coordinator_name
-          : undefined,
-      description:
-        row.description && !row.description.startsWith(CLOUD_SHARE_PREFIX)
-          ? row.description
-          : undefined,
+      coordinatorName: row.coordinator_name || undefined,
+      description: row.description || undefined,
     };
   } catch {
     return null;
@@ -134,16 +135,21 @@ async function fetchShareMeta(
       const decoded = JSON.parse(row.description.slice(CLOUD_SHARE_PREFIX.length)) as {
         title?: string;
         description?: string;
+        hasPin?: boolean;
         pinCode?: string;
+        personsCount?: number;
         snapshotData?: { persons?: unknown[] };
       };
       return {
         title: decoded.title || row.name || 'Pohon Silsilah Keluarga',
         description: decoded.description,
-        personsCount: Array.isArray(decoded.snapshotData?.persons)
-          ? decoded.snapshotData?.persons.length
-          : undefined,
-        hasPin: Boolean(decoded.pinCode && decoded.pinCode.trim().length > 0),
+        personsCount:
+          typeof decoded.personsCount === 'number'
+            ? decoded.personsCount
+            : Array.isArray(decoded.snapshotData?.persons)
+              ? decoded.snapshotData?.persons.length
+              : undefined,
+        hasPin: Boolean(decoded.hasPin || (decoded.pinCode && decoded.pinCode.trim().length > 0)),
       };
     }
 

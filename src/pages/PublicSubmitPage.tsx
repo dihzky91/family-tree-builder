@@ -53,7 +53,7 @@ type PublicRelationChoice = 'child' | 'sibling' | 'grandchild' | 'great-grandchi
 interface MemberEntry {
   localId: string;
   fullName: string;
-  gender: 'male' | 'female';
+  gender: 'male' | 'female' | 'unknown';
   birthDate: string;
   birthPlace: string;
   residence: string;
@@ -241,7 +241,12 @@ function extractBranchMembersFromTree(
 
   for (const [personId, depth] of depthMap.entries()) {
     const p = personById.get(personId)!;
-    if (p.tags?.includes('auto-placeholder-parent')) continue;
+    if (
+      p.tags?.includes('auto-placeholder-parent') ||
+      p.notes === 'Dibuat otomatis sebagai leluhur penghubung saudara kandung'
+    ) {
+      continue;
+    }
 
     let relationToBranch: RelationToBranch = 'child';
     let parentName: string | undefined = parentNameMap.get(personId);
@@ -269,7 +274,12 @@ function extractBranchMembersFromTree(
 
   for (const [spouseId, partnerName] of spousePartnerMap.entries()) {
     const p = personById.get(spouseId)!;
-    if (p.tags?.includes('auto-placeholder-parent')) continue;
+    if (
+      p.tags?.includes('auto-placeholder-parent') ||
+      p.notes === 'Dibuat otomatis sebagai leluhur penghubung saudara kandung'
+    ) {
+      continue;
+    }
 
     result.push({
       fullName: p.fullName,
@@ -286,11 +296,7 @@ function extractBranchMembersFromTree(
 
 export default function PublicSubmitPage() {
   const { branchCode } = useParams<{ branchCode: string }>();
-  const {
-    findDuplicates,
-    persons: storePersons,
-    relationships: storeRelationships,
-  } = useFamilyStore();
+  const { findDuplicates } = useFamilyStore();
 
   const [branch, setBranch] = useState<Branch | null>(null);
   const [approvedMembers, setApprovedMembers] = useState<ApprovedMemberInfo[]>([]);
@@ -377,7 +383,7 @@ export default function PublicSubmitPage() {
           }
         };
 
-        if (shareLink) {
+        if (shareLink && !shareLink.hasPin) {
           const unlocked = await unlockPublicShare(shareLink.code).catch(() => null);
           if (unlocked && unlocked.status === 'ok') {
             const branchMembersFromShare = extractBranchMembersFromTree(
@@ -403,15 +409,17 @@ export default function PublicSubmitPage() {
           }
         }
 
-        if (storePersons.length > 0) {
+        const { persons: currentStorePersons, relationships: currentStoreRelationships } =
+          useFamilyStore.getState();
+        if (currentStorePersons.length > 0) {
           const branchMembersFromStore = extractBranchMembersFromTree(
             branchData.rootPersonId,
-            storePersons,
-            storeRelationships
+            currentStorePersons,
+            currentStoreRelationships
           );
           mergeScopedMembers(branchMembersFromStore);
 
-          for (const p of storePersons) {
+          for (const p of currentStorePersons) {
             const key = p.fullName.trim().toLowerCase();
             if (mergedByName.has(key)) {
               const existing = mergedByName.get(key)!;
@@ -426,7 +434,7 @@ export default function PublicSubmitPage() {
         }
 
         setApprovedMembers(Array.from(mergedByName.values()));
-        setPublicShareInfo(shareLink);
+        setPublicShareInfo(shareLink ? { code: shareLink.code, title: shareLink.title } : null);
       } catch (err) {
         console.error('Error loading data:', err);
         setError('Gagal memuat data cabang');
@@ -512,7 +520,7 @@ export default function PublicSubmitPage() {
       isUpdate: true,
       targetPersonId: member.createdPersonId,
       fullName: member.fullName,
-      gender: member.gender === 'female' ? 'female' : 'male',
+      gender: member.gender || 'unknown',
       relationChoice:
         member.relationToBranch === 'other' ? 'spouse' : member.relationToBranch,
       connectorName: member.parentName || '',
@@ -602,9 +610,15 @@ export default function PublicSubmitPage() {
 
       for (let i = 0; i < orderedEntries.length; i++) {
         const entry = orderedEntries[i];
+        const normalizedName = entry.fullName.trim().toLowerCase();
+        const approvedDuplicate = approvedMembers.find(
+          (m) => m.createdPersonId && m.fullName.trim().toLowerCase() === normalizedName
+        );
         const duplicates = findDuplicates(entry.fullName.trim(), entry.birthDate || undefined);
         const possibleDuplicateId =
-          entry.targetPersonId || (duplicates.length > 0 ? duplicates[0].id : undefined);
+          entry.targetPersonId ||
+          approvedDuplicate?.createdPersonId ||
+          (duplicates.length > 0 ? duplicates[0].id : undefined);
 
         const dbRelation: RelationToBranch =
           entry.relationChoice === 'spouse' || entry.relationChoice === 'sibling'
@@ -651,9 +665,10 @@ export default function PublicSubmitPage() {
       }
 
       setSubmittedSummary(sentList);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Batch submission error:', err);
-      setError(`Gagal mengirim data: ${err?.message || 'Terjadi kesalahan'}`);
+      const errMsg = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      setError(`Gagal mengirim data: ${errMsg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -971,6 +986,7 @@ export default function PublicSubmitPage() {
                               updateEntry(entry.localId, {
                                 isUpdate: false,
                                 targetPersonId: undefined,
+                                gender: entry.gender === 'unknown' ? 'male' : entry.gender,
                               })
                             }
                             className={cn(
@@ -994,6 +1010,7 @@ export default function PublicSubmitPage() {
                             onClick={() =>
                               updateEntry(entry.localId, {
                                 isUpdate: true,
+                                gender: 'unknown',
                               })
                             }
                             className={cn(
@@ -1054,7 +1071,7 @@ export default function PublicSubmitPage() {
                                     isUpdate: true,
                                     targetPersonId: found.createdPersonId,
                                     fullName: found.fullName,
-                                    gender: found.gender === 'female' ? 'female' : 'male',
+                                    gender: found.gender || 'unknown',
                                   });
                                 } else {
                                   updateEntry(entry.localId, { fullName: selectedName });
@@ -1271,13 +1288,15 @@ export default function PublicSubmitPage() {
                         </div>
 
                         <div className="sm:col-span-2">
-                          <Label>Jenis Kelamin *</Label>
+                          <Label>Jenis Kelamin {entry.isUpdate ? '(Opsional)' : '*'}</Label>
                           <RadioGroup
                             value={entry.gender}
                             onValueChange={(v) =>
-                              updateEntry(entry.localId, { gender: v as 'male' | 'female' })
+                              updateEntry(entry.localId, {
+                                gender: v as 'male' | 'female' | 'unknown',
+                              })
                             }
-                            className="flex gap-5 mt-2"
+                            className="flex flex-wrap gap-5 mt-2"
                           >
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="male" id={`male-${entry.localId}`} />
@@ -1291,6 +1310,14 @@ export default function PublicSubmitPage() {
                                 Perempuan
                               </Label>
                             </div>
+                            {entry.isUpdate && (
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="unknown" id={`unk-${entry.localId}`} />
+                                <Label htmlFor={`unk-${entry.localId}`} className="cursor-pointer">
+                                  Tidak diubah
+                                </Label>
+                              </div>
+                            )}
                           </RadioGroup>
                         </div>
 

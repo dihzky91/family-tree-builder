@@ -1,8 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useFamilyStore } from '@/store/familyStore';
 import { toast } from 'sonner';
-import type { Relationship, Person } from '@/types';
+import type { Relationship, Person, Evidence } from '@/types';
 import { getRelationshipDisplayInfo } from '@/lib/relationshipValidation';
+import {
+  calculateFlexibleAge,
+  formatFlexibleDate,
+  formatShortYearLabel,
+} from '@/lib/flexibleDateUtils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -34,11 +39,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { 
-  Edit, 
-  Trash2, 
-  Calendar, 
-  FileText, 
+import {
+  Edit,
+  Trash2,
+  Calendar,
+  FileText,
   Users,
   Heart,
   ArrowRight,
@@ -51,15 +56,15 @@ interface RelationshipInspectorProps {
 }
 
 // Component to display person name with gender color and deceased indicator
-function PersonName({ 
-  person, 
-  onPersonClick 
-}: { 
-  person: Person; 
+function PersonName({
+  person,
+  onPersonClick
+}: {
+  person: Person;
   onPersonClick?: (personId: string) => void;
 }) {
   const isDeceased = !!person.deathDate;
-  
+
   // Gender-based color classes using design system
   const getGenderColorClass = () => {
     if (isDeceased) return 'text-muted-foreground';
@@ -88,32 +93,32 @@ function PersonName({
   // Build combined tooltip content
   const getTooltipContent = () => {
     const lines: string[] = [];
-    
+
     // Gender
     if (person.gender === 'male') {
       lines.push('👤 Laki-laki');
     } else if (person.gender === 'female') {
       lines.push('👤 Perempuan');
     }
-    
+
     // Birth date
     if (person.birthDate) {
       lines.push(`🎂 Lahir: ${formatFullDate(person.birthDate)}`);
     }
-    
+
     // Death date or status
     if (person.deathDate) {
       lines.push(`✝ Meninggal: ${formatFullDate(person.deathDate)}`);
     } else if (person.birthDate) {
       lines.push('💚 Masih hidup');
     }
-    
+
     return lines.join('\n');
   };
 
   const genderIcon = getGenderIcon();
   const tooltipContent = getTooltipContent();
-  
+
   return (
     <TooltipProvider>
       <Tooltip>
@@ -163,33 +168,28 @@ interface GroupedChildRelationship {
   children: Person[];
 }
 
-// Helper function to calculate age
+// Helper function to calculate age (supports exact & flexible dates)
 function getAgeInfo(birthDate?: string | null, deathDate?: string | null): string | null {
   if (!birthDate) return null;
-  
-  const birth = new Date(birthDate);
-  const endDate = deathDate ? new Date(deathDate) : new Date();
-  
-  let age = endDate.getFullYear() - birth.getFullYear();
-  const monthDiff = endDate.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && endDate.getDate() < birth.getDate())) {
-    age--;
+
+  const yearLabel = formatShortYearLabel(birthDate);
+  const ageRes = calculateFlexibleAge(birthDate, deathDate);
+
+  if (ageRes !== null) {
+    const prefix = ageRes.isApproximate ? '~' : '';
+    if (deathDate) {
+      return `${yearLabel || '?'}, †${prefix}${ageRes.age} thn`;
+    }
+    return `${yearLabel || '?'}, ${prefix}${ageRes.age} thn`;
   }
-  
-  if (deathDate) {
-    return `${birth.getFullYear()}, †${age} thn`;
-  }
-  return `${birth.getFullYear()}, ${age} thn`;
+
+  return yearLabel;
 }
 
 // Helper function to format full date for tooltip
 function formatFullDate(dateString?: string | null): string | null {
   if (!dateString) return null;
-  return new Date(dateString).toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+  return formatFlexibleDate(dateString) || dateString;
 }
 
 // Helper to get tooltip content
@@ -218,36 +218,35 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
   const parentChildRels = personRelationships.filter(r => r.type === 'PARENT_CHILD');
   const spouseRels = personRelationships.filter(r => r.type === 'SPOUSE');
 
-  // Helper function to check if two people are spouses
-  const areSpouses = (person1Id: string, person2Id: string) => {
-    return relationships.some(
-      r => r.type === 'SPOUSE' && 
-      ((r.fromPersonId === person1Id && r.toPersonId === person2Id) ||
-       (r.fromPersonId === person2Id && r.toPersonId === person1Id))
-    );
-  };
-
   // Group parent-child relationships
   const { groupedAsParent, groupedAsChild } = useMemo(() => {
+    const checkAreSpouses = (person1Id: string, person2Id: string) =>
+      relationships.some(
+        (r) =>
+          r.type === 'SPOUSE' &&
+          ((r.fromPersonId === person1Id && r.toPersonId === person2Id) ||
+            (r.fromPersonId === person2Id && r.toPersonId === person1Id))
+      );
+
     const asParentRels = parentChildRels.filter(r => r.fromPersonId === personId);
     const asChildRels = parentChildRels.filter(r => r.toPersonId === personId);
-    
+
     // Group "As Child" - combine parents who are spouses
     const groupedAsChild: GroupedParentRelationship[] = [];
     const processedChildIds = new Set<string>();
-    
+
     for (const rel of asChildRels) {
       if (processedChildIds.has(rel.id)) continue;
-      
+
       const parentId = rel.fromPersonId;
-      
+
       // Find if there's another parent who is a spouse of this parent
-      const otherParentRel = asChildRels.find(r => 
-        r.id !== rel.id && 
-        !processedChildIds.has(r.id) && 
-        areSpouses(parentId, r.fromPersonId)
+      const otherParentRel = asChildRels.find(r =>
+        r.id !== rel.id &&
+        !processedChildIds.has(r.id) &&
+        checkAreSpouses(parentId, r.fromPersonId)
       );
-      
+
       if (otherParentRel) {
         // Combine both relationships
         const parent1 = persons.find(p => p.id === rel.fromPersonId);
@@ -278,7 +277,7 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
         .map(r => persons.find(p => p.id === r.toPersonId))
         .filter((p): p is Person => !!p)
     } : null;
-    
+
     return { groupedAsParent, groupedAsChild };
   }, [parentChildRels, personId, persons, relationships]);
 
@@ -286,7 +285,7 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
     if (deletingRelationship) {
       await deleteRelationship(deletingRelationship.id);
       setDeletingRelationship(null);
-      
+
       toast.success('Relasi berhasil dihapus', {
         action: {
           label: 'Undo',
@@ -306,7 +305,7 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
         await deleteRelationship(rel.id);
       }
       setDeletingRelationships(null);
-      
+
       toast.success(`${count} relasi berhasil dihapus`, {
         action: {
           label: 'Undo',
@@ -403,7 +402,7 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
             {spouseRels.map(rel => {
               const info = getRelationshipDisplayInfo(rel, personId, persons);
               const relEvidence = getRelatedEvidence(rel.id);
-              
+
               return (
                 <RelationshipCard
                   key={rel.id}
@@ -463,14 +462,14 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {deletingRelationships?.length === 1 
-                ? 'Hapus Relasi?' 
-                : deletingRelationships?.length === 2 
-                  ? 'Hapus Kedua Relasi?' 
+              {deletingRelationships?.length === 1
+                ? 'Hapus Relasi?'
+                : deletingRelationships?.length === 2
+                  ? 'Hapus Kedua Relasi?'
                   : `Hapus ${deletingRelationships?.length} Relasi?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {deletingRelationships?.length === 1 
+              {deletingRelationships?.length === 1
                 ? 'Relasi ini akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.'
                 : deletingRelationships?.length === 2
                   ? 'Kedua relasi akan dihapus secara permanen. Aksi ini tidak dapat dibatalkan.'
@@ -480,10 +479,10 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteMultiple} className="bg-destructive text-destructive-foreground">
-              {deletingRelationships?.length === 1 
-                ? 'Hapus' 
-                : deletingRelationships?.length === 2 
-                  ? 'Hapus Keduanya' 
+              {deletingRelationships?.length === 1
+                ? 'Hapus'
+                : deletingRelationships?.length === 2
+                  ? 'Hapus Keduanya'
                   : `Hapus Semua (${deletingRelationships?.length})`}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -497,16 +496,16 @@ export function RelationshipInspector({ personId, onPersonClick }: RelationshipI
 interface CombinedParentCardProps {
   parents: Person[];
   relationships: Relationship[];
-  evidence: any[];
+  evidence: Evidence[];
   onPersonClick?: (personId: string) => void;
   onEditRelationship?: (relationship: Relationship) => void;
   onDeleteRelationships?: (relationships: Relationship[]) => void;
 }
 
-function CombinedParentCard({ 
-  parents, 
+function CombinedParentCard({
+  parents,
   relationships,
-  evidence, 
+  evidence,
   onPersonClick,
   onEditRelationship,
   onDeleteRelationships
@@ -519,11 +518,11 @@ function CombinedParentCard({
             <span>👨‍👩‍👧</span>
             <span className="text-muted-foreground">Anak dari</span>
             <ArrowRight className="w-3 h-3 text-muted-foreground" />
-            
+
             {parents[0] && (
               <PersonName person={parents[0]} onPersonClick={onPersonClick} />
             )}
-            
+
             {parents[1] && (
               <>
                 <span className="text-muted-foreground">&</span>
@@ -589,16 +588,16 @@ function CombinedParentCard({
 interface CombinedChildCardProps {
   children: Person[];
   relationships: Relationship[];
-  evidence: any[];
+  evidence: Evidence[];
   onPersonClick?: (personId: string) => void;
   onEditRelationship?: (relationship: Relationship) => void;
   onDeleteRelationships?: (relationships: Relationship[]) => void;
 }
 
-function CombinedChildCard({ 
+function CombinedChildCard({
   children: childrenList,
   relationships,
-  evidence, 
+  evidence,
   onPersonClick,
   onEditRelationship,
   onDeleteRelationships
@@ -614,7 +613,7 @@ function CombinedChildCard({
               {childrenList.length}
             </Badge>
             <ArrowRight className="w-3 h-3 text-muted-foreground" />
-            
+
             {childrenList.map((child, idx) => (
               <span key={child.id} className="inline-flex items-center">
                 {idx > 0 && (
@@ -683,29 +682,25 @@ function CombinedChildCard({
 interface RelationshipCardProps {
   relationship: Relationship;
   info: { label: string; icon: string; person: Person | undefined };
-  evidence: any[];
+  evidence: Evidence[];
   onEdit: () => void;
   onDelete: () => void;
   onPersonClick?: (personId: string) => void;
   showDates?: boolean;
 }
 
-function RelationshipCard({ 
-  relationship, 
-  info, 
-  evidence, 
-  onEdit, 
+function RelationshipCard({
+  relationship,
+  info,
+  evidence,
+  onEdit,
   onDelete,
   onPersonClick,
-  showDates 
+  showDates
 }: RelationshipCardProps) {
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return null;
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
+    return formatFlexibleDate(dateString, { shortMonth: true }) || dateString;
   };
 
   const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {

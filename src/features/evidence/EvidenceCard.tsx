@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Evidence, VerificationStatus } from '@/types';
 import { calculateConfidenceAdjustment } from '@/lib/confidenceScore';
 import { getEvidenceFileUrl } from '@/lib/evidenceStorage';
+import { formatFlexibleDate } from '@/lib/flexibleDateUtils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -109,7 +110,8 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
   const hasFile = Boolean(fileSource || evidence.filePath);
 
   useEffect(() => {
-    if (!showPreview || !evidence.filePath) return;
+    if (!evidence.filePath) return;
+    if (!showPreview && !isImage) return;
     let active = true;
     getEvidenceFileUrl(evidence.filePath)
       .then((url) => {
@@ -121,7 +123,7 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
     return () => {
       active = false;
     };
-  }, [showPreview, evidence.filePath]);
+  }, [showPreview, isImage, evidence.filePath]);
 
   const handleStatusSelect = (newStatus: VerificationStatus) => {
     if (newStatus === evidence.status) return;
@@ -196,7 +198,7 @@ export function EvidenceCard({ evidence, entityName, onStatusChange, onDelete }:
             <p>Sumber: {evidence.source}</p>
           )}
           {evidence.date && (
-            <p>Tanggal: {new Date(evidence.date).toLocaleDateString('id-ID')}</p>
+            <p>Tanggal: {formatFlexibleDate(evidence.date) || evidence.date}</p>
           )}
           {evidence.description && (
             <p className="line-clamp-2">{evidence.description}</p>

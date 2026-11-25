@@ -300,8 +300,8 @@ export function ShareTreeDialog({
       setShareLinks(updatedLinks);
       setMode('list');
       setEditingLink(null);
-    } catch (err: any) {
-      toast.error(err?.message || 'Gagal menyimpan tautan berbagi');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal menyimpan tautan berbagi');
     } finally {
       setIsSaving(false);
     }
@@ -320,6 +320,7 @@ export function ShareTreeDialog({
         branch: selectedBranch,
         rootPersonId: link.rootPersonId,
         pinCode: link.pinCode,
+        preservePinIfEmpty: link.hasPin,
         hideLivingDetails: link.hideLivingDetails,
         isActive: link.isActive,
         allPersons: persons,
@@ -328,8 +329,8 @@ export function ShareTreeDialog({
       const updatedLinks = await getAllShareLinks();
       setShareLinks(updatedLinks);
       toast.success(`Data silsilah "${link.title}" berhasil diperbarui ke versi terbaru!`);
-    } catch (err: any) {
-      toast.error(err?.message || 'Gagal menyinkronkan data');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Gagal menyinkronkan data');
     }
   };
 

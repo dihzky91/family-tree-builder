@@ -30,6 +30,6 @@ export function getSupabaseClient() {
 export const supabase = new Proxy({} as ReturnType<typeof createClient<Database>>, {
   get(_target, prop) {
     const client = getSupabaseClient();
-    return (client as any)[prop];
+    return Reflect.get(client, prop, client);
   },
 });

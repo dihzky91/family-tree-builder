@@ -118,14 +118,14 @@ export function useD3TouchZoom(
 
         // D3 zoom already handles touch gestures well, 
         // just ensure it's properly configured
-        const zoom = d3.zoom()
+        const zoom = d3.zoom<SVGSVGElement, unknown>()
             .scaleExtent([minScale, maxScale])
             .on('zoom', (event) => {
                 svg.select('g').attr('transform', event.transform);
             });
 
         // Apply zoom with touch support
-        svg.call(zoom as any);
+        svg.call(zoom);
 
         // Prevent default touch behaviors that interfere
         function preventGestures(e: Event) {

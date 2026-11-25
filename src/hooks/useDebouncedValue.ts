@@ -31,13 +31,13 @@ export function useDebouncedValue<T>(value: T, delay: number = 300): T {
  * @param callback - Function to debounce
  * @param delay - Delay in milliseconds
  */
-export function useDebouncedCallback<T extends (...args: any[]) => any>(
-    callback: T,
+export function useDebouncedCallback<Args extends unknown[], R>(
+    callback: (...args: Args) => R,
     delay: number = 300
-): T {
-    const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+): (...args: Args) => void {
+    const [timeoutId, setTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
 
-    const debouncedCallback = ((...args: Parameters<T>) => {
+    const debouncedCallback = (...args: Args) => {
         if (timeoutId) {
             clearTimeout(timeoutId);
         }
@@ -47,7 +47,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
         }, delay);
 
         setTimeoutId(newTimeoutId);
-    }) as T;
+    };
 
     useEffect(() => {
         return () => {

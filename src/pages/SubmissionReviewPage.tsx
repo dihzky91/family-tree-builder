@@ -79,6 +79,7 @@ export default function SubmissionReviewPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [demoSubmissionsCache, setDemoSubmissionsCache] = useState<Submission[] | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>(
     () => searchParams.get('branch') || 'all'
@@ -111,10 +112,14 @@ export default function SubmissionReviewPage() {
   const fetchData = async () => {
     if (isDemoMode) {
       const demo = getDemoData();
+      const sourceSubs = demoSubmissionsCache ?? demo.submissions;
+      if (!demoSubmissionsCache) {
+        setDemoSubmissionsCache(demo.submissions);
+      }
       const byBranch =
         selectedBranch === 'all'
-          ? demo.submissions
-          : demo.submissions.filter((s) => s.branchId === selectedBranch);
+          ? sourceSubs
+          : sourceSubs.filter((s) => s.branchId === selectedBranch);
       const filtered =
         selectedStatus === 'all'
           ? byBranch
@@ -403,13 +408,33 @@ export default function SubmissionReviewPage() {
           notes: mergedNotes,
         });
 
-        await updateSubmissionStatus(
-          submission.id,
-          'approved',
-          undefined,
-          'Data anggota diperbarui',
-          existingPerson.id
-        );
+        if (isDemoMode) {
+          setDemoSubmissionsCache((prev) =>
+            (prev ?? getDemoData().submissions).map((s) =>
+              s.id === submission.id
+                ? { ...s, status: 'approved', createdPersonId: existingPerson.id }
+                : s
+            )
+          );
+          setSubmissions((prev) =>
+            prev
+              .map((s) =>
+                s.id === submission.id
+                  ? { ...s, status: 'approved' as const, createdPersonId: existingPerson.id }
+                  : s
+              )
+              .filter((s) => selectedStatus === 'all' || s.status === selectedStatus)
+          );
+        } else {
+          await updateSubmissionStatus(
+            submission.id,
+            'approved',
+            undefined,
+            'Data anggota diperbarui',
+            existingPerson.id
+          );
+          await incrementBranchApprovedCount(submission.branchId).catch(() => {});
+        }
         return [];
       }
     }
@@ -491,8 +516,27 @@ export default function SubmissionReviewPage() {
       newlyCreated.push(...addedParents);
     }
 
-    await updateSubmissionStatus(submission.id, 'approved', undefined, undefined, person.id);
-    await incrementBranchApprovedCount(submission.branchId);
+    if (isDemoMode) {
+      setDemoSubmissionsCache((prev) =>
+        (prev ?? getDemoData().submissions).map((s) =>
+          s.id === submission.id
+            ? { ...s, status: 'approved', createdPersonId: person.id }
+            : s
+        )
+      );
+      setSubmissions((prev) =>
+        prev
+          .map((s) =>
+            s.id === submission.id
+              ? { ...s, status: 'approved' as const, createdPersonId: person.id }
+              : s
+          )
+          .filter((s) => selectedStatus === 'all' || s.status === selectedStatus)
+      );
+    } else {
+      await updateSubmissionStatus(submission.id, 'approved', undefined, undefined, person.id);
+      await incrementBranchApprovedCount(submission.branchId).catch(() => {});
+    }
     return newlyCreated;
   };
 
@@ -506,13 +550,14 @@ export default function SubmissionReviewPage() {
         linkType: bridgeLinkType,
         targetId: bridgeTargetPersonId,
       });
-      // Auto-refresh public read-only share snapshots so /view/... immediately shows the new member
-      const latestState = useFamilyStore.getState();
-      void syncAllActiveShareSnapshots(
-        latestState.persons,
-        latestState.relationships,
-        branches
-      );
+      if (!isDemoMode) {
+        const latestState = useFamilyStore.getState();
+        void syncAllActiveShareSnapshots(
+          latestState.persons,
+          latestState.relationships,
+          branches
+        );
+      }
       toast.success(
         linkType === 'update_existing'
           ? `Data "${approveTarget.fullName}" berhasil diperbarui di silsilah!`
@@ -521,8 +566,10 @@ export default function SubmissionReviewPage() {
             : `${approveTarget.fullName} berhasil disetujui & ditambahkan ke silsilah!`
       );
       setApproveTarget(null);
-      notifySubmissionsChanged();
-      fetchData();
+      if (!isDemoMode) {
+        notifySubmissionsChanged();
+        fetchData();
+      }
     } catch (error) {
       console.error('Error approving submission:', error);
       toast.error('Gagal menyetujui submisi');
@@ -564,21 +611,26 @@ export default function SubmissionReviewPage() {
         successCount++;
       }
 
-      // Auto-refresh public read-only share snapshots so /view/... immediately shows the new batch
-      const latestState = useFamilyStore.getState();
-      void syncAllActiveShareSnapshots(
-        latestState.persons,
-        latestState.relationships,
-        branches
-      );
+      if (!isDemoMode) {
+        const latestState = useFamilyStore.getState();
+        void syncAllActiveShareSnapshots(
+          latestState.persons,
+          latestState.relationships,
+          branches
+        );
+      }
       toast.success(`${successCount} anggota dari ${group.submittedBy} berhasil disetujui!`);
-      notifySubmissionsChanged();
-      fetchData();
+      if (!isDemoMode) {
+        notifySubmissionsChanged();
+        fetchData();
+      }
     } catch (error) {
       console.error('Batch approve failed:', error);
       toast.error('Sebagian data gagal disetujui, silakan cek ulang.');
-      notifySubmissionsChanged();
-      fetchData();
+      if (!isDemoMode) {
+        notifySubmissionsChanged();
+        fetchData();
+      }
     } finally {
       setIsBatchApproving(null);
     }
@@ -586,6 +638,20 @@ export default function SubmissionReviewPage() {
 
   const handleReject = async (submission: Submission) => {
     try {
+      if (isDemoMode) {
+        setDemoSubmissionsCache((prev) =>
+          (prev ?? getDemoData().submissions).map((s) =>
+            s.id === submission.id ? { ...s, status: 'rejected' } : s
+          )
+        );
+        setSubmissions((prev) =>
+          prev
+            .map((s) => (s.id === submission.id ? { ...s, status: 'rejected' as const } : s))
+            .filter((s) => selectedStatus === 'all' || s.status === selectedStatus)
+        );
+        toast.success('Submisi ditolak');
+        return;
+      }
       await updateSubmissionStatus(submission.id, 'rejected', undefined, 'Ditolak oleh admin');
       toast.success('Submisi ditolak');
       notifySubmissionsChanged();

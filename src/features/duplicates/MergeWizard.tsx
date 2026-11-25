@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { formatFlexibleDate } from '@/lib/flexibleDateUtils';
 
 interface MergeWizardProps {
   candidate: DuplicateCandidate;
@@ -112,11 +113,7 @@ export function MergeWizard({ candidate, onComplete, onCancel }: MergeWizardProp
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    return formatFlexibleDate(date) || date;
   };
 
   const genderLabels: Record<string, string> = {

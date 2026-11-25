@@ -48,9 +48,10 @@ export async function getBranchByCode(code: string): Promise<Branch | null> {
     const { data, error } = await supabase
         .from('branches')
         .select('*')
-        .eq('code', code)
+        .eq('code', code.trim().toLowerCase())
         .eq('is_active', true)
-        .single();
+        .neq('coordinator_name', '__PUBLIC_SHARE__')
+        .maybeSingle();
 
     if (error) {
         if (error.code === 'PGRST116') {
@@ -60,7 +61,11 @@ export async function getBranchByCode(code: string): Promise<Branch | null> {
         throw error;
     }
 
-    return data ? mapDbBranchToBranch(data) : null;
+    if (!data || data.description?.startsWith('__PUBLIC_SHARE_V1__:')) {
+        return null;
+    }
+
+    return mapDbBranchToBranch(data);
 }
 
 /**

@@ -28,6 +28,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { formatShortYearLabel, getSortableTimestamp } from '@/lib/flexibleDateUtils';
 import type { Person, Relationship } from '@/types';
 
 interface FanChartViewProps {
@@ -81,15 +82,9 @@ const PLACE_PALETTE = [
   '#4f46e5',
 ];
 
-function extractYear(dateStr?: string | null): string | null {
-  if (!dateStr) return null;
-  const match = dateStr.match(/\d{4}/);
-  return match ? match[0] : null;
-}
-
 function formatLifeSpan(birthDate?: string | null, deathDate?: string | null): string | null {
-  const b = extractYear(birthDate);
-  const d = extractYear(deathDate);
+  const b = formatShortYearLabel(birthDate);
+  const d = formatShortYearLabel(deathDate);
   if (b && d) return `${b}–${d}`;
   if (b) return `l. ${b}`;
   if (d) return `w. ${d}`;
@@ -168,8 +163,8 @@ export function FanChartView({
     const best = [...persons].sort((a, b) => {
       const diff = (parentCount.get(b.id) || 0) - (parentCount.get(a.id) || 0);
       if (diff !== 0) return diff;
-      const ya = a.birthDate ? new Date(a.birthDate).getTime() : 0;
-      const yb = b.birthDate ? new Date(b.birthDate).getTime() : 0;
+      const ya = getSortableTimestamp(a.birthDate) ?? 0;
+      const yb = getSortableTimestamp(b.birthDate) ?? 0;
       return yb - ya;
     })[0];
     setCenterPersonId(best?.id ?? null);
