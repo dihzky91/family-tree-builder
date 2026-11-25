@@ -25,7 +25,7 @@ import { getBranchByCode } from '@/storage/supabase/branchQueries';
 import { getApprovedMembersByBranch, createSubmission } from '@/storage/supabase/submissionQueries';
 import { findPublicShareForBranch, unlockPublicShare } from '@/storage/supabase/shareQueries';
 import { useFamilyStore } from '@/store/familyStore';
-import type { Branch, ApprovedMemberInfo, RelationToBranch } from '@/types';
+import type { Branch, ApprovedMemberInfo, RelationToBranch, Person, Relationship } from '@/types';
 import {
   CheckCircle,
   AlertCircle,
@@ -170,9 +170,127 @@ function sortEntriesForSubmission(entries: MemberEntry[]): MemberEntry[] {
   return [...ordered, ...remaining];
 }
 
+/**
+ * Extract ONLY the members that belong to a specific branch's lineage subtree:
+ * - The branch's rootPersonId (Kepala Cabang)
+ * - All direct descendants of rootPersonId (children, grandchildren, great-grandchildren)
+ * - Spouses of rootPersonId or any of those descendants
+ * Excludes all other branches and ancestors from a full-tree snapshot.
+ */
+function extractBranchMembersFromTree(
+  rootPersonId: string,
+  persons: Person[],
+  relationships: Relationship[]
+): ApprovedMemberInfo[] {
+  if (!rootPersonId || persons.length === 0) return [];
+
+  const personById = new Map<string, Person>();
+  for (const p of persons) {
+    personById.set(p.id, p);
+  }
+
+  if (!personById.has(rootPersonId)) return [];
+
+  // BFS traversal down PARENT_CHILD edges starting from rootPersonId
+  const depthMap = new Map<string, number>([[rootPersonId, 0]]);
+  const parentNameMap = new Map<string, string>();
+  const queue: string[] = [rootPersonId];
+
+  while (queue.length > 0) {
+    const currId = queue.shift()!;
+    const currDepth = depthMap.get(currId)!;
+    const currPerson = personById.get(currId);
+
+    for (const rel of relationships) {
+      if (rel.type === 'PARENT_CHILD' && rel.fromPersonId === currId) {
+        const childId = rel.toPersonId;
+        if (!depthMap.has(childId) && personById.has(childId)) {
+          depthMap.set(childId, currDepth + 1);
+          if (currPerson) {
+            parentNameMap.set(childId, currPerson.fullName);
+          }
+          queue.push(childId);
+        }
+      }
+    }
+  }
+
+  // Include spouses of rootPersonId and any descendant in this branch
+  const spousePartnerMap = new Map<string, string>();
+  for (const rel of relationships) {
+    if (rel.type === 'SPOUSE') {
+      if (
+        depthMap.has(rel.fromPersonId) &&
+        !depthMap.has(rel.toPersonId) &&
+        personById.has(rel.toPersonId)
+      ) {
+        const partner = personById.get(rel.fromPersonId)!;
+        spousePartnerMap.set(rel.toPersonId, partner.fullName);
+      } else if (
+        depthMap.has(rel.toPersonId) &&
+        !depthMap.has(rel.fromPersonId) &&
+        personById.has(rel.fromPersonId)
+      ) {
+        const partner = personById.get(rel.toPersonId)!;
+        spousePartnerMap.set(rel.fromPersonId, partner.fullName);
+      }
+    }
+  }
+
+  const result: ApprovedMemberInfo[] = [];
+
+  for (const [personId, depth] of depthMap.entries()) {
+    const p = personById.get(personId)!;
+    if (p.tags?.includes('auto-placeholder-parent')) continue;
+
+    let relationToBranch: RelationToBranch = 'child';
+    let parentName: string | undefined = parentNameMap.get(personId);
+
+    if (depth === 0) {
+      relationToBranch = 'other';
+      parentName = 'Kepala Cabang';
+    } else if (depth === 1) {
+      relationToBranch = 'child';
+    } else if (depth === 2) {
+      relationToBranch = 'grandchild';
+    } else {
+      relationToBranch = 'great-grandchild';
+    }
+
+    result.push({
+      fullName: p.fullName,
+      relationToBranch,
+      parentName,
+      createdPersonId: p.id,
+      gender: p.gender,
+      hasBirthDate: Boolean(p.birthDate),
+    });
+  }
+
+  for (const [spouseId, partnerName] of spousePartnerMap.entries()) {
+    const p = personById.get(spouseId)!;
+    if (p.tags?.includes('auto-placeholder-parent')) continue;
+
+    result.push({
+      fullName: p.fullName,
+      relationToBranch: 'other',
+      parentName: `Pasangan dari ${partnerName}`,
+      createdPersonId: p.id,
+      gender: p.gender,
+      hasBirthDate: Boolean(p.birthDate),
+    });
+  }
+
+  return result;
+}
+
 export default function PublicSubmitPage() {
   const { branchCode } = useParams<{ branchCode: string }>();
-  const { findDuplicates, persons: storePersons } = useFamilyStore();
+  const {
+    findDuplicates,
+    persons: storePersons,
+    relationships: storeRelationships,
+  } = useFamilyStore();
 
   const [branch, setBranch] = useState<Branch | null>(null);
   const [approvedMembers, setApprovedMembers] = useState<ApprovedMemberInfo[]>([]);
@@ -231,41 +349,79 @@ export default function PublicSubmitPage() {
           findPublicShareForBranch(branchCode, branchData.id).catch(() => null),
         ]);
 
-        // Also merge members from public share snapshot (if unlocked/no-PIN) or in-memory store
-        // so members added directly by Admin also appear in the "Lengkapi / Update" list!
+        // Only merge members from public share snapshot or in-memory store that actually belong
+        // to THIS branch's subtree (rootPersonId + descendants + spouses), never the whole tree!
         const mergedByName = new Map<string, ApprovedMemberInfo>();
         for (const m of members) {
           mergedByName.set(m.fullName.trim().toLowerCase(), m);
         }
 
+        const mergeScopedMembers = (scopedList: ApprovedMemberInfo[]) => {
+          for (const scoped of scopedList) {
+            const key = scoped.fullName.trim().toLowerCase();
+            const existing = mergedByName.get(key);
+            mergedByName.set(key, {
+              fullName: scoped.fullName,
+              relationToBranch:
+                scoped.parentName === 'Kepala Cabang'
+                  ? 'other'
+                  : existing?.relationToBranch || scoped.relationToBranch,
+              parentName:
+                scoped.parentName === 'Kepala Cabang'
+                  ? 'Kepala Cabang'
+                  : existing?.parentName || scoped.parentName,
+              createdPersonId: scoped.createdPersonId || existing?.createdPersonId,
+              gender: scoped.gender || existing?.gender,
+              hasBirthDate: Boolean(scoped.hasBirthDate) || Boolean(existing?.hasBirthDate),
+            });
+          }
+        };
+
         if (shareLink) {
           const unlocked = await unlockPublicShare(shareLink.code).catch(() => null);
           if (unlocked && unlocked.status === 'ok') {
+            const branchMembersFromShare = extractBranchMembersFromTree(
+              branchData.rootPersonId,
+              unlocked.payload.persons,
+              unlocked.payload.relationships
+            );
+            mergeScopedMembers(branchMembersFromShare);
+
+            // Also enrich any already-approved submission entries with birthDate/gender from snapshot
             for (const p of unlocked.payload.persons) {
               const key = p.fullName.trim().toLowerCase();
-              const existing = mergedByName.get(key);
-              mergedByName.set(key, {
-                fullName: p.fullName,
-                relationToBranch: existing?.relationToBranch || 'child',
-                parentName: existing?.parentName,
-                createdPersonId: p.id,
-                gender: p.gender,
-                hasBirthDate: Boolean(p.birthDate) || Boolean(existing?.hasBirthDate),
-              });
+              if (mergedByName.has(key)) {
+                const existing = mergedByName.get(key)!;
+                mergedByName.set(key, {
+                  ...existing,
+                  createdPersonId: p.id,
+                  gender: p.gender,
+                  hasBirthDate: Boolean(p.birthDate) || Boolean(existing.hasBirthDate),
+                });
+              }
             }
           }
         }
 
-        for (const p of storePersons) {
-          const key = p.fullName.trim().toLowerCase();
-          if (mergedByName.has(key)) {
-            const existing = mergedByName.get(key)!;
-            mergedByName.set(key, {
-              ...existing,
-              createdPersonId: p.id,
-              gender: p.gender,
-              hasBirthDate: Boolean(p.birthDate) || Boolean(existing.hasBirthDate),
-            });
+        if (storePersons.length > 0) {
+          const branchMembersFromStore = extractBranchMembersFromTree(
+            branchData.rootPersonId,
+            storePersons,
+            storeRelationships
+          );
+          mergeScopedMembers(branchMembersFromStore);
+
+          for (const p of storePersons) {
+            const key = p.fullName.trim().toLowerCase();
+            if (mergedByName.has(key)) {
+              const existing = mergedByName.get(key)!;
+              mergedByName.set(key, {
+                ...existing,
+                createdPersonId: p.id,
+                gender: p.gender,
+                hasBirthDate: Boolean(p.birthDate) || Boolean(existing.hasBirthDate),
+              });
+            }
           }
         }
 
@@ -322,11 +478,19 @@ export default function PublicSubmitPage() {
     const target =
       entries.find((e) => expandedIds[e.localId]) || entries[entries.length - 1];
     if (!target) return;
+    const pickedMember = approvedMembers.find(
+      (m) => m.fullName.trim().toLowerCase() === memberName.trim().toLowerCase()
+    );
+    const isBranchHead = pickedMember?.parentName === 'Kepala Cabang';
     updateEntry(target.localId, {
       isUpdate: false,
       targetPersonId: undefined,
-      relationChoice: target.relationChoice === 'child' ? 'grandchild' : target.relationChoice,
-      connectorName: memberName,
+      relationChoice: isBranchHead
+        ? 'child'
+        : target.relationChoice === 'child'
+          ? 'grandchild'
+          : target.relationChoice,
+      connectorName: isBranchHead ? '' : memberName,
     });
     setExpandedIds((prev) => ({ ...prev, [target.localId]: true }));
     document.getElementById(`member-card-${target.localId}`)?.scrollIntoView({

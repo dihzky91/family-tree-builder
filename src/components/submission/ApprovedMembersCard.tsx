@@ -27,6 +27,19 @@ export function formatRelationLabel(relation: RelationToBranch): string {
   }
 }
 
+function formatMemberSubtitle(member: ApprovedMemberInfo): string {
+  const pName = member.parentName?.trim() || '';
+  if (
+    pName.startsWith('Kepala Cabang') ||
+    pName.toLowerCase().startsWith('pasangan dari') ||
+    pName.toLowerCase().startsWith('saudara kandung dari')
+  ) {
+    return pName;
+  }
+  const baseLabel = formatRelationLabel(member.relationToBranch);
+  return pName ? `${baseLabel} · ${pName}` : baseLabel;
+}
+
 export function ApprovedMembersCard({
   members,
   branchName,
@@ -63,9 +76,14 @@ export function ApprovedMembersCard({
               key={`${member.fullName}-${i}`}
               className="flex items-center justify-between gap-2 rounded-xl border border-success/20 bg-background/80 px-3 py-2 text-xs sm:text-sm"
             >
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="font-medium truncate">{member.fullName}</p>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground truncate" title={member.fullName}>
+                  {member.fullName}
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                  <span className="text-[11px] text-muted-foreground truncate">
+                    {formatMemberSubtitle(member)}
+                  </span>
                   {!member.hasBirthDate && (
                     <Badge
                       variant="outline"
@@ -75,10 +93,6 @@ export function ApprovedMembersCard({
                     </Badge>
                   )}
                 </div>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {formatRelationLabel(member.relationToBranch)}
-                  {member.parentName ? ` · ${member.parentName}` : ''}
-                </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {onUpdateMember && (
