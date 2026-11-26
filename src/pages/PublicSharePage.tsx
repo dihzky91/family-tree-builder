@@ -241,6 +241,7 @@ export default function PublicSharePage() {
 
   const [viewMode, setViewMode] = useState<ViewMode>('family');
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -405,8 +406,14 @@ export default function PublicSharePage() {
     [fuse, searchQuery]
   );
 
+  const handleSelectPersonFromChart = useCallback((personId: string | null) => {
+    setSelectedPersonId(personId);
+    setIsDetailOpen(Boolean(personId));
+  }, []);
+
   const selectPersonFromSearch = useCallback((personId: string) => {
     setSelectedPersonId(personId);
+    setIsDetailOpen(false);
     setShowMobileSearch(false);
     setIsSearchOpen(false);
     setSearchQuery('');
@@ -739,13 +746,17 @@ export default function PublicSharePage() {
 
         {/* Focus action */}
         <Button
-          variant="secondary"
+          variant="default"
           size="sm"
-          className="w-full h-8 text-xs"
-          onClick={() => setViewMode('family')}
+          className="w-full h-9 text-xs font-medium"
+          onClick={() => {
+            setSelectedPersonId(person.id);
+            setViewMode('family');
+            setIsDetailOpen(false);
+          }}
         >
           <Users className="w-3.5 h-3.5 mr-1.5" />
-          Jadikan Pusat Pohon Keluarga
+          Lihat & Jadikan Pusat Pohon Keluarga
         </Button>
 
         {/* Dates & Places */}
@@ -982,15 +993,22 @@ export default function PublicSharePage() {
 
                 {selectedPerson && (
                   <div className="flex items-center justify-between gap-2 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1 text-xs">
-                    <span className="truncate text-foreground font-medium">
-                      Fokus: {selectedPerson.fullName}
-                    </span>
                     <button
                       type="button"
-                      onClick={() => setSelectedPersonId(null)}
+                      onClick={() => setIsDetailOpen(true)}
+                      className="truncate text-left text-foreground font-medium hover:underline flex-1 min-w-0"
+                    >
+                      Fokus: {selectedPerson.fullName} (Lihat Profil)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPersonId(null);
+                        setIsDetailOpen(false);
+                      }}
                       className="inline-flex items-center gap-1 text-[11px] text-primary font-medium shrink-0"
                     >
-                      <span>Lepas</span>
+                      <span>Reset</span>
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -1095,10 +1113,20 @@ export default function PublicSharePage() {
 
                   {selectedPerson && (
                     <span className="hidden lg:inline-flex items-center gap-1 rounded-full border border-primary/35 bg-primary/10 pl-2.5 pr-1 py-0.5 text-[11px] font-medium text-foreground">
-                      <span className="truncate max-w-[140px]">{selectedPerson.fullName}</span>
                       <button
                         type="button"
-                        onClick={() => setSelectedPersonId(null)}
+                        onClick={() => setIsDetailOpen(true)}
+                        className="truncate max-w-[140px] hover:underline"
+                        title="Klik untuk buka profil anggota"
+                      >
+                        {selectedPerson.fullName}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPersonId(null);
+                          setIsDetailOpen(false);
+                        }}
                         className="rounded-full p-0.5 hover:bg-primary/20 text-muted-foreground hover:text-foreground"
                         title="Lepas fokus"
                       >
@@ -1291,7 +1319,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                             readOnly
                           />
                         </motion.div>
@@ -1302,7 +1330,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                           />
                         </motion.div>
                       )}
@@ -1313,7 +1341,7 @@ export default function PublicSharePage() {
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}
                             highlightedPersonIds={lineageIdSet}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                           />
                         </motion.div>
                       )}
@@ -1323,7 +1351,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                             readOnly
                           />
                         </motion.div>
@@ -1334,7 +1362,7 @@ export default function PublicSharePage() {
                           {...viewTransition}
                           className="w-full min-h-full bg-background"
                         >
-                          <TimelineView persons={persons} onSelectPerson={setSelectedPersonId} />
+                          <TimelineView persons={persons} onSelectPerson={handleSelectPersonFromChart} />
                         </motion.div>
                       )}
                       {viewMode === 'network' && (
@@ -1342,14 +1370,14 @@ export default function PublicSharePage() {
                           <NetworkGraphView
                             persons={persons}
                             relationships={relationships}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                             selectedPersonId={selectedPersonId}
                           />
                         </motion.div>
                       )}
                       {viewMode === 'map' && (
                         <motion.div key="map" {...viewTransition} className="w-full h-full">
-                          <GeoMapView persons={persons} onSelectPerson={setSelectedPersonId} />
+                          <GeoMapView persons={persons} onSelectPerson={handleSelectPersonFromChart} />
                         </motion.div>
                       )}
                       {viewMode === 'sunburst' && (
@@ -1358,7 +1386,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                           />
                         </motion.div>
                       )}
@@ -1368,7 +1396,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                             readOnly
                           />
                         </motion.div>
@@ -1379,7 +1407,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                             readOnly
                           />
                         </motion.div>
@@ -1390,7 +1418,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                             readOnly
                           />
                         </motion.div>
@@ -1401,7 +1429,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                           />
                         </motion.div>
                       )}
@@ -1411,7 +1439,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                           />
                         </motion.div>
                       )}
@@ -1421,7 +1449,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                           />
                         </motion.div>
                       )}
@@ -1431,7 +1459,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                           />
                         </motion.div>
                       )}
@@ -1441,7 +1469,7 @@ export default function PublicSharePage() {
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}
-                            onSelectPerson={setSelectedPersonId}
+                            onSelectPerson={handleSelectPersonFromChart}
                           />
                         </motion.div>
                       )}
@@ -1455,7 +1483,7 @@ export default function PublicSharePage() {
 
         {/* Desktop Read-Only Detail Side Panel */}
         <AnimatePresence>
-          {selectedPerson && !isMobile && (
+          {selectedPerson && isDetailOpen && !isMobile && (
             <motion.aside
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1468,7 +1496,7 @@ export default function PublicSharePage() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => setSelectedPersonId(null)}
+                  onClick={() => setIsDetailOpen(false)}
                   aria-label="Tutup profil"
                 >
                   <X className="w-4 h-4" />
@@ -1482,9 +1510,9 @@ export default function PublicSharePage() {
 
       {/* Mobile Detail Drawer */}
       <Drawer
-        open={Boolean(selectedPerson && isMobile)}
+        open={Boolean(selectedPerson && isDetailOpen && isMobile)}
         onOpenChange={(open) => {
-          if (!open) setSelectedPersonId(null);
+          if (!open) setIsDetailOpen(false);
         }}
       >
         <DrawerContent className="max-h-[82dvh] rounded-t-3xl safe-area-pb">
@@ -1501,7 +1529,7 @@ export default function PublicSharePage() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => setSelectedPersonId(null)}
+                  onClick={() => setIsDetailOpen(false)}
                 >
                   <X className="w-4 h-4" />
                 </Button>

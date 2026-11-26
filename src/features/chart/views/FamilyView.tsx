@@ -1,4 +1,4 @@
-import { memo, useMemo, useEffect } from 'react';
+import { memo, useMemo, useEffect, useState, useCallback } from 'react';
 import type { Person, Relationship } from '@/types';
 import { FamilyMainView } from './FamilyMainView';
 import { transformToFamilyChartData } from '../utils/familyChartMapper';
@@ -29,9 +29,37 @@ export const FamilyView = memo(function FamilyView({
   const { homePersonId, setHomePerson } = useFamilyStore();
   const { profile, user } = useAuth();
 
-  // Resolve the "Home / Saya" person (pinned homePersonId OR account name match) — disabled on public read-only links
+  // For public read-only share links, allow visitors to pin their own "Ini Saya" locally on their device
+  const [visitorHomeId, setVisitorHomeId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return window.localStorage.getItem('silsilah_visitor_home_person_id');
+    } catch {
+      return null;
+    }
+  });
+
+  const handleSetVisitorHomePerson = useCallback((id: string) => {
+    setVisitorHomeId(id);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('silsilah_visitor_home_person_id', id);
+      } catch {
+        // ignore storage restrictions
+      }
+    }
+  }, []);
+
+  // Resolve the "Home / Saya" person (pinned homePersonId OR account name match; or visitor local pin in readOnly)
   const resolvedHomePerson = useMemo(() => {
-    if (readOnly || persons.length === 0) return null;
+    if (persons.length === 0) return null;
+
+    if (readOnly) {
+      if (visitorHomeId) {
+        return persons.find((p) => p.id === visitorHomeId) || null;
+      }
+      return null;
+    }
 
     // 1. Explicitly pinned home person
     if (homePersonId) {
@@ -71,7 +99,7 @@ export const FamilyView = memo(function FamilyView({
     }
 
     return null;
-  }, [readOnly, persons, homePersonId, profile?.display_name, user]);
+  }, [readOnly, persons, homePersonId, visitorHomeId, profile?.display_name, user]);
 
   // Persist auto-detected home person if none was stored yet
   useEffect(() => {
@@ -181,8 +209,8 @@ export const FamilyView = memo(function FamilyView({
       data={familyChartData}
       rootId={focusPerson.id}
       rootPerson={focusPerson}
-      homePerson={readOnly ? null : resolvedHomePerson}
-      onSetHomePerson={readOnly ? undefined : setHomePerson}
+      homePerson={resolvedHomePerson}
+      onSetHomePerson={readOnly ? handleSetVisitorHomePerson : setHomePerson}
       summary={summary}
       onSelectPerson={onSelectPerson}
       onAddRelationship={onAddRelationship ? (id) => onAddRelationship(id) : undefined}

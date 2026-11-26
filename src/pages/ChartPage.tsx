@@ -163,6 +163,7 @@ export default function ChartPage() {
   const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<ViewMode>('family');
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -207,6 +208,11 @@ export default function ChartPage() {
   });
   const selectedPerson = persons.find(p => p.id === selectedPersonId);
   const relatives = selectedPersonId ? getPersonRelatives(selectedPersonId) : null;
+
+  const handleSelectPersonFromChart = useCallback((personId: string | null) => {
+    setSelectedPerson(personId);
+    setIsDetailOpen(Boolean(personId));
+  }, [setSelectedPerson]);
 
   useEffect(() => {
     const focusId = searchParams.get('focus');
@@ -580,6 +586,7 @@ export default function ChartPage() {
 
   const selectPersonFromSearch = useCallback((personId: string) => {
     setSelectedPerson(personId);
+    setIsDetailOpen(false);
     setShowMobileSearch(false);
     setIsSearchOpen(false);
     setSearchQuery('');
@@ -651,16 +658,23 @@ export default function ChartPage() {
 
               {selectedPerson && (
                 <div className="flex items-center justify-between gap-2 rounded-lg bg-primary/10 border border-primary/25 px-2.5 py-1 text-xs">
-                  <span className="truncate text-foreground font-medium">
-                    Fokus: {selectedPerson.fullName}
-                  </span>
                   <button
                     type="button"
-                    onClick={() => setSelectedPerson(null)}
+                    onClick={() => setIsDetailOpen(true)}
+                    className="truncate text-left text-foreground font-medium hover:underline flex-1 min-w-0"
+                  >
+                    Fokus: {selectedPerson.fullName} (Lihat Detail)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPerson(null);
+                      setIsDetailOpen(false);
+                    }}
                     className="inline-flex items-center gap-1 text-[11px] text-primary font-medium shrink-0"
                     aria-label="Lepas fokus"
                   >
-                    <span>Lepas</span>
+                    <span>Reset</span>
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -747,10 +761,20 @@ export default function ChartPage() {
 
                 {selectedPerson && (
                   <span className="hidden lg:inline-flex items-center gap-1 rounded-full border border-primary/35 bg-primary/10 pl-2.5 pr-1 py-0.5 text-[11px] font-medium text-foreground">
-                    <span className="truncate max-w-[130px]">{selectedPerson.fullName}</span>
                     <button
                       type="button"
-                      onClick={() => setSelectedPerson(null)}
+                      onClick={() => setIsDetailOpen(true)}
+                      className="truncate max-w-[130px] hover:underline"
+                      title="Klik untuk buka detail anggota"
+                    >
+                      {selectedPerson.fullName}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPerson(null);
+                        setIsDetailOpen(false);
+                      }}
                       className="rounded-full p-0.5 hover:bg-primary/20 text-muted-foreground hover:text-foreground"
                       title="Lepas fokus"
                       aria-label="Lepas fokus"
@@ -1026,7 +1050,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                           onAddRelationship={handleAddRelationship}
                         />
                       </motion.div>
@@ -1041,7 +1065,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                           onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
                         />
                       </motion.div>
@@ -1056,7 +1080,7 @@ export default function ChartPage() {
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
                           highlightedPersonIds={lineageIdSet}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1070,7 +1094,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1082,7 +1106,7 @@ export default function ChartPage() {
                       >
                         <TimelineView
                           persons={persons}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1095,7 +1119,7 @@ export default function ChartPage() {
                         <NetworkGraphView
                           persons={persons}
                           relationships={relationships}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                           selectedPersonId={selectedPersonId}
                         />
                       </motion.div>
@@ -1108,7 +1132,7 @@ export default function ChartPage() {
                       >
                         <GeoMapView
                           persons={persons}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1122,7 +1146,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1136,7 +1160,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                           onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
                         />
                       </motion.div>
@@ -1151,7 +1175,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1165,7 +1189,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId || defaultFocusPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1179,7 +1203,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1193,7 +1217,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1207,7 +1231,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1221,7 +1245,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1235,7 +1259,7 @@ export default function ChartPage() {
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}
-                          onSelectPerson={setSelectedPerson}
+                          onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
                     )}
@@ -1249,7 +1273,7 @@ export default function ChartPage() {
 
       {/* Desktop Detail Panel */}
       <AnimatePresence>
-        {selectedPerson && !isMobile && (
+        {selectedPerson && isDetailOpen && !isMobile && (
           <motion.div
             className="relative inset-y-0 right-0 w-80 lg:w-[340px] shrink-0 border-l bg-card overflow-y-auto"
             variants={panelVariants}
@@ -1274,7 +1298,7 @@ export default function ChartPage() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => setSelectedPerson(null)}
+                  onClick={() => setIsDetailOpen(false)}
                   aria-label="Tutup detail anggota"
                 >
                   <X className="w-4 h-4" />
@@ -1451,9 +1475,9 @@ export default function ChartPage() {
 
       {/* Mobile Swipe-to-Dismiss Detail Drawer */}
       <Drawer
-        open={Boolean(selectedPerson && isMobile)}
+        open={Boolean(selectedPerson && isDetailOpen && isMobile)}
         onOpenChange={(open) => {
-          if (!open) setSelectedPerson(null);
+          if (!open) setIsDetailOpen(false);
         }}
       >
         <DrawerContent className="max-h-[82dvh] rounded-t-3xl safe-area-pb">
@@ -1480,7 +1504,7 @@ export default function ChartPage() {
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9"
-                    onClick={() => setSelectedPerson(null)}
+                    onClick={() => setIsDetailOpen(false)}
                     aria-label="Tutup detail anggota"
                   >
                     <X className="w-4 h-4" />
@@ -1547,10 +1571,13 @@ export default function ChartPage() {
                       Edit Profil
                     </Button>
                     <Button
-                      variant="secondary"
+                      variant="default"
                       size="sm"
                       className="h-9 text-xs"
-                      onClick={() => setViewMode('family')}
+                      onClick={() => {
+                        setViewMode('family');
+                        setIsDetailOpen(false);
+                      }}
                     >
                       <Users className="w-3.5 h-3.5 mr-1.5" />
                       Fokus Keluarga
