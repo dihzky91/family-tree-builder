@@ -101,6 +101,8 @@ import {
   type ExportFormat,
 } from '@/features/chart/utils/exportTreeAsImage';
 import { exportFamilyCsv } from '@/features/chart/utils/familyBookPdfExport';
+import { LineageScopeSelector } from '@/components/LineageScopeSelector';
+import { filterDataByLineageScope } from '@/lib/lineageScope';
 import { cn } from '@/lib/utils';
 
 const PrintDialog = lazy(() => import('@/features/chart/components/PrintDialog').then(m => ({ default: m.PrintDialog })));
@@ -159,6 +161,9 @@ export default function ChartPage() {
     selectedPersonId,
     homePersonId,
     setHomePerson,
+    lineageScope,
+    setLineageScope,
+    resetLineageScope,
   } = useFamilyStore();
   const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
@@ -206,6 +211,24 @@ export default function ChartPage() {
     maxScale,
     initialScale: 1,
   });
+  const scopedData = useMemo(
+    () => filterDataByLineageScope(lineageScope, persons, relationships),
+    [lineageScope, persons, relationships]
+  );
+  const scopedPersons = scopedData.persons;
+  const scopedRelationships = scopedData.relationships;
+  const isLineageScoped = lineageScope.type === 'person' && scopedPersons.length < persons.length;
+
+  const effectiveSelectedPersonId = useMemo(() => {
+    if (selectedPersonId && scopedData.includedIds.has(selectedPersonId)) {
+      return selectedPersonId;
+    }
+    if (lineageScope.type === 'person' && scopedData.includedIds.has(lineageScope.rootPersonId)) {
+      return lineageScope.rootPersonId;
+    }
+    return selectedPersonId;
+  }, [selectedPersonId, scopedData.includedIds, lineageScope]);
+
   const selectedPerson = persons.find(p => p.id === selectedPersonId);
   const relatives = selectedPersonId ? getPersonRelatives(selectedPersonId) : null;
 
@@ -292,11 +315,11 @@ export default function ChartPage() {
   }, [relationships]);
 
   // Handle search/focus
-  const fuse = useMemo(() => new Fuse(persons, {
+  const fuse = useMemo(() => new Fuse(scopedPersons, {
     keys: ['fullName', 'id'],
     threshold: 0.3,
     ignoreLocation: true
-  }), [persons]);
+  }), [scopedPersons]);
 
   const handleSearch = useCallback(() => {
     if (!searchQuery) return;
@@ -438,7 +461,7 @@ export default function ChartPage() {
   const timelineData = useMemo(() => {
     const parentsByChild = new globalThis.Map<string, string[]>();
 
-    relationships.forEach((relationship) => {
+    scopedRelationships.forEach((relationship) => {
       if (relationship.type !== 'PARENT_CHILD') return;
 
       const currentParents = parentsByChild.get(relationship.toPersonId);
@@ -474,7 +497,7 @@ export default function ChartPage() {
       return generation;
     };
 
-    persons.forEach((person) => {
+    scopedPersons.forEach((person) => {
       const generation = getGeneration(person.id);
       if (!byGeneration[generation]) {
         byGeneration[generation] = [];
@@ -485,25 +508,25 @@ export default function ChartPage() {
     return Object.entries(byGeneration)
       .sort(([a], [b]) => Number(a) - Number(b))
       .map(([generation, people]) => ({ generation: Number(generation), people }));
-  }, [persons, relationships]);
+  }, [scopedPersons, scopedRelationships]);
 
   const stats = useMemo(() => {
-    const maleCount = persons.filter(p => p.gender === 'male').length;
-    const femaleCount = persons.filter(p => p.gender === 'female').length;
-    const unknownCount = persons.filter(p => p.gender === 'unknown').length;
-    const livingCount = persons.filter(p => !p.deathDate).length;
-    const verifiedCount = persons.filter(p => p.tags.includes('verified')).length;
+    const maleCount = scopedPersons.filter(p => p.gender === 'male').length;
+    const femaleCount = scopedPersons.filter(p => p.gender === 'female').length;
+    const unknownCount = scopedPersons.filter(p => p.gender === 'unknown').length;
+    const livingCount = scopedPersons.filter(p => !p.deathDate).length;
+    const verifiedCount = scopedPersons.filter(p => p.tags.includes('verified')).length;
 
     return {
-      total: persons.length,
+      total: scopedPersons.length,
       byGender: { male: maleCount, female: femaleCount, unknown: unknownCount },
       living: livingCount,
-      deceased: persons.length - livingCount,
+      deceased: scopedPersons.length - livingCount,
       verified: verifiedCount,
       generations: timelineData.length,
       generationData: timelineData,
     };
-  }, [persons, timelineData]);
+  }, [scopedPersons, timelineData]);
 
   const viewModeOptions = [
     { value: 'family', label: 'Keluarga', icon: Users, description: 'Pohon keluarga interaktif' },
@@ -555,16 +578,21 @@ export default function ChartPage() {
   }));
   const showMiniMap = !isMobile && isZoomableView && persons.length >= MINIMAP_PERSON_THRESHOLD;
   const defaultFocusPersonId = useMemo(() => {
-    if (selectedPersonId) return selectedPersonId;
-    if (persons.length === 0) return null;
-    if (homePersonId && persons.some((p) => p.id === homePersonId)) {
+    if (effectiveSelectedPersonId && scopedData.includedIds.has(effectiveSelectedPersonId)) {
+      return effectiveSelectedPersonId;
+    }
+    if (lineageScope.type === 'person' && scopedData.includedIds.has(lineageScope.rootPersonId)) {
+      return lineageScope.rootPersonId;
+    }
+    if (scopedPersons.length === 0) return null;
+    if (homePersonId && scopedPersons.some((p) => p.id === homePersonId)) {
       return homePersonId;
     }
     // Prefer person with both parents and children (middle generation), or most relationships
     const hasParents = new Set<string>();
     const hasChildren = new Set<string>();
     const relCount = new globalThis.Map<string, number>();
-    relationships.forEach((r) => {
+    scopedRelationships.forEach((r) => {
       relCount.set(r.fromPersonId, (relCount.get(r.fromPersonId) || 0) + 1);
       relCount.set(r.toPersonId, (relCount.get(r.toPersonId) || 0) + 1);
       if (r.type === 'PARENT_CHILD') {
@@ -572,12 +600,12 @@ export default function ChartPage() {
         hasParents.add(r.toPersonId);
       }
     });
-    const balanced = persons.filter((p) => hasParents.has(p.id) && hasChildren.has(p.id));
-    const pool = balanced.length > 0 ? balanced : persons;
+    const balanced = scopedPersons.filter((p) => hasParents.has(p.id) && hasChildren.has(p.id));
+    const pool = balanced.length > 0 ? balanced : scopedPersons;
     return [...pool].sort(
       (a, b) => (relCount.get(b.id) || 0) - (relCount.get(a.id) || 0)
     )[0]?.id ?? null;
-  }, [persons, relationships, selectedPersonId, homePersonId]);
+  }, [scopedPersons, scopedRelationships, effectiveSelectedPersonId, scopedData.includedIds, lineageScope, homePersonId]);
 
   const lineageIdSet = useMemo(() => {
     if (!highlightLineage || !selectedPersonId) return null;
@@ -654,6 +682,13 @@ export default function ChartPage() {
                 >
                   <SlidersHorizontal className="w-4 h-4" />
                 </Button>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <LineageScopeSelector compact scopedCount={scopedPersons.length} />
+                <span className="text-[11px] text-muted-foreground shrink-0">
+                  {stats.total} org · {stats.generations} gen
+                </span>
               </div>
 
               {selectedPerson && (
@@ -755,8 +790,12 @@ export default function ChartPage() {
                   </DropdownMenu>
                 </div>
 
+                <LineageScopeSelector compact scopedCount={scopedPersons.length} />
+
                 <span className="hidden xl:inline-flex items-center rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground">
-                  {stats.total} anggota · {stats.generations} gen
+                  {isLineageScoped
+                    ? `${stats.total}/${persons.length} anggota · ${stats.generations} gen`
+                    : `${stats.total} anggota · ${stats.generations} gen`}
                 </span>
 
                 {selectedPerson && (
@@ -963,8 +1002,8 @@ export default function ChartPage() {
                       Export SVG
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => exportFamilyCsv(persons, relationships)}
-                      disabled={persons.length === 0}
+                      onClick={() => exportFamilyCsv(scopedPersons, scopedRelationships)}
+                      disabled={scopedPersons.length === 0}
                     >
                       <FileSpreadsheet className="w-4 h-4 mr-2" />
                       Export Data CSV (Excel)
@@ -1047,9 +1086,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <FamilyView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                           onAddRelationship={handleAddRelationship}
                         />
@@ -1062,9 +1101,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <PedigreeView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId || defaultFocusPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId || defaultFocusPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                           onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
                         />
@@ -1076,9 +1115,9 @@ export default function ChartPage() {
                         {...viewTransition}
                       >
                         <GenerationView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId}
                           highlightedPersonIds={lineageIdSet}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
@@ -1091,9 +1130,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <BotanicalTreeView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId || defaultFocusPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId || defaultFocusPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1105,7 +1144,7 @@ export default function ChartPage() {
                         className="w-full min-h-full bg-background"
                       >
                         <TimelineView
-                          persons={persons}
+                          persons={scopedPersons}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1117,10 +1156,10 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <NetworkGraphView
-                          persons={persons}
-                          relationships={relationships}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
                           onSelectPerson={handleSelectPersonFromChart}
-                          selectedPersonId={selectedPersonId}
+                          selectedPersonId={effectiveSelectedPersonId}
                         />
                       </motion.div>
                     )}
@@ -1131,7 +1170,7 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <GeoMapView
-                          persons={persons}
+                          persons={scopedPersons}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1143,9 +1182,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <SunburstView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1157,9 +1196,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <FanChartView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId || defaultFocusPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId || defaultFocusPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                           onAddRelationship={(personId) => handleAddRelationship(personId, 'parent')}
                         />
@@ -1172,9 +1211,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <RelationshipPathView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId || defaultFocusPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId || defaultFocusPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1186,9 +1225,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <HourglassView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId || defaultFocusPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId || defaultFocusPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1200,9 +1239,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <DescendantOutlineView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1214,9 +1253,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <LifespanGanttView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1228,9 +1267,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <InheritanceTreeView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1242,9 +1281,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <TimeLapseGrowthView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1256,9 +1295,9 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <ParticleSankeyView
-                          persons={persons}
-                          relationships={relationships}
-                          selectedPersonId={selectedPersonId}
+                          persons={scopedPersons}
+                          relationships={scopedRelationships}
+                          selectedPersonId={effectiveSelectedPersonId}
                           onSelectPerson={handleSelectPersonFromChart}
                         />
                       </motion.div>
@@ -1378,6 +1417,36 @@ export default function ChartPage() {
                     {homePersonId === selectedPerson.id ? 'Ini Saya' : 'Jadikan Saya'}
                   </Button>
                 </div>
+                <Button
+                  variant={
+                    lineageScope.type === 'person' && lineageScope.rootPersonId === selectedPerson.id
+                      ? 'default'
+                      : 'outline'
+                  }
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  onClick={() => {
+                    if (
+                      lineageScope.type === 'person' &&
+                      lineageScope.rootPersonId === selectedPerson.id
+                    ) {
+                      resetLineageScope();
+                      toast.success('Menampilkan semua jalur keluarga');
+                    } else {
+                      setLineageScope({
+                        type: 'person',
+                        rootPersonId: selectedPerson.id,
+                        direction: 'both',
+                      });
+                      toast.success(`Fokus jalur pada ${selectedPerson.fullName}`);
+                    }
+                  }}
+                >
+                  <GitBranch className="w-3.5 h-3.5 mr-1.5" />
+                  {lineageScope.type === 'person' && lineageScope.rootPersonId === selectedPerson.id
+                    ? 'Lepas Fokus Jalur Ini'
+                    : 'Fokus Jalur Orang Ini'}
+                </Button>
                 <div className="grid grid-cols-3 gap-1.5">
                   <Button
                     variant="outline"
@@ -1583,6 +1652,37 @@ export default function ChartPage() {
                       Fokus Keluarga
                     </Button>
                   </div>
+                  <Button
+                    variant={
+                      lineageScope.type === 'person' && lineageScope.rootPersonId === selectedPerson.id
+                        ? 'default'
+                        : 'outline'
+                    }
+                    size="sm"
+                    className="w-full h-9 text-xs"
+                    onClick={() => {
+                      if (
+                        lineageScope.type === 'person' &&
+                        lineageScope.rootPersonId === selectedPerson.id
+                      ) {
+                        resetLineageScope();
+                        toast.success('Menampilkan semua jalur keluarga');
+                      } else {
+                        setLineageScope({
+                          type: 'person',
+                          rootPersonId: selectedPerson.id,
+                          direction: 'both',
+                        });
+                        toast.success(`Fokus jalur pada ${selectedPerson.fullName}`);
+                      }
+                      setIsDetailOpen(false);
+                    }}
+                  >
+                    <GitBranch className="w-3.5 h-3.5 mr-1.5" />
+                    {lineageScope.type === 'person' && lineageScope.rootPersonId === selectedPerson.id
+                      ? 'Lepas Fokus Jalur Ini'
+                      : 'Fokus Jalur Orang Ini'}
+                  </Button>
                   <div className="grid grid-cols-3 gap-1.5">
                     <Button
                       variant="outline"
@@ -1779,9 +1879,9 @@ export default function ChartPage() {
             chartElementRef={chartRef}
             viewLabel={currentViewOption.label}
             selectedPersonName={selectedPerson?.fullName}
-            selectedPersonId={selectedPersonId}
-            persons={persons}
-            relationships={relationships}
+            selectedPersonId={effectiveSelectedPersonId}
+            persons={scopedPersons}
+            relationships={scopedRelationships}
             evidence={evidence}
             stories={stories}
             generationsCount={stats.generations}
@@ -1792,9 +1892,9 @@ export default function ChartPage() {
       {/* Mini Map for navigation */}
       {showMiniMap && (
         <MiniMap
-          persons={persons}
-          relationships={relationships}
-          selectedPersonId={selectedPersonId}
+          persons={scopedPersons}
+          relationships={scopedRelationships}
+          selectedPersonId={effectiveSelectedPersonId}
           onSelectPerson={setSelectedPerson}
           onCenterSelected={handleCenterOnSelected}
         />

@@ -32,6 +32,7 @@ import {
 import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
 import { useFamilyStore } from '@/store/familyStore';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { toast } from 'sonner';
 import type { Person } from '@/types';
 import {
   formatFlexibleDate,
@@ -71,10 +72,13 @@ export function PersonDetailSheet({
 }: PersonDetailSheetProps) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const { getPersonRelatives } = useFamilyStore();
+  const { getPersonRelatives, lineageScope, setLineageScope, resetLineageScope } = useFamilyStore();
 
   const relatives = person ? getPersonRelatives(person.id) : null;
   const ageInfo = person ? calculateFlexibleAge(person.birthDate, person.deathDate) : null;
+  const isFocusedRoot = Boolean(
+    person && lineageScope.type === 'person' && lineageScope.rootPersonId === person.id
+  );
 
   const handleOpenInChart = () => {
     if (!person) return;
@@ -185,6 +189,29 @@ export function PersonDetailSheet({
             Edit Profil
           </Button>
         </div>
+
+        <Button
+          variant={isFocusedRoot ? 'secondary' : 'outline'}
+          size="sm"
+          className="w-full h-8 text-xs gap-1.5"
+          onClick={() => {
+            if (isFocusedRoot) {
+              resetLineageScope();
+              toast.success('Menampilkan semua jalur keluarga');
+            } else {
+              setLineageScope({
+                type: 'person',
+                rootPersonId: person.id,
+                direction: 'both',
+              });
+              toast.success(`Fokus jalur pada ${person.fullName}`);
+            }
+            onOpenChange(false);
+          }}
+        >
+          <GitBranch className="w-3.5 h-3.5" />
+          {isFocusedRoot ? 'Lepas Fokus Jalur Ini' : 'Fokus Jalur Orang Ini'}
+        </Button>
 
         <div className="grid grid-cols-3 gap-1.5">
           <Button

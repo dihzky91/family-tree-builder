@@ -77,6 +77,8 @@ import { FilterPanel } from '@/components/filter/FilterPanel';
 import { applyAllFilters, getGenerationLabel } from '@/lib/filterUtils';
 import { PersonCardSkeletonGrid } from '@/components/skeletons/PersonCardSkeleton';
 import { smartSearch } from '@/lib/smartSearchUtils';
+import { LineageScopeSelector } from '@/components/LineageScopeSelector';
+import { filterDataByLineageScope } from '@/lib/lineageScope';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
@@ -93,6 +95,8 @@ export default function PeoplePage() {
     setSearchQuery,
     relationships,
     isLoading,
+    lineageScope,
+    resetLineageScope,
   } = useFamilyStore();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -120,6 +124,14 @@ export default function PeoplePage() {
     completeness: 'all',
   });
 
+  const scopedData = useMemo(
+    () => filterDataByLineageScope(lineageScope, persons, relationships),
+    [lineageScope, persons, relationships]
+  );
+  const scopedPersons = scopedData.persons;
+  const scopedRelationships = scopedData.relationships;
+  const isLineageScoped = lineageScope.type === 'person' && scopedPersons.length < persons.length;
+
   const selectedPerson = useMemo(
     () => persons.find((p) => p.id === selectedPersonId) || null,
     [persons, selectedPersonId]
@@ -135,14 +147,14 @@ export default function PeoplePage() {
     return map;
   }, [relationships]);
 
-  // Quick filter counts
+  // Quick filter counts (computed within active lineage scope)
   const quickCounts = useMemo(() => {
     let living = 0;
     let deceased = 0;
     let verified = 0;
     let needsReview = 0;
     let noPhoto = 0;
-    persons.forEach((p) => {
+    scopedPersons.forEach((p) => {
       if (p.deathDate) deceased++;
       else living++;
       if (p.tags.includes('verified')) verified++;
@@ -150,14 +162,14 @@ export default function PeoplePage() {
       if (!p.photoUrl) noPhoto++;
     });
     return {
-      all: persons.length,
+      all: scopedPersons.length,
       living,
       deceased,
       verified,
       needs_review: needsReview,
       no_photo: noPhoto,
     };
-  }, [persons]);
+  }, [scopedPersons]);
 
   // Sync debounced search query to global store and reset incremental pagination on filter change
   useEffect(() => {
@@ -166,17 +178,17 @@ export default function PeoplePage() {
 
   useEffect(() => {
     setVisibleLimit(36);
-  }, [debouncedSearch, quickFilter, sortBy, filters, allDisplayMode]);
+  }, [debouncedSearch, quickFilter, sortBy, filters, allDisplayMode, lineageScope]);
 
   // Smart Search (runs on debouncedSearch so typing on mobile keyboard never stutters)
   const searchResults = useMemo(() => {
-    if (!debouncedSearch) return persons;
-    return smartSearch(debouncedSearch, persons, relationships).map((r) => r.person);
-  }, [debouncedSearch, persons, relationships]);
+    if (!debouncedSearch) return scopedPersons;
+    return smartSearch(debouncedSearch, scopedPersons, scopedRelationships).map((r) => r.person);
+  }, [debouncedSearch, scopedPersons, scopedRelationships]);
 
   // Apply FilterPanel + QuickFilter + Sort
   const filteredPersons = useMemo(() => {
-    let list = applyAllFilters(searchResults, filters, relationships);
+    let list = applyAllFilters(searchResults, filters, scopedRelationships);
 
     if (quickFilter === 'living') list = list.filter((p) => !p.deathDate);
     else if (quickFilter === 'deceased') list = list.filter((p) => Boolean(p.deathDate));
@@ -214,24 +226,24 @@ export default function PeoplePage() {
           return 0;
       }
     });
-  }, [searchResults, filters, relationships, quickFilter, sortBy]);
+  }, [searchResults, filters, scopedRelationships, quickFilter, sortBy]);
 
-  // Calculate nuclear families for grouping view
+  // Calculate nuclear families for grouping view (within active lineage scope)
   const nuclearFamilies = useMemo(
-    () => calculateNuclearFamilies(persons, relationships),
-    [persons, relationships]
+    () => calculateNuclearFamilies(scopedPersons, scopedRelationships),
+    [scopedPersons, scopedRelationships]
   );
 
   // Filter families based on filteredPersons
   const filteredFamilies = useMemo(() => {
-    if (filteredPersons.length === persons.length && quickFilter === 'all') return nuclearFamilies;
+    if (filteredPersons.length === scopedPersons.length && quickFilter === 'all') return nuclearFamilies;
     const includedIds = new Set(filteredPersons.map((p) => p.id));
     return nuclearFamilies.filter(
       (family) =>
         family.parents.some((p) => includedIds.has(p.id)) ||
         family.children.some((p) => includedIds.has(p.id))
     );
-  }, [nuclearFamilies, filteredPersons, persons.length, quickFilter]);
+  }, [nuclearFamilies, filteredPersons, scopedPersons.length, quickFilter]);
 
   const activeFilterCount =
     filters.generations.length +
@@ -239,7 +251,9 @@ export default function PeoplePage() {
     (filters.ageRange ? 1 : 0) +
     (filters.completeness !== 'all' ? 1 : 0);
 
-  const hasActiveQuery = Boolean(localSearch || activeFilterCount > 0 || quickFilter !== 'all');
+  const hasActiveQuery = Boolean(
+    localSearch || activeFilterCount > 0 || quickFilter !== 'all' || isLineageScoped
+  );
 
   const removeFilter = (
     type: 'generation' | 'verification' | 'age' | 'completeness',
@@ -361,6 +375,9 @@ export default function PeoplePage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {/* Lineage / Trah Scope Selector */}
+            <LineageScopeSelector scopedCount={scopedPersons.length} />
+
             {/* Sort Select */}
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
               <SelectTrigger className="h-10 w-full sm:w-[185px] rounded-xl text-xs">
@@ -555,7 +572,7 @@ export default function PeoplePage() {
       ) : viewMode === 'generation' ? (
         <GenerationView
           persons={filteredPersons}
-          relationships={relationships}
+          relationships={scopedRelationships}
           onEditPerson={(person) => setSelectedPersonId(person.id)}
         />
       ) : (
@@ -580,6 +597,7 @@ export default function PeoplePage() {
                     setLocalSearch('');
                     setSearchQuery('');
                     setQuickFilter('all');
+                    resetLineageScope();
                     setFilters({
                       generations: [],
                       verificationStatuses: [],

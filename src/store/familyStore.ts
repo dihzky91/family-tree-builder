@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4, validate as isUuid } from 'uuid';
 import type { Person, Relationship, Evidence, AuditLog, FamilyChartPerson, Story, Branch } from '@/types';
+import type { LineageScope } from '@/lib/lineageScope';
 import { storage, setStorageMode, isSupabaseConfigured, type StorageMode } from '@/storage';
 import { getDemoData } from '@/data/demoData';
 import { formatShortYearLabel, getEstimatedYear } from '@/lib/flexibleDateUtils';
@@ -84,6 +85,8 @@ interface FamilyState {
   // UI State
   selectedPersonId: string | null;
   homePersonId: string | null;
+  lineageScope: LineageScope;
+  pinnedLineageIds: string[];
   isLoading: boolean;
   searchQuery: string;
   undoStack: UndoAction[];
@@ -116,6 +119,9 @@ interface FamilyState {
   // UI actions
   setSelectedPerson: (id: string | null) => void;
   setHomePerson: (id: string | null) => void;
+  setLineageScope: (scope: LineageScope) => void;
+  resetLineageScope: () => void;
+  togglePinnedLineage: (personId: string) => void;
   setSearchQuery: (query: string) => void;
   toggleZenMode: () => void;
   isZenMode: boolean;
@@ -148,10 +154,23 @@ interface FamilyState {
 
 const STORAGE_MODE_KEY = 'silsilah-storage-mode';
 const HOME_PERSON_KEY = 'silsilah-home-person-id';
+const PINNED_LINEAGES_KEY = 'silsilah-pinned-lineages';
 
 const getInitialHomePersonId = (): string | null => {
   if (typeof localStorage === 'undefined') return null;
   return localStorage.getItem(HOME_PERSON_KEY) || null;
+};
+
+const getInitialPinnedLineageIds = (): string[] => {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(PINNED_LINEAGES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
 };
 
 const getInitialPrivateMode = (): boolean => {
@@ -171,6 +190,8 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   branches: [],
   selectedPersonId: null,
   homePersonId: getInitialHomePersonId(),
+  lineageScope: { type: 'all' },
+  pinnedLineageIds: getInitialPinnedLineageIds(),
   isLoading: true,
   searchQuery: '',
   isZenMode: false,
@@ -552,6 +573,19 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
       }
     }
     set({ homePersonId: id });
+  },
+  setLineageScope: (scope) => set({ lineageScope: scope }),
+  resetLineageScope: () => set({ lineageScope: { type: 'all' } }),
+  togglePinnedLineage: (personId) => {
+    const current = get().pinnedLineageIds;
+    const exists = current.includes(personId);
+    const next = exists
+      ? current.filter((id) => id !== personId)
+      : [personId, ...current].slice(0, 12);
+    if (!get().isDemoMode && typeof localStorage !== 'undefined') {
+      localStorage.setItem(PINNED_LINEAGES_KEY, JSON.stringify(next));
+    }
+    set({ pinnedLineageIds: next });
   },
   setSearchQuery: (query) => set({ searchQuery: query }),
 
