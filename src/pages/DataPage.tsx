@@ -199,20 +199,20 @@ export default function DataPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">
+        <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
           Import / Export
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-sm sm:text-base text-muted-foreground mt-0.5">
           Kelola backup dan restore data silsilah
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Export Section */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6 rounded-2xl">
           <div className="flex items-center gap-2 mb-4">
             <Download className="w-5 h-5 text-primary" />
             <h2 className="font-display font-semibold text-lg">Export Data</h2>
@@ -233,7 +233,7 @@ export default function DataPage() {
               </ul>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
               <Button
                 onClick={handleExportJSON}
                 disabled={isExporting || persons.length === 0}
@@ -282,7 +282,7 @@ export default function DataPage() {
         </Card>
 
         {/* Import Section */}
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6 rounded-2xl">
           <div className="flex items-center gap-2 mb-4">
             <Upload className="w-5 h-5 text-primary" />
             <h2 className="font-display font-semibold text-lg">Import Data</h2>

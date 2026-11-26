@@ -486,16 +486,16 @@ export function LifespanGanttView({
         ) : (
           <div
             data-export-target="true"
-            className="mx-auto max-w-7xl min-w-[740px] px-3 sm:px-6 pb-8"
+            className="mx-auto max-w-7xl min-w-[640px] sm:min-w-[740px] px-2 sm:px-6 pb-8"
           >
             {/* Sticky Top Header: Year Axis + Dedicated Historical Milestones Lane */}
-            <div className="sticky top-0 z-30 border-b border-border/80 bg-background/95 backdrop-blur-md">
+            <div className="sticky top-0 z-30 border-b border-border/80 bg-background/98">
               {/* Row 1: Year Numbers */}
               <div className="flex items-center pt-2.5 pb-1.5">
-                <div className="sticky left-0 z-30 w-52 sm:w-60 shrink-0 bg-background/95 pr-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span>Anggota ({rows.length})</span>
+                <div className="sticky left-0 z-30 w-36 sm:w-60 shrink-0 bg-background/98 pr-2 sm:pr-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span className="truncate">Anggota ({rows.length})</span>
                   {selectedRow && highlightOverlap && (
-                    <span className="text-[10px] font-normal text-primary capitalize">
+                    <span className="hidden sm:inline text-[10px] font-normal text-primary capitalize">
                       Irisan: {selectedRow.startYear}–{selectedRow.endYear}
                     </span>
                   )}
@@ -553,9 +553,9 @@ export function LifespanGanttView({
               {/* Row 2: Dedicated Historical Milestones Lane (Staggered & Anti-Collision) */}
               {showMilestones && visibleMilestones.length > 0 && (
                 <div className="flex items-center border-t border-border/40 bg-amber-500/[0.04] py-1">
-                  <div className="sticky left-0 z-30 w-52 sm:w-60 shrink-0 bg-background/95 pr-3 flex items-center gap-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                  <div className="sticky left-0 z-30 w-36 sm:w-60 shrink-0 bg-background/98 pr-2 sm:pr-3 flex items-center gap-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
                     <Flag className="h-3 w-3 shrink-0" />
-                    <span>Peristiwa Sejarah</span>
+                    <span className="truncate">Peristiwa Sejarah</span>
                   </div>
                   <div
                     className="relative flex-1 h-9 cursor-crosshair"
@@ -597,7 +597,7 @@ export function LifespanGanttView({
             {/* Gantt Body with Shared Vertical Overlays */}
             <div className="relative pt-2">
               {/* Background Vertical Grid, Selected Overlap Band & Milestone Lines */}
-              <div className="pointer-events-none absolute inset-y-0 left-52 sm:left-60 right-0 z-0">
+              <div className="pointer-events-none absolute inset-y-0 left-36 sm:left-60 right-0 z-0">
                 {/* Selected Person Lifespan Overlap Band */}
                 {selectedRow && highlightOverlap && (
                   <div
@@ -731,10 +731,10 @@ export function LifespanGanttView({
                           type="button"
                           onClick={() => onSelectPerson(row.person.id)}
                           className={cn(
-                            'sticky left-0 z-20 flex w-52 sm:w-60 shrink-0 items-center justify-between gap-1.5 pr-3 pl-1.5 py-0.5 text-left transition-colors rounded-l-lg',
+                            'sticky left-0 z-20 flex w-36 sm:w-60 shrink-0 items-center justify-between gap-1 pr-2 sm:pr-3 pl-1 sm:pl-1.5 py-0.5 text-left transition-colors rounded-l-lg',
                             isSelected
-                              ? 'bg-background/95'
-                              : 'bg-background/90 group-hover:bg-background/95'
+                              ? 'bg-background/98'
+                              : 'bg-background/95 group-hover:bg-background/98'
                           )}
                         >
                           <div className="flex min-w-0 items-center gap-2">

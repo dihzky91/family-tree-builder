@@ -58,7 +58,12 @@ export function FamilyUnitsView({ families, onEditPerson }: FamilyUnitsViewProps
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const mainScroll = document.getElementById('app-main-scroll');
+      if (mainScroll) {
+        mainScroll.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
   };
 

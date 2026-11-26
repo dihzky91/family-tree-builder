@@ -309,6 +309,16 @@
   box-shadow: 0 4px 10px -2px rgba(38, 25, 14, 0.32);
 }
 
+@media (hover: none), (max-width: 768px) {
+  .ft-add-btn {
+    opacity: 0.92;
+    transform: translateX(-50%) scale(1);
+    width: 32px;
+    height: 20px;
+    bottom: -10px;
+  }
+}
+
 /* Connector Links Styling — Crisp MyHeritage-style Orthogonal & Bezier Curves */
 .family-stage svg.main_svg {
   shape-rendering: geometricPrecision;

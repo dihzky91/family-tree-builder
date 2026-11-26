@@ -256,8 +256,8 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
               <div
                 key={group.generation}
                 id={`gen-section-${group.generation}`}
-                className="relative scroll-mt-20 animate-fade-in"
-                style={{ animationDelay: `${Math.min(groupIndex * 60, 300)}ms` }}
+                className="relative scroll-mt-20"
+                style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}
               >
                 {/* Timeline node */}
                 <div className="absolute left-4 top-1 w-5 h-5 rounded-full bg-primary border-4 border-background shadow-md hidden md:flex items-center justify-center z-10">
@@ -307,7 +307,8 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
                       return (
                         <Card
                           key={person.id}
-                          className="group relative flex cursor-pointer items-start gap-3 rounded-2xl p-3 transition-all hover:border-primary/40 hover:bg-accent/35 hover:shadow-md"
+                          style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 88px' }}
+                          className="group relative flex cursor-pointer items-start gap-3 rounded-2xl p-3 transition-colors hover:border-primary/40 hover:bg-accent/35 hover:shadow-md"
                           onClick={() => onEditPerson?.(person)}
                           title={person.fullName}
                         >
@@ -330,6 +331,7 @@ export function GenerationView({ persons, relationships, onEditPerson }: Generat
                                   alt={person.fullName}
                                   className="w-full h-full object-cover"
                                   loading="lazy"
+                                  decoding="async"
                                 />
                               ) : (
                                 getPersonInitials(person.fullName)

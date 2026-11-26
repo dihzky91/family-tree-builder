@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFamilyStore } from '@/store/familyStore';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -55,6 +56,7 @@ import {
   MapPin,
   Link2,
   ArrowUpDown,
+  ChevronDown,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FamilyUnitsView } from '@/features/people/components/FamilyUnitsView';
@@ -96,6 +98,8 @@ export default function PeoplePage() {
   const navigate = useNavigate();
 
   const [localSearch, setLocalSearch] = useState(searchQuery);
+  const debouncedSearch = useDebouncedValue(localSearch, 180);
+  const [visibleLimit, setVisibleLimit] = useState(36);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -155,11 +159,20 @@ export default function PeoplePage() {
     };
   }, [persons]);
 
-  // Smart Search
+  // Sync debounced search query to global store and reset incremental pagination on filter change
+  useEffect(() => {
+    setSearchQuery(debouncedSearch);
+  }, [debouncedSearch, setSearchQuery]);
+
+  useEffect(() => {
+    setVisibleLimit(36);
+  }, [debouncedSearch, quickFilter, sortBy, filters, allDisplayMode]);
+
+  // Smart Search (runs on debouncedSearch so typing on mobile keyboard never stutters)
   const searchResults = useMemo(() => {
-    if (!localSearch) return persons;
-    return smartSearch(localSearch, persons, relationships).map((r) => r.person);
-  }, [localSearch, persons, relationships]);
+    if (!debouncedSearch) return persons;
+    return smartSearch(debouncedSearch, persons, relationships).map((r) => r.person);
+  }, [debouncedSearch, persons, relationships]);
 
   // Apply FilterPanel + QuickFilter + Sort
   const filteredPersons = useMemo(() => {
@@ -329,7 +342,6 @@ export default function PeoplePage() {
               value={localSearch}
               onChange={(e) => {
                 setLocalSearch(e.target.value);
-                setSearchQuery(e.target.value);
               }}
               className="h-10 pl-9 pr-9 rounded-xl"
             />
@@ -586,113 +598,249 @@ export default function PeoplePage() {
               )}
             </div>
           ) : allDisplayMode === 'table' ? (
-            <Card className="overflow-hidden rounded-2xl border shadow-sm">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/35 hover:bg-muted/35">
-                      <TableHead className="min-w-[200px]">Anggota</TableHead>
-                      <TableHead className="min-w-[120px]">Lahir / Wafat</TableHead>
-                      <TableHead className="hidden md:table-cell min-w-[130px]">Lokasi</TableHead>
-                      <TableHead className="min-w-[90px]">Relasi</TableHead>
-                      <TableHead className="hidden sm:table-cell min-w-[120px]">Keyakinan</TableHead>
-                      <TableHead className="text-right w-[110px]">Aksi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredPersons.map((person) => {
-                      const relCount = relationCountMap.get(person.id) || 0;
-                      const lifeSpanLabel = formatLifeSpan(person.birthDate, person.deathDate, '—');
-                      const locationText = person.residence || person.birthPlace;
+            <div className="space-y-4">
+              <Card className="overflow-hidden rounded-2xl border shadow-sm">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/35 hover:bg-muted/35">
+                        <TableHead className="min-w-[200px]">Anggota</TableHead>
+                        <TableHead className="min-w-[120px]">Lahir / Wafat</TableHead>
+                        <TableHead className="hidden md:table-cell min-w-[130px]">Lokasi</TableHead>
+                        <TableHead className="min-w-[90px]">Relasi</TableHead>
+                        <TableHead className="hidden sm:table-cell min-w-[120px]">Keyakinan</TableHead>
+                        <TableHead className="text-right w-[110px]">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPersons.slice(0, visibleLimit).map((person) => {
+                        const relCount = relationCountMap.get(person.id) || 0;
+                        const lifeSpanLabel = formatLifeSpan(person.birthDate, person.deathDate, '—');
+                        const locationText = person.residence || person.birthPlace;
 
-                      return (
-                        <TableRow
-                          key={person.id}
-                          className="cursor-pointer"
-                          onClick={() => setSelectedPersonId(person.id)}
-                        >
-                          <TableCell>
-                            <div className="flex items-center gap-2.5">
-                              <div className="relative shrink-0">
-                                <div
-                                  className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden text-xs font-bold ${
-                                    person.gender === 'male'
-                                      ? 'bg-node-male/20 text-node-male'
-                                      : person.gender === 'female'
-                                        ? 'bg-node-female/20 text-node-female'
-                                        : 'bg-node-unknown/20 text-node-unknown'
-                                  }`}
-                                >
-                                  {person.photoUrl ? (
-                                    <img
-                                      src={person.photoUrl}
-                                      alt={person.fullName}
-                                      className="w-full h-full object-cover"
-                                      loading="lazy"
-                                    />
-                                  ) : (
-                                    getPersonInitials(person.fullName)
+                        return (
+                          <TableRow
+                            key={person.id}
+                            className="cursor-pointer"
+                            onClick={() => setSelectedPersonId(person.id)}
+                          >
+                            <TableCell>
+                              <div className="flex items-center gap-2.5">
+                                <div className="relative shrink-0">
+                                  <div
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden text-xs font-bold ${
+                                      person.gender === 'male'
+                                        ? 'bg-node-male/20 text-node-male'
+                                        : person.gender === 'female'
+                                          ? 'bg-node-female/20 text-node-female'
+                                          : 'bg-node-unknown/20 text-node-unknown'
+                                    }`}
+                                  >
+                                    {person.photoUrl ? (
+                                      <img
+                                        src={person.photoUrl}
+                                        alt={person.fullName}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                        decoding="async"
+                                      />
+                                    ) : (
+                                      getPersonInitials(person.fullName)
+                                    )}
+                                  </div>
+                                  {person.tags.includes('verified') && (
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+                                      <CheckCircle className="w-2 h-2 text-white" />
+                                    </div>
                                   )}
                                 </div>
-                                {person.tags.includes('verified') && (
-                                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
-                                    <CheckCircle className="w-2 h-2 text-white" />
-                                  </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium text-sm truncate max-w-[180px] sm:max-w-[240px]">
+                                    {person.fullName}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {person.gender === 'male'
+                                      ? 'Laki-laki'
+                                      : person.gender === 'female'
+                                        ? 'Perempuan'
+                                        : 'Tidak diketahui'}
+                                    {person.deathDate ? ' · Almarhum/ah' : ''}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {lifeSpanLabel}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                              <span className="truncate block max-w-[160px]">{locationText || '—'}</span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={relCount > 0 ? 'secondary' : 'outline'}
+                                className={cn(
+                                  'text-[10px] font-medium',
+                                  relCount === 0 && 'text-amber-600 border-amber-300 dark:text-amber-400'
                                 )}
+                              >
+                                {relCount > 0 ? `${relCount} relasi` : 'Orphan'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-primary/80 rounded-full"
+                                    style={{ width: `${person.confidenceScore}%` }}
+                                  />
+                                </div>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {person.confidenceScore}%
+                                </span>
                               </div>
-                              <div className="min-w-0">
-                                <p className="font-medium text-sm truncate max-w-[180px] sm:max-w-[240px]">
-                                  {person.fullName}
-                                </p>
-                                <p className="text-[11px] text-muted-foreground">
-                                  {person.gender === 'male'
-                                    ? 'Laki-laki'
-                                    : person.gender === 'female'
-                                      ? 'Perempuan'
-                                      : 'Tidak diketahui'}
-                                  {person.deathDate ? ' · Almarhum/ah' : ''}
-                                </p>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-0.5">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                  title="Lihat di Silsilah"
+                                  aria-label={`Lihat ${person.fullName} di silsilah`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/chart?focus=${person.id}`);
+                                  }}
+                                >
+                                  <GitBranch className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                  title="Edit"
+                                  aria-label={`Edit ${person.fullName}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingPerson(person);
+                                  }}
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  title="Hapus"
+                                  aria-label={`Hapus ${person.fullName}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirm(person);
+                                  }}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+
+              {filteredPersons.length > visibleLimit && (
+                <div className="flex flex-col items-center justify-center gap-1.5 pt-1">
+                  <Button
+                    variant="outline"
+                    onClick={() => setVisibleLimit((prev) => prev + 36)}
+                    className="gap-2 rounded-xl"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    Tampilkan Lebih Banyak ({filteredPersons.length - visibleLimit} tersisa)
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {filteredPersons.slice(0, visibleLimit).map((person) => {
+                  const relCount = relationCountMap.get(person.id) || 0;
+                  const lifeSpanLabel = formatLifeSpan(
+                    person.birthDate,
+                    person.deathDate,
+                    'Tahun tidak diketahui'
+                  );
+                  const locationText = person.residence || person.birthPlace;
+
+                  return (
+                    <Card
+                      key={person.id}
+                      onClick={() => setSelectedPersonId(person.id)}
+                      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 120px' }}
+                      className="group flex cursor-pointer flex-col gap-2.5 rounded-2xl p-3 transition-colors hover:border-primary/40 hover:bg-accent/35 hover:shadow-md"
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Avatar / Initials */}
+                        <div className="relative shrink-0">
+                          <div
+                            className={`w-11 h-11 rounded-full flex items-center justify-center overflow-hidden text-xs font-bold ${
+                              person.photoUrl ? 'border shadow-sm' : ''
+                            } ${
+                              person.gender === 'male'
+                                ? 'bg-node-male/20 text-node-male'
+                                : person.gender === 'female'
+                                  ? 'bg-node-female/20 text-node-female'
+                                  : 'bg-node-unknown/20 text-node-unknown'
+                            }`}
+                          >
+                            {person.photoUrl ? (
+                              <img
+                                src={person.photoUrl}
+                                alt={person.fullName}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                            ) : (
+                              getPersonInitials(person.fullName)
+                            )}
+                          </div>
+                          {person.tags.includes('verified') && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
+                              <CheckCircle className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="min-w-0">
+                              <h3
+                                className="truncate text-sm font-semibold leading-tight group-hover:text-primary transition-colors"
+                                title={person.fullName}
+                              >
+                                {person.fullName}
+                              </h3>
+                              <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <Calendar className="w-3 h-3 shrink-0" />
+                                <span className="truncate">
+                                  {lifeSpanLabel}
+                                </span>
                               </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {lifeSpanLabel}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                            <span className="truncate block max-w-[160px]">{locationText || '—'}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={relCount > 0 ? 'secondary' : 'outline'}
-                              className={cn(
-                                'text-[10px] font-medium',
-                                relCount === 0 && 'text-amber-600 border-amber-300 dark:text-amber-400'
-                              )}
-                            >
-                              {relCount > 0 ? `${relCount} relasi` : 'Orphan'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell">
-                            <div className="flex items-center gap-2">
-                              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-primary/80 rounded-full"
-                                  style={{ width: `${person.confidenceScore}%` }}
-                                />
-                              </div>
-                              <span className="text-[11px] text-muted-foreground">
-                                {person.confidenceScore}%
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-0.5">
+
+                            {/* Quick Actions */}
+                            <div className="flex gap-0.5 shrink-0 -mr-1 -mt-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-primary"
                                 title="Lihat di Silsilah"
                                 aria-label={`Lihat ${person.fullName} di silsilah`}
+                                className="h-8 w-8 sm:h-7 sm:w-7 text-muted-foreground hover:text-primary"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   navigate(`/chart?focus=${person.id}`);
@@ -703,9 +851,9 @@ export default function PeoplePage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
                                 title="Edit"
                                 aria-label={`Edit ${person.fullName}`}
+                                className="h-8 w-8 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingPerson(person);
@@ -716,9 +864,9 @@ export default function PeoplePage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                 title="Hapus"
                                 aria-label={`Hapus ${person.fullName}`}
+                                className="h-8 w-8 sm:h-7 sm:w-7 text-muted-foreground hover:text-destructive"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setDeleteConfirm(person);
@@ -727,186 +875,83 @@ export default function PeoplePage() {
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {filteredPersons.map((person) => {
-                const relCount = relationCountMap.get(person.id) || 0;
-                const lifeSpanLabel = formatLifeSpan(
-                  person.birthDate,
-                  person.deathDate,
-                  'Tahun tidak diketahui'
-                );
-                const locationText = person.residence || person.birthPlace;
-
-                return (
-                  <Card
-                    key={person.id}
-                    onClick={() => setSelectedPersonId(person.id)}
-                    className="group animate-slide-up flex cursor-pointer flex-col gap-2.5 rounded-2xl p-3 transition-all hover:border-primary/40 hover:bg-accent/35 hover:shadow-md"
-                  >
-                    <div className="flex items-start gap-3">
-                      {/* Avatar / Initials */}
-                      <div className="relative shrink-0">
-                        <div
-                          className={`w-11 h-11 rounded-full flex items-center justify-center overflow-hidden text-xs font-bold ${
-                            person.photoUrl ? 'border shadow-sm' : ''
-                          } ${
-                            person.gender === 'male'
-                              ? 'bg-node-male/20 text-node-male'
-                              : person.gender === 'female'
-                                ? 'bg-node-female/20 text-node-female'
-                                : 'bg-node-unknown/20 text-node-unknown'
-                          }`}
-                        >
-                          {person.photoUrl ? (
-                            <img
-                              src={person.photoUrl}
-                              alt={person.fullName}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          ) : (
-                            getPersonInitials(person.fullName)
-                          )}
-                        </div>
-                        {person.tags.includes('verified') && (
-                          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-background flex items-center justify-center">
-                            <CheckCircle className="w-2.5 h-2.5 text-white" />
                           </div>
-                        )}
-                      </div>
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-1">
-                          <div className="min-w-0">
-                            <h3
-                              className="truncate text-sm font-semibold leading-tight group-hover:text-primary transition-colors"
-                              title={person.fullName}
-                            >
-                              {person.fullName}
-                            </h3>
-                            <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <Calendar className="w-3 h-3 shrink-0" />
-                              <span className="truncate">
-                                {lifeSpanLabel}
+                          {/* Meta row: location + relations */}
+                          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+                            {locationText && (
+                              <span className="inline-flex items-center gap-0.5 truncate max-w-[110px]">
+                                <MapPin className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate">{locationText}</span>
                               </span>
-                            </div>
-                          </div>
-
-                          {/* Quick Actions */}
-                          <div className="flex gap-0.5 shrink-0 -mr-1 -mt-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Lihat di Silsilah"
-                              aria-label={`Lihat ${person.fullName} di silsilah`}
-                              className="h-7 w-7 text-muted-foreground hover:text-primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/chart?focus=${person.id}`);
-                              }}
-                            >
-                              <GitBranch className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Edit"
-                              aria-label={`Edit ${person.fullName}`}
-                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingPerson(person);
-                              }}
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Hapus"
-                              aria-label={`Hapus ${person.fullName}`}
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteConfirm(person);
-                              }}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Meta row: location + relations */}
-                        <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                          {locationText && (
-                            <span className="inline-flex items-center gap-0.5 truncate max-w-[110px]">
-                              <MapPin className="w-2.5 h-2.5 shrink-0" />
-                              <span className="truncate">{locationText}</span>
-                            </span>
-                          )}
-                          <span
-                            className={cn(
-                              'inline-flex items-center gap-0.5 shrink-0',
-                              relCount === 0 && 'text-amber-600 dark:text-amber-400'
                             )}
-                          >
-                            <Link2 className="w-2.5 h-2.5" />
-                            {relCount > 0 ? `${relCount} relasi` : 'Belum terhubung'}
-                          </span>
-                        </div>
-
-                        {/* Tags */}
-                        {person.tags.filter((t) => t !== 'verified').length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {person.tags
-                              .filter((t) => t !== 'verified')
-                              .slice(0, 2)
-                              .map((tag) => (
-                                <Badge
-                                  key={tag}
-                                  variant="secondary"
-                                  className={`h-4 px-1.5 text-[10px] font-normal ${
-                                    tag === 'needs review'
-                                      ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300'
-                                      : ''
-                                  }`}
-                                >
-                                  {tag}
-                                </Badge>
-                              ))}
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-0.5 shrink-0',
+                                relCount === 0 && 'text-amber-600 dark:text-amber-400'
+                              )}
+                            >
+                              <Link2 className="w-2.5 h-2.5" />
+                              {relCount > 0 ? `${relCount} relasi` : 'Belum terhubung'}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Confidence Bar */}
-                    <div className="mt-auto pt-1 flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Keyakinan
-                      </span>
-                      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary/75 rounded-full"
-                          style={{ width: `${person.confidenceScore}%` }}
-                        />
+                          {/* Tags */}
+                          {person.tags.filter((t) => t !== 'verified').length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {person.tags
+                                .filter((t) => t !== 'verified')
+                                .slice(0, 2)
+                                .map((tag) => (
+                                  <Badge
+                                    key={tag}
+                                    variant="secondary"
+                                    className={`h-4 px-1.5 text-[10px] font-normal ${
+                                      tag === 'needs review'
+                                        ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300'
+                                        : ''
+                                    }`}
+                                  >
+                                    {tag}
+                                  </Badge>
+                                ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-[10px] font-medium text-muted-foreground">
-                        {person.confidenceScore}%
-                      </span>
-                    </div>
-                  </Card>
-                );
-              })}
+
+                      {/* Confidence Bar */}
+                      <div className="mt-auto pt-1 flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Keyakinan
+                        </span>
+                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary/75 rounded-full"
+                            style={{ width: `${person.confidenceScore}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          {person.confidenceScore}%
+                        </span>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {filteredPersons.length > visibleLimit && (
+                <div className="flex flex-col items-center justify-center gap-1.5 pt-1">
+                  <Button
+                    variant="outline"
+                    onClick={() => setVisibleLimit((prev) => prev + 36)}
+                    className="gap-2 rounded-xl"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    Tampilkan Lebih Banyak ({filteredPersons.length - visibleLimit} tersisa)
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </>

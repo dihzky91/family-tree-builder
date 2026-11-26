@@ -14,7 +14,7 @@ import {
     formatCountdown
 } from '@/lib/birthdayUtils';
 import { formatFlexibleDate } from '@/lib/flexibleDateUtils';
-import { useIsMobile } from '@/hooks/useMediaQuery';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { usePagination } from '@/components/VirtualList';
 
 const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -252,31 +252,51 @@ export default function BirthdayCalendar() {
                                 return (
                                     <div
                                         key={day}
+                                        onClick={() => {
+                                            if (birthdays.length > 0) {
+                                                setSelectedPerson(birthdays[0].id);
+                                                navigate(`/chart?focus=${birthdays[0].id}`);
+                                            }
+                                        }}
                                         className={`
-                                            aspect-square p-2 rounded-lg border-2 transition-all relative
+                                            aspect-square p-1 sm:p-2 rounded-lg border-2 transition-colors relative flex flex-col justify-between
                                             ${isToday ? 'border-primary bg-primary/10' : 'border-border'}
-                                            ${birthdays.length > 0 ? 'bg-accent/30' : 'hover:bg-accent/10'}
-                                            cursor-pointer
+                                            ${birthdays.length > 0 ? 'bg-accent/30 cursor-pointer' : 'hover:bg-accent/10'}
                                         `}
                                     >
-                                        <div className="text-sm font-medium">{day}</div>
+                                        <div className="text-xs sm:text-sm font-medium leading-none">{day}</div>
                                         {birthdays.length > 0 && (
-                                            <div className="absolute bottom-1 left-1 right-1">
-                                                {birthdays.slice(0, 2).map(person => (
-                                                    <div
-                                                        key={person.id}
-                                                        className="text-[10px] truncate text-primary bg-primary/20 rounded px-1"
-                                                        title={person.fullName}
-                                                    >
-                                                        {person.fullName.split(' ')[0]}
-                                                    </div>
-                                                ))}
-                                                {birthdays.length > 2 && (
-                                                    <div className="text-[9px] text-muted-foreground">
-                                                        +{birthdays.length - 2} lagi
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <>
+                                                {/* Mobile compact dot / badge indicator */}
+                                                <div className="flex sm:hidden items-center justify-center gap-0.5 mt-auto">
+                                                    {birthdays.slice(0, 3).map((person) => (
+                                                        <span
+                                                            key={person.id}
+                                                            className="w-1.5 h-1.5 rounded-full bg-primary"
+                                                        />
+                                                    ))}
+                                                    {birthdays.length > 3 && (
+                                                        <span className="text-[8px] font-bold text-primary leading-none">+</span>
+                                                    )}
+                                                </div>
+                                                {/* Desktop name labels */}
+                                                <div className="hidden sm:block space-y-0.5 mt-auto overflow-hidden">
+                                                    {birthdays.slice(0, 2).map(person => (
+                                                        <div
+                                                            key={person.id}
+                                                            className="text-[10px] truncate text-primary bg-primary/20 rounded px-1"
+                                                            title={person.fullName}
+                                                        >
+                                                            {person.fullName.split(' ')[0]}
+                                                        </div>
+                                                    ))}
+                                                    {birthdays.length > 2 && (
+                                                        <div className="text-[9px] text-muted-foreground leading-none">
+                                                            +{birthdays.length - 2} lagi
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 );

@@ -91,18 +91,20 @@ export function MobileNav() {
     return () => window.removeEventListener(IGNORED_DUPLICATES_EVENT, onIgnoredChanged);
   }, []);
 
-  // Calculate badge counts
+  // Calculate badge counts lazily only when the bottom sheet menu is open
   const duplicateCount = useMemo(() => {
+    if (!open) return 0;
     void ignoredVersion;
     return findAllDuplicates(persons, { relationships }).length;
-  }, [persons, relationships, ignoredVersion]);
+  }, [open, persons, relationships, ignoredVersion]);
 
   const submissionCount = usePendingSubmissionCount();
 
   const issueCount = useMemo(() => {
+    if (!open) return 0;
     const issues = checkDataQuality(persons, relationships);
     return issues.filter(i => i.type === 'error' || i.type === 'warning').length;
-  }, [persons, relationships]);
+  }, [open, persons, relationships]);
 
   // Listen for openMobileNav event from MobileBottomNav
   useEffect(() => {
@@ -186,7 +188,7 @@ export function MobileNav() {
   return (
     <>
       {/* Mobile Header */}
-      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden safe-area-pt">
+      <header className="shrink-0 z-40 w-full border-b bg-background md:hidden safe-area-pt">
         <div className="flex h-14 items-center justify-between px-3">
           {isTopLevel ? (
             <div className="flex items-center gap-2.5 min-w-0">

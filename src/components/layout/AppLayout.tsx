@@ -37,8 +37,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="min-h-[100dvh] w-full bg-background md:min-h-screen md:p-4 md:pt-5">
-      <div className="flex min-h-[100dvh] flex-col md:min-h-[calc(100vh-2.25rem)] md:flex-row md:gap-4">
+    <div className="h-[100dvh] w-full overflow-hidden bg-background md:h-screen md:p-4 md:pt-5">
+      <div className="flex h-full flex-col md:flex-row md:gap-4">
         {/* Desktop Sidebar - hidden on mobile */}
         <div className="hidden md:block md:shrink-0">
           <AppSidebar
@@ -56,7 +56,10 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Breadcrumbs />
 
           {/* Main Content */}
-          <main className="min-h-0 flex-1 overflow-auto pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+          <main
+            id="app-main-scroll"
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain [-webkit-overflow-scrolling:touch] pb-[calc(4.25rem+env(safe-area-inset-bottom,0px))] md:pb-0"
+          >
             <div className="md:px-1 md:pb-1">
               {children}
             </div>

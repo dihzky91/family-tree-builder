@@ -83,19 +83,19 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 animate-fade-in max-w-3xl">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8 animate-fade-in max-w-3xl">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">
+        <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
           Pengaturan
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-sm sm:text-base text-muted-foreground mt-0.5">
           Konfigurasi aplikasi Silsilah Keluarga
         </p>
       </div>
 
       {/* Appearance */}
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6 rounded-2xl">
         <h2 className="font-display font-semibold text-lg mb-4">Tampilan</h2>
 
         <div className="flex items-center justify-between">

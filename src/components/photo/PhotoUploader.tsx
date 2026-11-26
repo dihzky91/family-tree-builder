@@ -102,8 +102,12 @@ export function PhotoUploader({ currentPhotoUrl, onPhotoChange, onPhotoDelete }:
           return;
         }
 
-        canvas.width = croppedAreaPixels.width;
-        canvas.height = croppedAreaPixels.height;
+        const MAX_DIMENSION = 400;
+        const targetWidth = Math.min(croppedAreaPixels.width, MAX_DIMENSION);
+        const targetHeight = Math.min(croppedAreaPixels.height, MAX_DIMENSION);
+
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
 
         ctx.drawImage(
           image,
@@ -113,20 +117,27 @@ export function PhotoUploader({ currentPhotoUrl, onPhotoChange, onPhotoDelete }:
           croppedAreaPixels.height,
           0,
           0,
-          croppedAreaPixels.width,
-          croppedAreaPixels.height
+          targetWidth,
+          targetHeight
         );
 
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            resolve(null);
-            return;
-          }
-          const croppedFile = new File([blob], selectedFile.name, {
-            type: selectedFile.type,
-          });
-          resolve(croppedFile);
-        }, selectedFile.type);
+        const outputType = selectedFile.type === 'image/png' ? 'image/webp' : 'image/jpeg';
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(null);
+              return;
+            }
+            const ext = outputType === 'image/webp' ? 'webp' : 'jpg';
+            const baseName = selectedFile.name.replace(/\.[^/.]+$/, '');
+            const croppedFile = new File([blob], `${baseName}.${ext}`, {
+              type: outputType,
+            });
+            resolve(croppedFile);
+          },
+          outputType,
+          0.82
+        );
       };
     });
   };

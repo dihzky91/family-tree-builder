@@ -84,6 +84,7 @@ import {
   Moon,
   Sun,
   TreeDeciduous,
+  Waves,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -130,6 +131,16 @@ const BotanicalTreeView = lazy(() =>
     default: m.BotanicalTreeView,
   }))
 );
+const TimeLapseGrowthView = lazy(() =>
+  import('@/features/chart/views/TimeLapseGrowthView').then((m) => ({
+    default: m.TimeLapseGrowthView,
+  }))
+);
+const ParticleSankeyView = lazy(() =>
+  import('@/features/chart/views/ParticleSankeyView').then((m) => ({
+    default: m.ParticleSankeyView,
+  }))
+);
 
 type ViewMode =
   | 'family'
@@ -145,7 +156,9 @@ type ViewMode =
   | 'network'
   | 'timeline'
   | 'map'
-  | 'dna';
+  | 'dna'
+  | 'growth'
+  | 'sankey';
 
 const viewTransition = {
   initial: { opacity: 0, x: 16 },
@@ -198,6 +211,25 @@ function computeRelatives(
 export default function PublicSharePage() {
   const { shareCode } = useParams<{ shareCode: string }>();
   const isMobile = useIsMobile();
+
+  // Prevent search engines from indexing private family share pages
+  useEffect(() => {
+    const existing = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+    const prevContent = existing?.getAttribute('content') ?? null;
+    const metaTag = existing || document.createElement('meta');
+    metaTag.setAttribute('name', 'robots');
+    metaTag.setAttribute('content', 'noindex, nofollow, noarchive');
+    if (!existing) {
+      document.head.appendChild(metaTag);
+    }
+    return () => {
+      if (existing && prevContent !== null) {
+        existing.setAttribute('content', prevContent);
+      } else if (!existing && metaTag.parentNode) {
+        metaTag.parentNode.removeChild(metaTag);
+      }
+    };
+  }, []);
 
   const [meta, setMeta] = useState<PublicShareMeta | null>(null);
   const [payload, setPayload] = useState<PublicSharePayload | null>(null);
@@ -529,14 +561,15 @@ export default function PublicSharePage() {
     { value: 'timeline', label: 'Linimasa', icon: Calendar, description: 'Urutan waktu kelahiran' },
     { value: 'map', label: 'Peta', icon: Map, description: 'Peta sebaran lokasi' },
     { value: 'dna', label: 'Pohon DNA', icon: Dna, description: 'Warisan genetik' },
+    { value: 'growth', label: 'Pertumbuhan', icon: Sparkles, description: 'Animasi time-lapse pertumbuhan keluarga' },
+    { value: 'sankey', label: 'Aliran Trah', icon: Waves, description: 'Diagram aliran partikel antar generasi & kota' },
   ];
 
   const currentViewOption =
     viewModeOptions.find((opt) => opt.value === viewMode) || viewModeOptions[0];
   const CurrentViewIcon = currentViewOption.icon;
-  const isZoomableView = viewMode === 'tree';
+  const isZoomableView = false;
   const isFullHeightView =
-    isZoomableView ||
     viewMode === 'family' ||
     viewMode === 'pedigree' ||
     viewMode === 'botanical' ||
@@ -548,12 +581,15 @@ export default function PublicSharePage() {
     viewMode === 'lifespan' ||
     viewMode === 'network' ||
     viewMode === 'map' ||
-    viewMode === 'dna';
+    viewMode === 'dna' ||
+    viewMode === 'growth' ||
+    viewMode === 'sankey';
 
   const primaryViewModes = viewModeOptions.slice(0, 5);
   const secondaryViewModes = viewModeOptions.slice(5);
   const secondaryViewGroups = [
     { label: 'Bagan Silsilah', values: ['fan', 'hourglass', 'outline'] },
+    { label: 'Visualisasi Animasi', values: ['growth', 'sankey'] },
     { label: 'Analisis & Relasi', values: ['path', 'network', 'dna'] },
     { label: 'Waktu & Lokasi', values: ['lifespan', 'timeline', 'map'] },
   ].map((group) => ({
@@ -1212,7 +1248,7 @@ export default function PublicSharePage() {
           </div>
 
           {/* Chart Canvas */}
-          <div className="relative flex-1 overflow-auto bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.10),transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.38))]">
+          <div className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.10),transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.38))]">
             <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)] [background-size:36px_36px]" />
             {persons.length === 0 ? (
               <div className="empty-state relative h-full">
@@ -1222,12 +1258,12 @@ export default function PublicSharePage() {
             ) : (
               <div
                 className={cn(
-                  'relative w-full h-full overflow-hidden',
+                  'relative w-full h-full',
                   isZoomableView
-                    ? 'touch-none'
+                    ? 'overflow-hidden touch-none'
                     : isFullHeightView
                       ? 'overflow-hidden'
-                      : 'overflow-auto',
+                      : 'overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]',
                   isZoomableView && (isDragging ? 'cursor-grabbing' : 'cursor-grab')
                 )}
                 ref={panZoomContainerRef}
@@ -1236,7 +1272,10 @@ export default function PublicSharePage() {
                 <div
                   ref={handleChartRef}
                   className={cn('w-full', isFullHeightView ? 'h-full' : 'min-h-full')}
-                  style={{ minHeight: '100%', willChange: 'transform' }}
+                  style={{
+                    minHeight: '100%',
+                    ...(isZoomableView ? { willChange: 'transform' } : {}),
+                  }}
                 >
                   <Suspense
                     fallback={
@@ -1293,7 +1332,7 @@ export default function PublicSharePage() {
                         <motion.div
                           key="timeline"
                           {...viewTransition}
-                          className="w-full h-full overflow-y-auto bg-background"
+                          className="w-full min-h-full bg-background"
                         >
                           <TimelineView persons={persons} onSelectPerson={setSelectedPersonId} />
                         </motion.div>
@@ -1379,6 +1418,26 @@ export default function PublicSharePage() {
                       {viewMode === 'dna' && (
                         <motion.div key="dna" {...viewTransition} className="w-full h-full">
                           <InheritanceTreeView
+                            persons={persons}
+                            relationships={relationships}
+                            selectedPersonId={selectedPersonId}
+                            onSelectPerson={setSelectedPersonId}
+                          />
+                        </motion.div>
+                      )}
+                      {viewMode === 'growth' && (
+                        <motion.div key="growth" {...viewTransition} className="w-full h-full">
+                          <TimeLapseGrowthView
+                            persons={persons}
+                            relationships={relationships}
+                            selectedPersonId={selectedPersonId}
+                            onSelectPerson={setSelectedPersonId}
+                          />
+                        </motion.div>
+                      )}
+                      {viewMode === 'sankey' && (
+                        <motion.div key="sankey" {...viewTransition} className="w-full h-full">
+                          <ParticleSankeyView
                             persons={persons}
                             relationships={relationships}
                             selectedPersonId={selectedPersonId}

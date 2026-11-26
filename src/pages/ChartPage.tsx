@@ -81,6 +81,7 @@ import {
   BarChart3,
   Pin,
   TreeDeciduous,
+  Waves,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Person } from '@/types';
@@ -117,6 +118,8 @@ const HourglassView = lazy(() => import('@/features/chart/views/HourglassView').
 const DescendantOutlineView = lazy(() => import('@/features/chart/views/DescendantOutlineView').then(m => ({ default: m.DescendantOutlineView })));
 const LifespanGanttView = lazy(() => import('@/features/chart/views/LifespanGanttView').then(m => ({ default: m.LifespanGanttView })));
 const BotanicalTreeView = lazy(() => import('@/features/chart/views/BotanicalTreeView').then(m => ({ default: m.BotanicalTreeView })));
+const TimeLapseGrowthView = lazy(() => import('@/features/chart/views/TimeLapseGrowthView').then(m => ({ default: m.TimeLapseGrowthView })));
+const ParticleSankeyView = lazy(() => import('@/features/chart/views/ParticleSankeyView').then(m => ({ default: m.ParticleSankeyView })));
 
 
 // Animation variants
@@ -143,7 +146,7 @@ const panelVariants = {
 
 const MINIMAP_PERSON_THRESHOLD = 24;
 
-type ViewMode = 'family' | 'pedigree' | 'tree' | 'botanical' | 'sunburst' | 'fan' | 'hourglass' | 'outline' | 'path' | 'lifespan' | 'network' | 'timeline' | 'map' | 'dna';
+type ViewMode = 'family' | 'pedigree' | 'tree' | 'botanical' | 'sunburst' | 'fan' | 'hourglass' | 'outline' | 'path' | 'lifespan' | 'network' | 'timeline' | 'map' | 'dna' | 'growth' | 'sankey';
 
 export default function ChartPage() {
   const {
@@ -334,6 +337,11 @@ export default function ChartPage() {
     ) as HTMLElement | null;
     if (!target) return;
 
+    if (viewMode === 'tree') {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      return;
+    }
+
     const targetRect = target.getBoundingClientRect();
     const containerRect = panZoomContainerRef.current.getBoundingClientRect();
     const targetCenterX = targetRect.left + targetRect.width / 2;
@@ -342,7 +350,7 @@ export default function ChartPage() {
     const containerCenterY = containerRect.top + containerRect.height / 2;
 
     panBy(containerCenterX - targetCenterX, containerCenterY - targetCenterY);
-  }, [selectedPersonId, panBy, panZoomContainerRef]);
+  }, [selectedPersonId, panBy, panZoomContainerRef, viewMode]);
 
   const handleChartRef = useCallback((node: HTMLDivElement | null) => {
     chartRef.current = node;
@@ -506,18 +514,24 @@ export default function ChartPage() {
     { value: 'timeline', label: 'Linimasa', icon: Calendar, description: 'Urutan waktu kelahiran' },
     { value: 'map', label: 'Peta', icon: Map, description: 'Peta sebaran lokasi' },
     { value: 'dna', label: 'Pohon DNA', icon: Dna, description: 'Warisan genetik' },
+    { value: 'growth', label: 'Pertumbuhan', icon: Sparkles, description: 'Animasi time-lapse pertumbuhan keluarga' },
+    { value: 'sankey', label: 'Aliran Trah', icon: Waves, description: 'Diagram aliran partikel antar generasi & kota' },
   ];
 
   const currentViewOption = viewModeOptions.find(opt => opt.value === viewMode) || viewModeOptions[0];
   const CurrentViewIcon = currentViewOption.icon;
-  const isZoomableView = viewMode === 'tree';
-  const isFullHeightView = isZoomableView || viewMode === 'family' || viewMode === 'pedigree' || viewMode === 'botanical' || viewMode === 'sunburst' || viewMode === 'fan' || viewMode === 'hourglass' || viewMode === 'outline' || viewMode === 'path' || viewMode === 'lifespan' || viewMode === 'network' || viewMode === 'map' || viewMode === 'dna';
+  const isZoomableView = false;
+  const isFullHeightView = viewMode === 'family' || viewMode === 'pedigree' || viewMode === 'botanical' || viewMode === 'sunburst' || viewMode === 'fan' || viewMode === 'hourglass' || viewMode === 'outline' || viewMode === 'path' || viewMode === 'lifespan' || viewMode === 'network' || viewMode === 'map' || viewMode === 'dna' || viewMode === 'growth' || viewMode === 'sankey';
   const primaryViewModes = viewModeOptions.slice(0, 5);
   const secondaryViewModes = viewModeOptions.slice(5);
   const secondaryViewGroups = [
     {
       label: 'Bagan Silsilah',
       values: ['fan', 'hourglass', 'outline'],
+    },
+    {
+      label: 'Visualisasi Animasi',
+      values: ['growth', 'sankey'],
     },
     {
       label: 'Analisis & Relasi',
@@ -533,7 +547,7 @@ export default function ChartPage() {
       .map((val) => viewModeOptions.find((opt) => opt.value === val))
       .filter((opt): opt is (typeof viewModeOptions)[number] => Boolean(opt)),
   }));
-  const showMiniMap = !isMobile && viewMode === 'tree' && persons.length >= MINIMAP_PERSON_THRESHOLD;
+  const showMiniMap = !isMobile && isZoomableView && persons.length >= MINIMAP_PERSON_THRESHOLD;
   const defaultFocusPersonId = useMemo(() => {
     if (selectedPersonId) return selectedPersonId;
     if (persons.length === 0) return null;
@@ -957,7 +971,7 @@ export default function ChartPage() {
         </div>
 
         {/* Content Area */}
-        <div className="relative flex-1 overflow-auto bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.10),transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.38))]">
+        <div className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.10),transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.38))]">
           <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)] [background-size:36px_36px]" />
           {persons.length === 0 ? (
             <motion.div
@@ -975,8 +989,12 @@ export default function ChartPage() {
           ) : (
             <div
               className={cn(
-                'relative w-full h-full overflow-hidden',
-                isZoomableView ? 'touch-none' : isFullHeightView ? 'overflow-hidden' : 'overflow-auto',
+                'relative w-full h-full',
+                isZoomableView
+                  ? 'overflow-hidden touch-none'
+                  : isFullHeightView
+                    ? 'overflow-hidden'
+                    : 'overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]',
                 isZoomableView && (isDragging ? 'cursor-grabbing' : 'cursor-grab')
               )}
               ref={panZoomContainerRef}
@@ -987,7 +1005,7 @@ export default function ChartPage() {
                 className={cn('w-full', isFullHeightView ? 'h-full' : 'min-h-full')}
                 style={{
                   minHeight: '100%',
-                  willChange: 'transform',
+                  ...(isZoomableView ? { willChange: 'transform' } : {}),
                 }}
               >
                 <Suspense
@@ -1060,7 +1078,7 @@ export default function ChartPage() {
                       <motion.div
                         key="timeline"
                         {...viewTransition}
-                        className="w-full h-full overflow-y-auto bg-background"
+                        className="w-full min-h-full bg-background"
                       >
                         <TimelineView
                           persons={persons}
@@ -1186,6 +1204,34 @@ export default function ChartPage() {
                         className="w-full h-full"
                       >
                         <InheritanceTreeView
+                          persons={persons}
+                          relationships={relationships}
+                          selectedPersonId={selectedPersonId}
+                          onSelectPerson={setSelectedPerson}
+                        />
+                      </motion.div>
+                    )}
+                    {viewMode === 'growth' && (
+                      <motion.div
+                        key="growth"
+                        {...viewTransition}
+                        className="w-full h-full"
+                      >
+                        <TimeLapseGrowthView
+                          persons={persons}
+                          relationships={relationships}
+                          selectedPersonId={selectedPersonId}
+                          onSelectPerson={setSelectedPerson}
+                        />
+                      </motion.div>
+                    )}
+                    {viewMode === 'sankey' && (
+                      <motion.div
+                        key="sankey"
+                        {...viewTransition}
+                        className="w-full h-full"
+                      >
+                        <ParticleSankeyView
                           persons={persons}
                           relationships={relationships}
                           selectedPersonId={selectedPersonId}

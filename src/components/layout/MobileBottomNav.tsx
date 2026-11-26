@@ -122,7 +122,7 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Navigasi Utama"
-      className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/85 border-t border-border/80 md:hidden safe-area-pb"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-background/98 border-t border-border/80 md:hidden safe-area-pb"
     >
       <div className="flex items-center justify-around h-16 px-1">
         {navItems.map((item) => {

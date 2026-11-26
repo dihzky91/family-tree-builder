@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { Person, Relationship } from '@/types';
 import { Heart, CheckCircle2, Users, Baby } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -184,6 +184,13 @@ export const GenerationView = memo(function GenerationView({
     return result;
   }, [persons, relationships]);
 
+  const [activeGeneration, setActiveGeneration] = useState<number | 'all'>('all');
+
+  const visibleGenerations = useMemo(() => {
+    if (activeGeneration === 'all') return generationData;
+    return generationData.filter((g) => g.generation === activeGeneration);
+  }, [generationData, activeGeneration]);
+
   if (generationData.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground p-8">
@@ -193,15 +200,48 @@ export const GenerationView = memo(function GenerationView({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-5 sm:px-6">
-      {generationData.map(({ generation, familyUnits }) => {
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-3 py-4 sm:px-6 sm:py-5">
+      {/* Sticky Generation Filter Bar for fast navigation (especially on mobile) */}
+      <div className="sticky top-2 z-20 flex items-center gap-1.5 overflow-x-auto rounded-2xl border border-border/70 bg-background/95 p-1.5 shadow-sm no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveGeneration('all')}
+          className={cn(
+            'shrink-0 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors',
+            activeGeneration === 'all'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          )}
+        >
+          Semua ({generationData.length} Gen)
+        </button>
+        {generationData.map(({ generation, familyUnits }) => (
+          <button
+            key={generation}
+            type="button"
+            onClick={() => setActiveGeneration(generation)}
+            className={cn(
+              'shrink-0 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors',
+              activeGeneration === generation
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            Gen {generation}
+            <span className="ml-1 opacity-75">({familyUnits.length})</span>
+          </button>
+        ))}
+      </div>
+
+      {visibleGenerations.map(({ generation, familyUnits }) => {
         const parentCount = familyUnits.reduce((acc, unit) => acc + unit.parents.length, 0);
         const childCount = familyUnits.reduce((acc, unit) => acc + unit.children.length, 0);
 
         return (
           <section
             key={generation}
-            className="rounded-3xl border border-border/60 bg-background/90 p-4 sm:p-5 shadow-sm backdrop-blur-sm"
+            className="rounded-3xl border border-border/60 bg-background p-4 sm:p-5 shadow-sm"
+            style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 480px' }}
           >
             {/* Compact Single-Row Generation Header */}
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
@@ -319,6 +359,8 @@ const CompactPersonItem = memo(function CompactPersonItem({
           <img
             src={person.photoUrl}
             alt={person.fullName}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
@@ -381,12 +423,13 @@ const FamilyUnitCard = memo(function FamilyUnitCard({
   return (
     <article
       className={cn(
-        'relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card/90 p-3.5 shadow-sm transition-all',
+        'relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 shadow-sm transition-colors',
         selectedInsideUnit || hasHighlightedInsideUnit
           ? 'border-primary/50 bg-primary/[0.03]'
           : 'border-border/70',
         spotlightActive && !hasHighlightedInsideUnit && 'opacity-45'
       )}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 180px' }}
     >
       <div>
         {/* Compact Card Header */}

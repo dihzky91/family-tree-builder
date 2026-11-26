@@ -96,17 +96,17 @@ export default function RelationshipCheckPage() {
     );
 
     return (
-        <div className="p-6 lg:p-8 space-y-6 animate-fade-in max-w-5xl mx-auto">
+        <div className="p-4 md:p-6 lg:p-8 space-y-5 md:space-y-6 animate-fade-in max-w-5xl mx-auto">
             <div>
-                <h1 className="text-3xl font-display font-bold text-foreground">
+                <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
                     Cek Hubungan
                 </h1>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-sm sm:text-base text-muted-foreground mt-0.5">
                     Cari tahu hubungan kekerabatan dan visualisasi jalur terpendek antara dua anggota keluarga
                 </p>
             </div>
 
-            <Card className="p-6 bg-muted/30 border-dashed">
+            <Card className="p-4 sm:p-6 bg-muted/30 border-dashed rounded-2xl">
                 <div className="flex flex-col md:flex-row gap-4 items-center">
                     <PersonSelect
                         person={person1}

@@ -102,56 +102,52 @@ export function TimelineView({ persons, onSelectPerson }: TimelineViewProps) {
 
     return (
         <div className="max-w-4xl mx-auto p-4 md:p-8">
-            <div className="relative border-l-2 border-primary/20 ml-4 md:ml-8 space-y-12 pb-12">
-                {groups.map((group, groupIndex) => (
-                    <motion.div
+            <div className="relative border-l-2 border-primary/20 ml-3 md:ml-8 space-y-8 md:space-y-12 pb-12">
+                {groups.map((group) => (
+                    <div
                         key={group.year}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: groupIndex * 0.05 }}
-                        className="relative pl-8 md:pl-12"
+                        style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 160px' }}
+                        className="relative pl-6 md:pl-12"
                     >
                         {/* Year Marker */}
                         <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
 
-                        <div className="mb-4">
-                            <span className="text-2xl font-display font-bold text-primary">{group.year}</span>
+                        <div className="mb-3 md:mb-4">
+                            <span className="text-xl md:text-2xl font-display font-bold text-primary">{group.year}</span>
                         </div>
 
-                        <div className="grid gap-3">
+                        <div className="grid gap-2.5 md:gap-3">
                             {group.events.map((event, idx) => (
                                 <Card
                                     key={`${event.person.id}-${event.type}-${idx}`}
                                     className={`
-                    p-3 flex items-center gap-4 cursor-pointer hover:shadow-md transition-all
+                    p-3 flex items-center gap-3 md:gap-4 cursor-pointer hover:shadow-md transition-shadow
                     ${event.type === 'birth' ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-500'}
                   `}
                                     onClick={() => onSelectPerson?.(event.person.id)}
                                 >
                                     <div className={`
-                    w-10 h-10 rounded-full flex items-center justify-center shrink-0
+                    w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0
                     ${event.type === 'birth' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}
                   `}>
-                                        {event.type === 'birth' ? <Baby className="w-5 h-5" /> : <Cross className="w-5 h-5" />}
+                                        {event.type === 'birth' ? <Baby className="w-4 h-4 md:w-5 md:h-5" /> : <Cross className="w-4 h-4 md:w-5 md:h-5" />}
                                     </div>
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <h4 className="font-semibold truncate">{event.person.fullName}</h4>
-                                            <Badge variant="outline" className="text-xs font-normal capitalize">
+                                            <h4 className="font-semibold text-sm md:text-base truncate">{event.person.fullName}</h4>
+                                            <Badge variant="outline" className="text-[11px] font-normal capitalize shrink-0">
                                                 {event.type === 'birth' ? 'Lahir' : 'Wafat'}
                                             </Badge>
                                         </div>
-                                        <p className="text-sm text-muted-foreground">
+                                        <p className="text-xs md:text-sm text-muted-foreground">
                                             {event.dateLabel}
                                         </p>
                                     </div>
-
-                                    {/* Optional: Show age at death or age related info? Keeping it simple for now */}
                                 </Card>
                             ))}
                         </div>
-                    </motion.div>
+                    </div>
                 ))}
 
                 {unknownDatePersons.length > 0 && (
