@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildTrahClusters,
   detectFourGrandparentLines,
   filterDataByLineageScope,
   getLineagePersonIds,
@@ -129,5 +130,59 @@ describe('lineageScope', () => {
       expect(scoped.includedIds.has(rel.fromPersonId)).toBe(true);
       expect(scoped.includedIds.has(rel.toPersonId)).toBe(true);
     }
+  });
+
+  it('extended direction includes siblings of grandparent via Buyut without bleeding into spouse Buyut', () => {
+    const extendedPersons: Person[] = [
+      ...persons,
+      makePerson('grand-uncle-gm', 'Kakak Nenek Ayah', 'male'),
+      makePerson('grand-cousin-gm', 'Anak Kakak Nenek', 'female'),
+      makePerson('grand-uncle-gf', 'Adik Kakek Ayah', 'male'),
+    ];
+    const extendedRels: Relationship[] = [
+      ...relationships,
+      parentChild('r16', 'pat-gm-father', 'grand-uncle-gm'),
+      parentChild('r17', 'grand-uncle-gm', 'grand-cousin-gm'),
+      parentChild('r18', 'pat-gf-father', 'grand-uncle-gf'),
+    ];
+
+    const gmExtended = getLineagePersonIds('pat-gm', 'extended', extendedPersons, extendedRels);
+    expect(gmExtended.has('pat-gm-father')).toBe(true);
+    expect(gmExtended.has('grand-uncle-gm')).toBe(true);
+    expect(gmExtended.has('grand-cousin-gm')).toBe(true);
+    // Must NOT bleed into Kakek Ayah's Buyut or Kakek Ayah's sibling
+    expect(gmExtended.has('pat-gf-father')).toBe(false);
+    expect(gmExtended.has('grand-uncle-gf')).toBe(false);
+  });
+
+  it('buildTrahClusters assigns objective Trah names, keeps spouses separate, and gives in-laws fallback cluster', () => {
+    const { clusters, personToClusters } = buildTrahClusters({
+      homePersonId: 'me',
+      pinnedLineageIds: [],
+      persons,
+      relationships,
+    });
+
+    expect(clusters).toHaveLength(4);
+    expect(clusters.find((c) => c.id === 'pat-gm')?.name).toBe('Trah R. Ngt. Suhadiyah');
+    expect(clusters.find((c) => c.id === 'pat-gm')?.relativeLabel).toBe('Nenek · Ayah');
+
+    // Kakek Ayah only gets his own Trah badge (not his wife's Trah)
+    expect(personToClusters.get('pat-gf')?.map((c) => c.id)).toEqual(['pat-gf']);
+    expect(personToClusters.get('pat-gm')?.map((c) => c.id)).toEqual(['pat-gm']);
+
+    // Father is blood child of both pat-gf and pat-gm -> gets both badges
+    expect(personToClusters.get('father')?.map((c) => c.id)).toEqual(['pat-gf', 'pat-gm']);
+
+    // Me is blood descendant of all 4 -> gets all 4 badges
+    expect(personToClusters.get('me')?.map((c) => c.id)).toEqual([
+      'pat-gf',
+      'pat-gm',
+      'mat-gf',
+      'mat-gm',
+    ]);
+
+    // Aunt-inlaw (married to uncle-pat, no blood Trah of her own) inherits pat-gm Trah
+    expect(personToClusters.get('aunt-inlaw')?.map((c) => c.id)).toEqual(['pat-gm']);
   });
 });

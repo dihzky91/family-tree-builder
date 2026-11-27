@@ -14,6 +14,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { formatShortYearLabel } from '@/lib/flexibleDateUtils';
+import { buildTrahClusters, type TrahCluster } from '@/lib/lineageScope';
+import { TrahBadgeList } from '@/components/TrahBadgeList';
+import { useFamilyStore } from '@/store/familyStore';
 import type { Person, Relationship } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +40,7 @@ interface IndexedPerson {
   person: Person;
   birthYear: string;
   subLabel: string;
+  clusters: TrahCluster[];
   searchText: string;
   normalizedFullName: string;
   firstNameKey: string;
@@ -50,13 +54,26 @@ export function PersonPicker({
   open,
   onOpenChange,
   trigger,
-  placeholder = 'Cari nama, tahun, kota...',
+  placeholder = 'Cari nama, trah, tahun, kota...',
   popoverClassName = 'w-[300px] p-0',
   align = 'start',
   excludeIds,
 }: PersonPickerProps) {
   const [query, setQuery] = useState('');
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
+  const homePersonId = useFamilyStore((s) => s.homePersonId);
+  const pinnedLineageIds = useFamilyStore((s) => s.pinnedLineageIds);
+
+  const trahIndex = useMemo(
+    () =>
+      buildTrahClusters({
+        homePersonId,
+        pinnedLineageIds,
+        persons,
+        relationships,
+      }),
+    [homePersonId, pinnedLineageIds, persons, relationships]
+  );
 
   // Reset search & pagination when popover closes
   useEffect(() => {
@@ -128,12 +145,15 @@ export function PersonPicker({
       const firstNameKey = normalizedFullName.split(/\s+/)[0] || '';
 
       const relatedNames = [...parents, ...spouses].map((p) => p.fullName).join(' ');
-      const searchText = `${person.fullName} ${birthYear} ${city} ${relatedNames}`.toLowerCase();
+      const clusters = trahIndex.personToClusters.get(person.id) || [];
+      const trahNames = clusters.map((c) => `${c.name} ${c.relativeLabel || ''}`).join(' ');
+      const searchText = `${person.fullName} ${birthYear} ${city} ${relatedNames} ${trahNames}`.toLowerCase();
 
       items.push({
         person,
         birthYear,
         subLabel,
+        clusters,
         searchText,
         normalizedFullName,
         firstNameKey,
@@ -142,7 +162,7 @@ export function PersonPicker({
 
     items.sort((a, b) => a.person.fullName.localeCompare(b.person.fullName, 'id'));
     return items;
-  }, [persons, relationships, excludeIds]);
+  }, [persons, relationships, excludeIds, trahIndex]);
 
   // Multi-token search across full dataset (instant even for thousands of records)
   const trimmedQuery = query.trim().toLowerCase();
@@ -227,6 +247,14 @@ export function PersonPicker({
                             <div className="truncate text-[11px] leading-snug text-muted-foreground mt-0.5">
                               {item.subLabel}
                             </div>
+                          )}
+                          {item.clusters.length > 0 && (
+                            <TrahBadgeList
+                              clusters={item.clusters}
+                              variant="compact"
+                              maxVisible={2}
+                              className="mt-1"
+                            />
                           )}
                         </div>
                       </div>

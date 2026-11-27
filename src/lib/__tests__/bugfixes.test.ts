@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { generateGedcom } from '@/features/chart/utils/gedcomExport';
-import { computeScopedShareData } from '@/storage/supabase/shareQueries';
-import type { Person, Relationship } from '@/types';
+import {
+  computeScopedShareData,
+  createShareLink,
+  getAllShareLinks,
+  unlockPublicShare,
+} from '@/storage/supabase/shareQueries';
+import { ShareLinkFormSchema, type Person, type Relationship } from '@/types';
 
 const makePerson = (overrides: Partial<Person> & { id: string; fullName: string }): Person => ({
   gender: 'male',
@@ -106,5 +111,78 @@ describe('Security & Data Bugfix Regressions', () => {
     expect(gedcom).toContain('2 CONT Catatan baris 2');
     expect(gedcom).toContain('1 FAMC @F1@');
     expect(gedcom).toContain('1 CHIL @Icccccccccccc4ccc8ccc@');
+  });
+
+  it('enforces minimum 8-character PIN policy in ShareLinkFormSchema and createShareLink', async () => {
+    const shortParse = ShareLinkFormSchema.safeParse({
+      code: 'silsilah-uji',
+      title: 'Silsilah Uji',
+      scopeType: 'full',
+      pinCode: '1234',
+      hideLivingDetails: false,
+    });
+    expect(shortParse.success).toBe(false);
+
+    const validParse = ShareLinkFormSchema.safeParse({
+      code: 'silsilah-uji',
+      title: 'Silsilah Uji',
+      scopeType: 'full',
+      pinCode: 'keluarga2026',
+      hideLivingDetails: false,
+    });
+    expect(validParse.success).toBe(true);
+
+    await expect(
+      createShareLink({
+        code: 'silsilah-pendek',
+        title: 'Silsilah Pendek',
+        scopeType: 'full',
+        pinCode: '1234',
+        hideLivingDetails: false,
+        allPersons: [],
+        allRelationships: [],
+      })
+    ).rejects.toThrow(/minimal 8 karakter/i);
+  });
+
+  it('never stores raw owner PIN in localStorage and verifies local share PIN via salted hash', async () => {
+    localStorage.clear();
+    localStorage.setItem(
+      'silsilah-owner-share-pins-v1',
+      JSON.stringify({ 'silsilah-aman': 'rahasia-lama' })
+    );
+
+    const person = makePerson({
+      id: '99999999-9999-4999-8999-999999999999',
+      fullName: 'Dewi Lestari',
+    });
+
+    const created = await createShareLink({
+      code: 'silsilah-aman',
+      title: 'Silsilah Aman',
+      scopeType: 'full',
+      pinCode: 'PassphraseKeluarga99!',
+      hideLivingDetails: false,
+      allPersons: [person],
+      allRelationships: [],
+    });
+
+    expect(created.hasPin).toBe(true);
+    expect(created.pinCode).toBeUndefined();
+    expect(localStorage.getItem('silsilah-owner-share-pins-v1')).toBeNull();
+
+    const rawStored = localStorage.getItem('silsilah-public-shares-v1') || '';
+    expect(rawStored).not.toContain('PassphraseKeluarga99!');
+
+    const listed = await getAllShareLinks();
+    const found = listed.find((s) => s.code === 'silsilah-aman');
+    expect(found?.hasPin).toBe(true);
+    expect(found?.pinCode).toBeUndefined();
+
+    const wrongUnlock = await unlockPublicShare('silsilah-aman', 'SalahPin12345');
+    expect(wrongUnlock.status).toBe('invalid_pin');
+
+    const okUnlock = await unlockPublicShare('silsilah-aman', 'PassphraseKeluarga99!');
+    expect(okUnlock.status).toBe('ok');
   });
 });

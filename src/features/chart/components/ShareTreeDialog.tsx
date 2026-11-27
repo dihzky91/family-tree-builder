@@ -267,6 +267,7 @@ export function ShareTreeDialog({
     setIsSaving(true);
     try {
       if (editingLink) {
+        const cleanNewPin = data.pinCode?.trim() || '';
         await updateShareLink(editingLink.id, {
           code: data.code,
           title: data.title,
@@ -274,7 +275,8 @@ export function ShareTreeDialog({
           scopeType: data.scopeType,
           branch: selectedBranch,
           rootPersonId: effectiveRootPersonId,
-          pinCode: data.pinCode,
+          pinCode: cleanNewPin || undefined,
+          preservePinIfEmpty: editingLink.hasPin && cleanNewPin.length === 0,
           hideLivingDetails: data.hideLivingDetails,
           allPersons: persons,
           allRelationships: relationships,
@@ -856,16 +858,27 @@ export function ShareTreeDialog({
                 <div className="space-y-1.5">
                   <Label htmlFor="share-pin" className="text-xs font-semibold flex items-center gap-1.5">
                     <Lock className="w-3.5 h-3.5 text-primary" />
-                    Proteksi PIN / Kode Akses (Opsional)
+                    Proteksi PIN / Passphrase (Opsional)
                   </Label>
                   <Input
                     id="share-pin"
+                    type="password"
+                    autoComplete="new-password"
                     {...form.register('pinCode')}
-                    placeholder="Kosongkan jika tanpa PIN (misal: 1234)"
+                    placeholder={
+                      editingLink?.hasPin
+                        ? 'Biarkan kosong untuk mempertahankan PIN saat ini'
+                        : 'Minimal 8 karakter (kosongkan jika tanpa PIN)'
+                    }
                     className="h-8 text-xs font-mono bg-background"
                   />
+                  {form.formState.errors.pinCode && (
+                    <p className="text-[11px] text-destructive">
+                      {form.formState.errors.pinCode.message}
+                    </p>
+                  )}
                   <p className="text-[11px] text-muted-foreground">
-                    Jika diisi, pengunjung wajib memasukkan kode ini sebelum bisa melihat pohon silsilah.
+                    Jika diisi (minimal 8 karakter), PIN disimpan sebagai hash aman dan pengunjung wajib memverifikasinya.
                   </p>
                 </div>
 

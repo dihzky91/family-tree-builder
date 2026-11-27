@@ -1,6 +1,6 @@
 import type { Person, Relationship } from '@/types';
 
-export type LineageDirection = 'both' | 'descendants' | 'ancestors';
+export type LineageDirection = 'both' | 'extended' | 'descendants' | 'ancestors';
 
 export type GrandparentSlot =
   | 'paternal_grandfather'
@@ -25,6 +25,30 @@ export interface GrandparentLineageInfo {
   badgeClass: string;
   person: Person;
   memberCount: number;
+}
+
+export interface TrahCluster {
+  id: string;
+  rootPerson: Person;
+  /** Objective cluster name consistent for all users, e.g. "Trah Mbah Ahmad" */
+  name: string;
+  /** Short name for compact badges, e.g. "Mbah Ahmad" */
+  shortName: string;
+  /** Optional relative context for active homePersonId, e.g. "Kakek · Ayah" */
+  relativeLabel?: string;
+  slot?: GrandparentSlot;
+  source: 'grandparent' | 'pinned';
+  dotClass: string;
+  badgeClass: string;
+  /** All members included when scoping this Trah (including direct spouses) */
+  memberIds: Set<string>;
+  /** Blood-line members only (used to prevent spouse cross-contamination on badges) */
+  bloodIds: Set<string>;
+}
+
+export interface TrahClusterIndex {
+  clusters: TrahCluster[];
+  personToClusters: Map<string, TrahCluster[]>;
 }
 
 export interface ScopedFamilyData {
@@ -68,10 +92,57 @@ export const GRANDPARENT_SLOT_META: Record<
 };
 
 export const LINEAGE_DIRECTION_LABELS: Record<LineageDirection, string> = {
+  extended: 'Keluarga Besar (Trah)',
   both: 'Leluhur & Keturunan',
   descendants: 'Keturunan Saja',
   ancestors: 'Leluhur Saja',
 };
+
+const PINNED_TRAH_PALETTE: { dotClass: string; badgeClass: string }[] = [
+  {
+    dotClass: 'bg-teal-500',
+    badgeClass: 'border-teal-500/35 bg-teal-500/10 text-teal-700 dark:text-teal-300',
+  },
+  {
+    dotClass: 'bg-rose-500',
+    badgeClass: 'border-rose-500/35 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  },
+  {
+    dotClass: 'bg-indigo-500',
+    badgeClass: 'border-indigo-500/35 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300',
+  },
+  {
+    dotClass: 'bg-orange-500',
+    badgeClass: 'border-orange-500/35 bg-orange-500/10 text-orange-700 dark:text-orange-300',
+  },
+  {
+    dotClass: 'bg-cyan-500',
+    badgeClass: 'border-cyan-500/35 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+  },
+  {
+    dotClass: 'bg-fuchsia-500',
+    badgeClass: 'border-fuchsia-500/35 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
+  },
+];
+
+export function formatShortTrahName(fullName: string): string {
+  const cleaned = fullName.trim().replace(/\s+/g, ' ');
+  if (!cleaned) return 'Trah';
+  const parts = cleaned.split(' ');
+  if (parts.length <= 2) return cleaned;
+  // Keep common honorific prefixes + 1-2 name tokens
+  const firstLower = parts[0].toLowerCase().replace(/\.$/, '');
+  const honorifics = new Set(['mbah', 'eyang', 'ki', 'kyai', 'kh', 'h', 'hj', 'r', 'ra', 'raden', 'dr', 'ir', 'prof', 'nyai', 'nyi', 'bapak', 'ibu', 'pak', 'bu']);
+  if (honorifics.has(firstLower)) {
+    // Handle multi-word Javanese honorific like "R. Ngt. Suhadiyah"
+    const secondLower = parts[1].toLowerCase().replace(/\.$/, '');
+    if (['ngt', 'ng', 'mas', 'ajeng', 'ayu', 'bagus', 'panji'].includes(secondLower) && parts.length >= 3) {
+      return `${parts[0]} ${parts[1]} ${parts[2]}`;
+    }
+    return `${parts[0]} ${parts[1]}`;
+  }
+  return `${parts[0]} ${parts[1]}`;
+}
 
 function buildAdjacency(relationships: Relationship[]) {
   const parentsByChild = new Map<string, string[]>();
@@ -106,6 +177,7 @@ function buildAdjacency(relationships: Relationship[]) {
  * - `descendants`: root + all descendants + spouses of root and descendants (keeps nuclear families intact without pulling in spouses' own ancestral trees).
  * - `ancestors`: root + all ancestors upward.
  * - `both`: root + all ancestors + all descendants + spouses of root and descendants.
+ * - `extended`: climbs to the topmost ancestor(s) of root and pulls all descendants downward + direct spouses (so siblings of Kakek/Nenek via Buyut are included in the Trah without bleeding into spouses' ancestors).
  */
 export function getLineagePersonIds(
   rootPersonId: string,
@@ -118,6 +190,18 @@ export function getLineagePersonIds(
 
   const { parentsByChild, childrenByParent, spousesByPerson } =
     buildAdjacency(relationships);
+
+  if (direction === 'extended') {
+    const bloodIds = collectExtendedBloodIds(rootPersonId, parentsByChild, childrenByParent);
+    const included = new Set<string>(bloodIds);
+    for (const memberId of bloodIds) {
+      const spouses = spousesByPerson.get(memberId) || [];
+      for (const spouseId of spouses) {
+        included.add(spouseId);
+      }
+    }
+    return included;
+  }
 
   const included = new Set<string>([rootPersonId]);
   const descendantSet = new Set<string>([rootPersonId]);
@@ -163,6 +247,65 @@ export function getLineagePersonIds(
   }
 
   return included;
+}
+
+/**
+ * Collects blood-line IDs for an extended Trah rooted at `rootPersonId`:
+ * climbs upward to find topmost ancestor(s) of `rootPersonId`, then traverses
+ * downward through all descendants (including siblings of `rootPersonId` and their children).
+ */
+function collectExtendedBloodIds(
+  rootPersonId: string,
+  parentsByChild: Map<string, string[]>,
+  childrenByParent: Map<string, string[]>
+): Set<string> {
+  // 1. Climb upward to find all ancestors and identify topmost ancestor(s)
+  const visitedAncestors = new Set<string>([rootPersonId]);
+  const ancestorQueue: string[] = [rootPersonId];
+  const topAncestors: string[] = [];
+
+  while (ancestorQueue.length > 0) {
+    const curr = ancestorQueue.shift()!;
+    const parents = parentsByChild.get(curr) || [];
+    if (parents.length === 0) {
+      topAncestors.push(curr);
+    } else {
+      for (const parentId of parents) {
+        if (!visitedAncestors.has(parentId)) {
+          visitedAncestors.add(parentId);
+          ancestorQueue.push(parentId);
+        }
+      }
+    }
+  }
+
+  // Fallback in case of cyclic data
+  if (topAncestors.length === 0) {
+    topAncestors.push(rootPersonId);
+  }
+
+  // 2. Traverse downward from all ancestors (topmost down to root) to get full extended clan bloodline
+  const bloodIds = new Set<string>(visitedAncestors);
+  const descQueue: string[] = [...visitedAncestors];
+  for (const topId of topAncestors) {
+    if (!bloodIds.has(topId)) {
+      bloodIds.add(topId);
+      descQueue.push(topId);
+    }
+  }
+
+  while (descQueue.length > 0) {
+    const curr = descQueue.shift()!;
+    const children = childrenByParent.get(curr) || [];
+    for (const childId of children) {
+      if (!bloodIds.has(childId)) {
+        bloodIds.add(childId);
+        descQueue.push(childId);
+      }
+    }
+  }
+
+  return bloodIds;
 }
 
 /**
@@ -290,4 +433,132 @@ export function detectFourGrandparentLines(
   }
 
   return results;
+}
+
+/**
+ * Builds Hybrid Trah/Bani clusters from:
+ * 1. Auto-detected 4 grandparent lines (if `homePersonId` is set)
+ * 2. Pinned favorite lineages (`pinnedLineageIds`)
+ *
+ * Uses objective Trah naming ("Trah [Nama Leluhur]") + optional personal relative label.
+ * Blood-line membership is prioritized for badge assignment so a spouse who has their own Trah
+ * (e.g. Kakek Ayah married to Nenek Ayah) does not receive their spouse's Trah badge,
+ * while in-laws without their own blood Trah cleanly inherit their spouse's Trah badge.
+ */
+export function buildTrahClusters(options: {
+  homePersonId: string | null;
+  pinnedLineageIds?: string[];
+  persons: Person[];
+  relationships: Relationship[];
+}): TrahClusterIndex {
+  const { homePersonId, pinnedLineageIds = [], persons, relationships } = options;
+
+  if (persons.length === 0) {
+    return { clusters: [], personToClusters: new Map() };
+  }
+
+  const personById = new Map<string, Person>();
+  for (const p of persons) personById.set(p.id, p);
+
+  const { parentsByChild, childrenByParent, spousesByPerson } =
+    buildAdjacency(relationships);
+
+  const clusters: TrahCluster[] = [];
+  const seenRootIds = new Set<string>();
+
+  const createCluster = (
+    person: Person,
+    meta: {
+      source: 'grandparent' | 'pinned';
+      slot?: GrandparentSlot;
+      relativeLabel?: string;
+      dotClass: string;
+      badgeClass: string;
+    }
+  ): TrahCluster => {
+    const bloodIds = collectExtendedBloodIds(person.id, parentsByChild, childrenByParent);
+    const memberIds = new Set<string>(bloodIds);
+    for (const memberId of bloodIds) {
+      const spouses = spousesByPerson.get(memberId) || [];
+      for (const spouseId of spouses) {
+        memberIds.add(spouseId);
+      }
+    }
+    const shortName = formatShortTrahName(person.fullName);
+    return {
+      id: person.id,
+      rootPerson: person,
+      name: `Trah ${shortName}`,
+      shortName,
+      relativeLabel: meta.relativeLabel,
+      slot: meta.slot,
+      source: meta.source,
+      dotClass: meta.dotClass,
+      badgeClass: meta.badgeClass,
+      memberIds,
+      bloodIds,
+    };
+  };
+
+  // 1. Up to 4 Grandparent Trah clusters from homePersonId
+  const grandparentLines = detectFourGrandparentLines(homePersonId, persons, relationships);
+  for (const line of grandparentLines) {
+    if (seenRootIds.has(line.person.id)) continue;
+    seenRootIds.add(line.person.id);
+    clusters.push(
+      createCluster(line.person, {
+        source: 'grandparent',
+        slot: line.slot,
+        relativeLabel: line.shortLabel,
+        dotClass: line.dotClass,
+        badgeClass: line.badgeClass,
+      })
+    );
+  }
+
+  // 2. Additional Pinned Trah clusters (not already covered by grandparent lines)
+  let paletteIndex = 0;
+  for (const pinnedId of pinnedLineageIds) {
+    if (seenRootIds.has(pinnedId)) continue;
+    const person = personById.get(pinnedId);
+    if (!person) continue;
+    seenRootIds.add(pinnedId);
+    const colors = PINNED_TRAH_PALETTE[paletteIndex % PINNED_TRAH_PALETTE.length];
+    paletteIndex++;
+    clusters.push(
+      createCluster(person, {
+        source: 'pinned',
+        dotClass: colors.dotClass,
+        badgeClass: colors.badgeClass,
+      })
+    );
+  }
+
+  // 3. Build person -> clusters lookup
+  // First pass: assign blood-line clusters
+  const personToClusters = new Map<string, TrahCluster[]>();
+  for (const cluster of clusters) {
+    for (const memberId of cluster.bloodIds) {
+      const list = personToClusters.get(memberId);
+      if (list) list.push(cluster);
+      else personToClusters.set(memberId, [cluster]);
+    }
+  }
+
+  // Second pass: for spouses/in-laws who don't belong to any blood cluster,
+  // assign the cluster(s) they married into
+  for (const person of persons) {
+    if (personToClusters.has(person.id)) continue;
+    const inLawClusters: TrahCluster[] = [];
+    for (const cluster of clusters) {
+      if (cluster.memberIds.has(person.id)) {
+        inLawClusters.push(cluster);
+      }
+    }
+    if (inLawClusters.length > 0) {
+      personToClusters.set(person.id, inLawClusters);
+    }
+  }
+
+  return { clusters, personToClusters };
 }

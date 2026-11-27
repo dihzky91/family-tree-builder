@@ -22,6 +22,7 @@ import { PersonPicker } from '@/components/PersonPicker';
 import { useFamilyStore } from '@/store/familyStore';
 import {
   detectFourGrandparentLines,
+  formatShortTrahName,
   getLineagePersonIds,
   GRANDPARENT_SLOT_META,
   LINEAGE_DIRECTION_LABELS,
@@ -38,6 +39,11 @@ interface LineageScopeSelectorProps {
 }
 
 const DIRECTION_OPTIONS: { value: LineageDirection; shortLabel: string; title: string }[] = [
+  {
+    value: 'extended',
+    shortLabel: 'Trah Besar',
+    title: 'Keluarga besar dari leluhur tertinggi jalur ini (termasuk saudara kakek/nenek & keturunannya)',
+  },
   {
     value: 'both',
     shortLabel: 'Atas & Bawah',
@@ -265,7 +271,7 @@ export function LineageScopeSelector({
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid grid-cols-2 gap-1">
                   {DIRECTION_OPTIONS.map((opt) => {
                     const active = activeDirection === opt.value;
                     return (
@@ -338,10 +344,10 @@ export function LineageScopeSelector({
                           />
                           <div className="min-w-0">
                             <p className="text-xs font-medium text-foreground truncate">
-                              {line.person.fullName}
+                              Trah {formatShortTrahName(line.person.fullName)}
                             </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {line.label}
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {line.person.fullName} · {line.shortLabel}
                             </p>
                           </div>
                         </div>

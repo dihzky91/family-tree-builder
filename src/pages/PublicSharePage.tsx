@@ -305,13 +305,8 @@ export default function PublicSharePage() {
         }
         setMeta(metaData);
 
-        const cachedPin =
-          typeof sessionStorage !== 'undefined'
-            ? sessionStorage.getItem(`silsilah-pin-${shareCode}`) || undefined
-            : undefined;
-
-        if (!metaData.hasPin || cachedPin) {
-          const res = await unlockPublicShare(shareCode, cachedPin);
+        if (!metaData.hasPin) {
+          const res = await unlockPublicShare(shareCode);
           if (res.status === 'ok') {
             setPayload(res.payload);
             if (res.payload.share.rootPersonId) {
@@ -345,13 +340,14 @@ export default function PublicSharePage() {
     try {
       const res = await unlockPublicShare(shareCode, pinInput.trim());
       if (res.status === 'ok') {
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem(`silsilah-pin-${shareCode}`, pinInput.trim());
-        }
+        setPinInput('');
         setPayload(res.payload);
         if (res.payload.share.rootPersonId) {
           setSelectedPersonId(res.payload.share.rootPersonId);
         }
+      } else if (res.status === 'rate_limited') {
+        const minutes = Math.max(1, Math.ceil((res.retryAfter || 900) / 60));
+        setPinError(`Terlalu banyak percobaan PIN. Silakan coba lagi dalam ${minutes} menit.`);
       } else if (res.status === 'invalid_pin') {
         setPinError('Kode PIN tidak sesuai. Silakan coba lagi.');
       } else {

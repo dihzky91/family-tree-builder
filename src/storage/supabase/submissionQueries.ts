@@ -1,7 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Submission, ApprovedMemberInfo } from '@/types';
 import type { Tables } from '@/integrations/supabase/types';
-import { v4 as uuidv4 } from 'uuid';
 
 type DbSubmission = Tables<'submissions'>;
 
@@ -116,39 +115,26 @@ export async function getSubmissionById(id: string): Promise<Submission | null> 
 export async function createSubmission(
     submissionData: Omit<Submission, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'createdPersonId'>
 ): Promise<Submission> {
-    const id = uuidv4();
     const now = new Date().toISOString();
-
-    const { error } = await supabase
-        .from('submissions')
-        .insert([{
-            id,
-            branch_id: submissionData.branchId,
-            submitted_by: submissionData.submittedBy,
-            submitter_email: submissionData.submitterEmail,
-            full_name: submissionData.fullName,
-            gender: submissionData.gender,
-            birth_date: submissionData.birthDate,
-            birth_place: submissionData.birthPlace,
-            death_date: submissionData.deathDate,
-            death_place: submissionData.deathPlace,
-            residence: submissionData.residence,
-            photo_url: submissionData.photoUrl,
-            notes: submissionData.notes,
-            relation_to_branch: submissionData.relationToBranch,
-            parent_name: submissionData.parentName,
-            possible_duplicate_id: submissionData.possibleDuplicateId,
-            status: 'pending',
-        }]);
+    const { data, error } = await supabase.functions.invoke('public-submission', {
+        body: submissionData,
+    });
 
     if (error) {
         console.error('Error creating submission:', error);
-        throw error;
+        throw new Error('Pengajuan gagal dikirim. Silakan tunggu dan coba kembali.');
+    }
+
+    const result = data as { id?: string; status?: string; error?: string } | null;
+    if (!result?.id || result.error) {
+        throw new Error(result?.error === 'rate_limited'
+            ? 'Terlalu banyak pengajuan. Silakan coba kembali nanti.'
+            : 'Pengajuan ditolak karena data tidak valid.');
     }
 
     return {
         ...submissionData,
-        id,
+        id: result.id,
         status: 'pending',
         createdAt: now,
         updatedAt: now,
@@ -235,20 +221,25 @@ export async function deleteSubmission(id: string): Promise<void> {
  * Deduplicates by normalized full_name so repeated updates merge into one entry.
  */
 export async function getApprovedMembersByBranch(branchId: string): Promise<ApprovedMemberInfo[]> {
-    const { data, error } = await supabase
-        .from('submissions')
-        .select('full_name, relation_to_branch, parent_name, created_person_id, gender, birth_date, birth_place, residence, death_date, death_place')
-        .eq('branch_id', branchId)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: true });
+    const { data, error } = await supabase.rpc('get_approved_members', {
+        p_branch_id: branchId,
+    });
 
     if (error) {
         console.error('Error fetching approved members:', error);
         throw error;
     }
 
+    const rows = Array.isArray(data) ? data as Array<{
+        full_name: string;
+        relation_to_branch: string;
+        parent_name: string | null;
+        created_person_id: string | null;
+        gender: string;
+        has_birth_date: boolean;
+    }> : [];
     const byName = new Map<string, ApprovedMemberInfo>();
-    for (const item of data || []) {
+    for (const item of rows) {
         const key = item.full_name.trim().toLowerCase();
         const existing = byName.get(key);
         const isUpdateRecord = (item.parent_name || '').toLowerCase().startsWith('pembaruan data anggota');
@@ -262,7 +253,7 @@ export async function getApprovedMembersByBranch(branchId: string): Promise<Appr
                 : item.parent_name || existing?.parentName || undefined,
             createdPersonId: item.created_person_id || existing?.createdPersonId || undefined,
             gender: (item.gender as 'male' | 'female' | 'unknown') || existing?.gender,
-            hasBirthDate: Boolean(item.birth_date) || Boolean(existing?.hasBirthDate),
+            hasBirthDate: Boolean(item.has_birth_date) || Boolean(existing?.hasBirthDate),
         });
     }
 

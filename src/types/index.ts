@@ -329,7 +329,7 @@ export type ShareLink = z.infer<typeof ShareLinkSchema>;
 export const ShareLinkFormSchema = z.object({
   code: z
     .string()
-    .min(1, 'Kode tautan diperlukan')
+    .min(4, 'Kode tautan minimal 4 karakter')
     .max(60)
     .regex(/^[a-z0-9-]+$/, 'Hanya huruf kecil, angka, dan tanda hubung'),
   title: z.string().min(1, 'Judul silsilah diperlukan').max(120),
@@ -337,7 +337,13 @@ export const ShareLinkFormSchema = z.object({
   scopeType: ShareScopeTypeEnum,
   branchId: z.string().optional(),
   rootPersonId: z.string().optional(),
-  pinCode: z.string().max(20).optional(),
+  pinCode: z
+    .string()
+    .max(64, 'PIN maksimal 64 karakter')
+    .refine((val) => !val || val.trim().length === 0 || val.trim().length >= 8, {
+      message: 'PIN / passphrase minimal 8 karakter untuk keamanan',
+    })
+    .optional(),
   hideLivingDetails: z.boolean().default(false),
 });
 

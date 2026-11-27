@@ -1,1 +1,7 @@
 project_id = "zgcfzhifbjwwfgtggazb"
+
+[functions.public-share-unlock]
+verify_jwt = false
+
+[functions.public-submission]
+verify_jwt = false

@@ -455,11 +455,10 @@ export class SupabaseAdapter implements StorageAdapter {
   async createAuditLog(log: AuditLog): Promise<AuditLog> {
     const userId = await getCurrentUserId();
 
-    // 1. Try security definer RPC first
+    // The database derives the actor from auth.uid(); callers cannot forge user_id.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = supabase as any;
     const { data, error } = await client.rpc('create_audit_log', {
-      p_user_id: userId,
       p_action: log.action,
       p_entity_type: log.entityType,
       p_entity_id: log.entityId,
@@ -470,26 +469,7 @@ export class SupabaseAdapter implements StorageAdapter {
       return dbToAuditLog(data as DbAuditLog);
     }
 
-    // 2. Fallback to direct table insert if the RPC migration hasn't been applied to Supabase Cloud yet
-    const { data: directData, error: directError } = await supabase
-      .from('audit_logs')
-      .insert({
-        id: log.id,
-        user_id: userId,
-        action: log.action,
-        entity_type: log.entityType,
-        entity_id: log.entityId,
-        changes: ((log.changes as Json) ?? null),
-        timestamp: log.timestamp,
-      })
-      .select()
-      .single();
-
-    if (!directError && directData) {
-      return dbToAuditLog(directData);
-    }
-
-    // 3. Return in-memory log without throwing so person/relationship creation never fails due to audit logging
+    console.warn('Audit log RPC failed; direct inserts are intentionally disabled.', error);
     return {
       ...log,
       userId,

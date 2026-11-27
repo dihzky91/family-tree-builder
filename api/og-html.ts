@@ -39,25 +39,24 @@ async function fetchBranchMeta(
 ): Promise<{ name: string; coordinatorName?: string; description?: string } | null> {
   const supa = getSupabaseEnv();
   if (!supa) return null;
+  const cleanCode = code.trim().toLowerCase();
 
   try {
-    const endpoint = `${supa.url}/rest/v1/branches?code=eq.${encodeURIComponent(
-      code
-    )}&is_active=eq.true&select=name,coordinator_name,description&limit=1`;
-
-    const res = await fetch(endpoint, {
+    const rpcRes = await fetch(`${supa.url}/rest/v1/rpc/get_public_branch`, {
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         apikey: supa.key,
         Authorization: `Bearer ${supa.key}`,
       },
+      body: JSON.stringify({ p_code: cleanCode }),
     });
-    if (!res.ok) return null;
-    const rows = (await res.json()) as Array<{
+    if (!rpcRes.ok) return null;
+    const row = (await rpcRes.json()) as {
       name?: string;
       coordinator_name?: string;
       description?: string | null;
-    }>;
-    const row = rows?.[0];
+    } | null;
     if (
       !row ||
       !row.name ||
@@ -85,7 +84,6 @@ async function fetchShareMeta(
   const cleanCode = code.trim().toLowerCase();
 
   try {
-    // 1. Check dedicated public_shares table or RPC first
     const rpcRes = await fetch(`${supa.url}/rest/v1/rpc/get_public_share_meta`, {
       method: 'POST',
       headers: {
@@ -111,54 +109,6 @@ async function fetchShareMeta(
       }
     }
 
-    // 2. Fallback: check branches table where cloud shares are stored with __PUBLIC_SHARE_V1__: prefix
-    const endpoint = `${supa.url}/rest/v1/branches?code=eq.${encodeURIComponent(
-      cleanCode
-    )}&is_active=eq.true&select=name,description&limit=1`;
-
-    const branchRes = await fetch(endpoint, {
-      headers: {
-        apikey: supa.key,
-        Authorization: `Bearer ${supa.key}`,
-      },
-    });
-    if (!branchRes.ok) return null;
-
-    const rows = (await branchRes.json()) as Array<{
-      name?: string;
-      description?: string | null;
-    }>;
-    const row = rows?.[0];
-    if (!row) return null;
-
-    if (row.description?.startsWith(CLOUD_SHARE_PREFIX)) {
-      const decoded = JSON.parse(row.description.slice(CLOUD_SHARE_PREFIX.length)) as {
-        title?: string;
-        description?: string;
-        hasPin?: boolean;
-        pinCode?: string;
-        personsCount?: number;
-        snapshotData?: { persons?: unknown[] };
-      };
-      return {
-        title: decoded.title || row.name || 'Pohon Silsilah Keluarga',
-        description: decoded.description,
-        personsCount:
-          typeof decoded.personsCount === 'number'
-            ? decoded.personsCount
-            : Array.isArray(decoded.snapshotData?.persons)
-              ? decoded.snapshotData?.persons.length
-              : undefined,
-        hasPin: Boolean(decoded.hasPin || (decoded.pinCode && decoded.pinCode.trim().length > 0)),
-      };
-    }
-
-    if (row.name) {
-      return {
-        title: row.name,
-        description: row.description || undefined,
-      };
-    }
     return null;
   } catch {
     return null;

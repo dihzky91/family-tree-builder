@@ -78,7 +78,8 @@ import { applyAllFilters, getGenerationLabel } from '@/lib/filterUtils';
 import { PersonCardSkeletonGrid } from '@/components/skeletons/PersonCardSkeleton';
 import { smartSearch } from '@/lib/smartSearchUtils';
 import { LineageScopeSelector } from '@/components/LineageScopeSelector';
-import { filterDataByLineageScope } from '@/lib/lineageScope';
+import { TrahBadgeList } from '@/components/TrahBadgeList';
+import { buildTrahClusters, filterDataByLineageScope } from '@/lib/lineageScope';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
@@ -95,7 +96,10 @@ export default function PeoplePage() {
     setSearchQuery,
     relationships,
     isLoading,
+    homePersonId,
+    pinnedLineageIds,
     lineageScope,
+    setLineageScope,
     resetLineageScope,
   } = useFamilyStore();
   const isMobile = useIsMobile();
@@ -131,6 +135,18 @@ export default function PeoplePage() {
   const scopedPersons = scopedData.persons;
   const scopedRelationships = scopedData.relationships;
   const isLineageScoped = lineageScope.type === 'person' && scopedPersons.length < persons.length;
+
+  // Hybrid Trah / Bani cluster index (objective Trah names + personal relative context)
+  const trahIndex = useMemo(
+    () =>
+      buildTrahClusters({
+        homePersonId,
+        pinnedLineageIds,
+        persons,
+        relationships,
+      }),
+    [homePersonId, pinnedLineageIds, persons, relationships]
+  );
 
   const selectedPerson = useMemo(
     () => persons.find((p) => p.id === selectedPersonId) || null,
@@ -180,11 +196,27 @@ export default function PeoplePage() {
     setVisibleLimit(36);
   }, [debouncedSearch, quickFilter, sortBy, filters, allDisplayMode, lineageScope]);
 
-  // Smart Search (runs on debouncedSearch so typing on mobile keyboard never stutters)
+  // Smart Search + Trah cluster name matching (runs on debouncedSearch so typing on mobile keyboard never stutters)
   const searchResults = useMemo(() => {
     if (!debouncedSearch) return scopedPersons;
-    return smartSearch(debouncedSearch, scopedPersons, scopedRelationships).map((r) => r.person);
-  }, [debouncedSearch, scopedPersons, scopedRelationships]);
+    const baseResults = smartSearch(debouncedSearch, scopedPersons, scopedRelationships).map(
+      (r) => r.person
+    );
+    const q = debouncedSearch.toLowerCase().trim();
+    const matchedByTrah = scopedPersons.filter((p) => {
+      const clusters = trahIndex.personToClusters.get(p.id);
+      if (!clusters || clusters.length === 0) return false;
+      return clusters.some(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.rootPerson.fullName.toLowerCase().includes(q) ||
+          (c.relativeLabel && c.relativeLabel.toLowerCase().includes(q))
+      );
+    });
+    if (matchedByTrah.length === 0) return baseResults;
+    const seen = new Set(baseResults.map((p) => p.id));
+    return [...baseResults, ...matchedByTrah.filter((p) => !seen.has(p.id))];
+  }, [debouncedSearch, scopedPersons, scopedRelationships, trahIndex]);
 
   // Apply FilterPanel + QuickFilter + Sort
   const filteredPersons = useMemo(() => {
@@ -417,6 +449,81 @@ export default function PeoplePage() {
             </Tabs>
           </div>
         </div>
+
+        {/* Row 1.5: Quick Trah / Bani Cluster Filter Chips */}
+        {trahIndex.clusters.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 border-t border-border/60 pb-0.5">
+            <span className="text-[11px] font-medium text-muted-foreground shrink-0 mr-1">
+              Klaster Trah:
+            </span>
+            <button
+              type="button"
+              onClick={() => resetLineageScope()}
+              className={cn(
+                'inline-flex items-center gap-1.5 shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                lineageScope.type === 'all'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'bg-background/80 text-muted-foreground border-border/70 hover:text-foreground hover:bg-muted/60'
+              )}
+            >
+              <span>Semua</span>
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0 text-[10px]',
+                  lineageScope.type === 'all'
+                    ? 'bg-primary-foreground/20 text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
+                )}
+              >
+                {persons.length}
+              </span>
+            </button>
+            {trahIndex.clusters.map((cluster) => {
+              const isSelected =
+                lineageScope.type === 'person' && lineageScope.rootPersonId === cluster.id;
+              return (
+                <button
+                  key={cluster.id}
+                  type="button"
+                  title={
+                    cluster.relativeLabel
+                      ? `${cluster.name} (${cluster.relativeLabel})`
+                      : cluster.name
+                  }
+                  onClick={() => {
+                    if (isSelected) {
+                      resetLineageScope();
+                    } else {
+                      setLineageScope({
+                        type: 'person',
+                        rootPersonId: cluster.id,
+                        direction: 'extended',
+                        slot: cluster.slot,
+                      });
+                    }
+                  }}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                    isSelected
+                      ? cn(cluster.badgeClass, 'ring-1 ring-current/30 shadow-sm')
+                      : 'bg-background/80 text-muted-foreground border-border/70 hover:text-foreground hover:bg-muted/60'
+                  )}
+                >
+                  <span className={cn('h-2 w-2 shrink-0 rounded-full', cluster.dotClass)} />
+                  <span className="truncate max-w-[160px]">{cluster.name}</span>
+                  {cluster.relativeLabel && (
+                    <span className="hidden xl:inline text-[10px] opacity-70">
+                      · {cluster.relativeLabel}
+                    </span>
+                  )}
+                  <span className="rounded-full bg-background/60 px-1.5 py-0 text-[10px] text-muted-foreground">
+                    {cluster.memberIds.size}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Row 2: Quick Filter Chips + Result Summary + Grid/Table Toggle */}
         <div className="flex flex-col gap-2.5 pt-2 border-t border-border/60 sm:flex-row sm:items-center sm:justify-between">
@@ -684,6 +791,12 @@ export default function PeoplePage() {
                                         : 'Tidak diketahui'}
                                     {person.deathDate ? ' · Almarhum/ah' : ''}
                                   </p>
+                                  <TrahBadgeList
+                                    clusters={trahIndex.personToClusters.get(person.id)}
+                                    variant="compact"
+                                    maxVisible={2}
+                                    className="mt-1"
+                                  />
                                 </div>
                               </div>
                             </TableCell>
@@ -913,6 +1026,14 @@ export default function PeoplePage() {
                               {relCount > 0 ? `${relCount} relasi` : 'Belum terhubung'}
                             </span>
                           </div>
+
+                          {/* Trah Cluster Badges */}
+                          <TrahBadgeList
+                            clusters={trahIndex.personToClusters.get(person.id)}
+                            variant="pill"
+                            maxVisible={2}
+                            className="mt-1.5"
+                          />
 
                           {/* Tags */}
                           {person.tags.filter((t) => t !== 'verified').length > 0 && (

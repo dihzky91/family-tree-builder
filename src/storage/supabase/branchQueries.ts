@@ -45,27 +45,16 @@ export async function getAllBranches(): Promise<Branch[]> {
  * Get branch by code (for public form)
  */
 export async function getBranchByCode(code: string): Promise<Branch | null> {
-    const { data, error } = await supabase
-        .from('branches')
-        .select('*')
-        .eq('code', code.trim().toLowerCase())
-        .eq('is_active', true)
-        .neq('coordinator_name', '__PUBLIC_SHARE__')
-        .maybeSingle();
+    const { data, error } = await supabase.rpc('get_public_branch', {
+        p_code: code.trim().toLowerCase(),
+    });
 
     if (error) {
-        if (error.code === 'PGRST116') {
-            return null;
-        }
-        console.error('Error fetching branch:', error);
+        console.error('Error fetching public branch:', error);
         throw error;
     }
-
-    if (!data || data.description?.startsWith('__PUBLIC_SHARE_V1__:')) {
-        return null;
-    }
-
-    return mapDbBranchToBranch(data);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    return mapDbBranchToBranch(data as unknown as DbBranch);
 }
 
 /**
