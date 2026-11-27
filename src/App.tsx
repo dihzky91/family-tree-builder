@@ -55,9 +55,12 @@ const PageTransition = ({ children }: { children: React.ReactNode }) => (
 const DashboardRoutes = () => {
   const location = useLocation();
 
-  // Auto-sync any local share links to cloud in the background when authenticated
+  // Auto-sync any local share links to cloud in the background after initial page render
   useEffect(() => {
-    void getAllShareLinks().catch(() => {});
+    const timer = setTimeout(() => {
+      void getAllShareLinks().catch(() => {});
+    }, 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   return (

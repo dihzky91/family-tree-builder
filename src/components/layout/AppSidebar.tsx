@@ -35,10 +35,14 @@ import { useFamilyStore } from '@/store/familyStore';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PersonForm } from '@/features/people/PersonForm';
 import { checkDataQuality } from '@/lib/dataQuality';
 import { findAllDuplicates, IGNORED_DUPLICATES_EVENT } from '@/lib/duplicateDetection';
 import { usePendingSubmissionCount } from '@/hooks/usePendingSubmissionCount';
+import { lazy, Suspense } from 'react';
+
+const PersonForm = lazy(() =>
+  import('@/features/people/PersonForm').then((m) => ({ default: m.PersonForm }))
+);
 
 interface NavItem {
   title: string;
@@ -96,6 +100,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   }, [collapsed, persons.length, relationships.length]);
 
   const [ignoredVersion, setIgnoredVersion] = useState(0);
+  const [badgesReady, setBadgesReady] = useState(false);
 
   useEffect(() => {
     const onIgnoredChanged = () => setIgnoredVersion((v) => v + 1);
@@ -103,18 +108,27 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
     return () => window.removeEventListener(IGNORED_DUPLICATES_EVENT, onIgnoredChanged);
   }, []);
 
+  // Defer O(N^2) duplicate and data quality badge calculations until idle after initial chart paint
+  useEffect(() => {
+    if (badgesReady) return;
+    const timer = setTimeout(() => setBadgesReady(true), 250);
+    return () => clearTimeout(timer);
+  }, [badgesReady]);
+
   // Calculate badge counts
   const duplicateCount = useMemo(() => {
+    if (!badgesReady) return 0;
     void ignoredVersion;
     return findAllDuplicates(persons, { relationships }).length;
-  }, [persons, relationships, ignoredVersion]);
+  }, [badgesReady, persons, relationships, ignoredVersion]);
 
   const submissionCount = usePendingSubmissionCount();
 
   const issueCount = useMemo(() => {
+    if (!badgesReady) return 0;
     const issues = checkDataQuality(persons, relationships);
     return issues.filter(i => i.type === 'error' || i.type === 'warning').length;
-  }, [persons, relationships]);
+  }, [badgesReady, persons, relationships]);
 
   const todayAuditCount = useMemo(() => {
     // For demo purposes, return 0 - would need actual audit log data
@@ -411,16 +425,20 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       </div>
 
       {/* Add Person Dialog */}
-      <Dialog open={showAddPersonDialog} onOpenChange={setShowAddPersonDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display">Tambah Anggota Keluarga</DialogTitle>
-          </DialogHeader>
-          <PersonForm
-            onSuccess={() => setShowAddPersonDialog(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {showAddPersonDialog && (
+        <Dialog open={showAddPersonDialog} onOpenChange={setShowAddPersonDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-display">Tambah Anggota Keluarga</DialogTitle>
+            </DialogHeader>
+            <Suspense fallback={<div className="py-8 text-center text-sm text-muted-foreground">Memuat formulir...</div>}>
+              <PersonForm
+                onSuccess={() => setShowAddPersonDialog(false)}
+              />
+            </Suspense>
+          </DialogContent>
+        </Dialog>
+      )}
     </aside>
   );
 }

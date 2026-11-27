@@ -28,6 +28,7 @@ export function MobileBottomNav() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const [ignoredVersion, setIgnoredVersion] = useState(0);
+  const [badgesReady, setBadgesReady] = useState(false);
 
   useEffect(() => {
     const onIgnoredChanged = () => setIgnoredVersion((v) => v + 1);
@@ -35,18 +36,26 @@ export function MobileBottomNav() {
     return () => window.removeEventListener(IGNORED_DUPLICATES_EVENT, onIgnoredChanged);
   }, []);
 
+  useEffect(() => {
+    if (badgesReady) return;
+    const timer = setTimeout(() => setBadgesReady(true), 250);
+    return () => clearTimeout(timer);
+  }, [badgesReady]);
+
   // Calculate badge counts
   const duplicateCount = useMemo(() => {
+    if (!badgesReady) return 0;
     void ignoredVersion;
     return findAllDuplicates(persons, { relationships }).length;
-  }, [persons, relationships, ignoredVersion]);
+  }, [badgesReady, persons, relationships, ignoredVersion]);
 
   const submissionCount = usePendingSubmissionCount();
 
   const issueCount = useMemo(() => {
+    if (!badgesReady) return 0;
     const issues = checkDataQuality(persons, relationships);
     return issues.filter(i => i.type === 'error' || i.type === 'warning').length;
-  }, [persons, relationships]);
+  }, [badgesReady, persons, relationships]);
 
   const navItems: NavItem[] = [
     {

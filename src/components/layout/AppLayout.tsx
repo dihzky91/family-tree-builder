@@ -39,13 +39,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-background md:h-screen md:p-4 md:pt-5">
       <div className="flex h-full flex-col md:flex-row md:gap-4">
-        {/* Desktop Sidebar - hidden on mobile */}
-        <div className="hidden md:block md:shrink-0">
-          <AppSidebar
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-          />
-        </div>
+        {/* Desktop Sidebar - rendered only on desktop so mobile avoids duplicate nav computation */}
+        {!isMobile && (
+          <div className="hidden md:block md:shrink-0">
+            <AppSidebar
+              collapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            />
+          </div>
+        )}
 
         {/* Mobile Header */}
         {isMobile && <MobileNav />}

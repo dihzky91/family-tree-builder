@@ -479,18 +479,7 @@ export async function getAllShareLinks(): Promise<ShareLink[]> {
 
   if (isSupabaseConfigured()) {
     try {
-      // 1. Try dedicated public_shares table first
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from('public_shares')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && Array.isArray(data)) {
-        return (data as DbPublicShareRow[]).map(mapDbRowToShareLink);
-      }
-
-      // 2. Fallback: read public share records stored inside the existing `branches` table
+      // Read public share records stored inside the existing `branches` table (avoids 404 when public_shares table isn't deployed)
       const { data: branchRows, error: branchErr } = await supabase
         .from('branches')
         .select('*')
@@ -565,7 +554,7 @@ export async function getAllShareLinks(): Promise<ShareLink[]> {
         );
       }
     } catch (err) {
-      console.warn('Supabase public_shares fallback to localStorage:', err);
+      console.warn('Supabase share links fallback to localStorage:', err);
     }
   }
 
@@ -609,40 +598,11 @@ export async function createShareLink(input: CreateOrUpdateShareInput): Promise<
 
   if (isSupabaseConfigured()) {
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData?.user?.id;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id || (await supabase.auth.getUser()).data?.user?.id;
 
       if (userId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabase as any)
-          .from('public_shares')
-          .insert([
-            {
-              user_id: userId,
-              code: cleanCode,
-              title: input.title.trim(),
-              description: input.description?.trim() || null,
-              scope_type: input.scopeType,
-              branch_id: input.branch?.id || null,
-              branch_code: input.branch?.code || null,
-              branch_name: input.branch?.name || null,
-              root_person_id: effectiveRootId,
-              pin_code: cleanPin || null,
-              hide_living_details: input.hideLivingDetails,
-              is_active: input.isActive ?? true,
-              snapshot_data: snapshotData,
-            },
-          ])
-          .select('*')
-          .single();
-
-        if (!error && data) {
-          const mapped = mapDbRowToShareLink(data as DbPublicShareRow);
-          mirrorShareToLocal(mapped, snapshotData, input.branch);
-          return mapped;
-        }
-
-        // Fallback to existing `branches` table in Supabase with AES-GCM encryption when PIN is set
+        // Store in existing `branches` table in Supabase with AES-GCM encryption when PIN is set
         const fallbackRootId =
           effectiveRootId ||
           snapshotData.persons[0]?.id ||
@@ -755,39 +715,7 @@ export async function updateShareLink(
 
   if (isSupabaseConfigured()) {
     try {
-      const updatePayload: Record<string, unknown> = {
-        code: cleanCode,
-        title: input.title.trim(),
-        description: input.description?.trim() || null,
-        scope_type: input.scopeType,
-        branch_id: input.branch?.id || null,
-        branch_code: input.branch?.code || null,
-        branch_name: input.branch?.name || null,
-        root_person_id: effectiveRootId,
-        hide_living_details: input.hideLivingDetails,
-        ...(input.isActive !== undefined && { is_active: input.isActive }),
-        snapshot_data: snapshotData,
-        updated_at: now,
-      };
-      if (!input.preservePinIfEmpty || cleanPin) {
-        updatePayload.pin_code = cleanPin || null;
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from('public_shares')
-        .update(updatePayload)
-        .eq('id', id)
-        .select('*')
-        .single();
-
-      if (!error && data) {
-        const mapped = mapDbRowToShareLink(data as DbPublicShareRow);
-        mirrorShareToLocal(mapped, snapshotData, input.branch);
-        return mapped;
-      }
-
-      // Fallback: update or upsert in `branches` table
+      // Update or upsert in `branches` table
       const fallbackRootId =
         effectiveRootId ||
         snapshotData.persons[0]?.id ||
@@ -913,18 +841,10 @@ export async function updateShareLink(
 export async function toggleShareLinkActive(id: string, isActive: boolean): Promise<void> {
   if (isSupabaseConfigured()) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
-        .from('public_shares')
-        .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      await supabase
+        .from('branches')
+        .update({ is_active: isActive })
         .eq('id', id);
-
-      if (error) {
-        await supabase
-          .from('branches')
-          .update({ is_active: isActive })
-          .eq('id', id);
-      }
     } catch (err) {
       console.warn('Supabase toggleShareLinkActive error:', err);
     }
@@ -946,11 +866,7 @@ export async function deleteShareLink(id: string): Promise<void> {
 
   if (isSupabaseConfigured()) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from('public_shares').delete().eq('id', id);
-      if (error) {
-        await supabase.from('branches').delete().eq('id', id);
-      }
+      await supabase.from('branches').delete().eq('id', id);
     } catch (err) {
       console.warn('Supabase deleteShareLink error:', err);
     }
@@ -1128,16 +1044,7 @@ export async function getPublicShareMeta(code: string): Promise<PublicShareMeta 
 
   if (isSupabaseConfigured()) {
     try {
-      // 1. Try RPC get_public_share_meta
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc('get_public_share_meta', {
-        p_code: cleanCode,
-      });
-      if (!error && data) {
-        return data as PublicShareMeta;
-      }
-
-      // 2. Fallback: query `branches` table
+      // 1. Query `branches` table first (primary cloud store)
       const { data: branchRow, error: branchErr } = await supabase
         .from('branches')
         .select('*')
@@ -1203,23 +1110,7 @@ export async function unlockPublicShare(
 
   if (isSupabaseConfigured()) {
     try {
-      // 1. Try RPC unlock_public_share
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc('unlock_public_share', {
-        p_code: cleanCode,
-        p_pin: pin?.trim() || null,
-      });
-
-      if (!error && data && typeof data === 'object' && 'status' in data) {
-        if (data.status === 'ok') {
-          return { status: 'ok', payload: data.payload as PublicSharePayload };
-        }
-        if (data.status === 'invalid_pin') {
-          return { status: 'invalid_pin' };
-        }
-      }
-
-      // 2. Fallback: query `branches` table (AES-GCM encrypted if PIN-protected)
+      // Query `branches` table (AES-GCM encrypted if PIN-protected)
       const { data: branchRow, error: branchErr } = await supabase
         .from('branches')
         .select('*')

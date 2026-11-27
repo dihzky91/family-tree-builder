@@ -226,21 +226,17 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
         }
       }
 
-      const [persons, relationships, evidence, auditLogs] = await Promise.all([
+      const [persons, relationships, evidence, auditLogs, stories, branches] = await Promise.all([
         storage.getAllPersons(),
         storage.getAllRelationships(),
         storage.getAllEvidence(),
         storage.getAuditLogs(),
+        storage.getAllStories(),
+        storage.getAllBranches().catch((e) => {
+          console.warn('Failed to load branches:', e);
+          return [] as Branch[];
+        }),
       ]);
-
-      const stories = await storage.getAllStories();
-
-      let branches: Branch[] = [];
-      try {
-        branches = await storage.getAllBranches();
-      } catch (e) {
-        console.warn('Failed to load branches:', e);
-      }
 
       set({ persons, relationships, evidence, auditLogs, branches, stories, isLoading: false });
     } catch (error) {

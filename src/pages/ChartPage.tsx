@@ -85,26 +85,19 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Person } from '@/types';
-import { GenerationView } from '@/features/chart/views/GenerationView';
 import { FamilyView } from '@/features/chart/views/FamilyView';
-import { PedigreeView } from '@/features/chart/views/PedigreeView';
-import { RelationshipForm } from '@/features/relationships/RelationshipForm';
-import { RelationshipInspector } from '@/features/relationships/RelationshipInspector';
-import {
-  AddRelativeWizardDialog,
-  type RelativeRole,
-} from '@/features/chart/components/AddRelativeWizardDialog';
-import { MiniMap } from '@/features/chart/components/MiniMap';
-import {
-  exportTreeAsImage,
-  copyTreeToClipboard,
-  type ExportFormat,
-} from '@/features/chart/utils/exportTreeAsImage';
-import { exportFamilyCsv } from '@/features/chart/utils/familyBookPdfExport';
+import type { RelativeRole } from '@/features/chart/components/AddRelativeWizardDialog';
+import type { ExportFormat } from '@/features/chart/utils/exportTreeAsImage';
 import { LineageScopeSelector } from '@/components/LineageScopeSelector';
 import { filterDataByLineageScope } from '@/lib/lineageScope';
 import { cn } from '@/lib/utils';
 
+const GenerationView = lazy(() => import('@/features/chart/views/GenerationView').then(m => ({ default: m.GenerationView })));
+const PedigreeView = lazy(() => import('@/features/chart/views/PedigreeView').then(m => ({ default: m.PedigreeView })));
+const RelationshipForm = lazy(() => import('@/features/relationships/RelationshipForm').then(m => ({ default: m.RelationshipForm })));
+const RelationshipInspector = lazy(() => import('@/features/relationships/RelationshipInspector').then(m => ({ default: m.RelationshipInspector })));
+const AddRelativeWizardDialog = lazy(() => import('@/features/chart/components/AddRelativeWizardDialog').then(m => ({ default: m.AddRelativeWizardDialog })));
+const MiniMap = lazy(() => import('@/features/chart/components/MiniMap').then(m => ({ default: m.MiniMap })));
 const PrintDialog = lazy(() => import('@/features/chart/components/PrintDialog').then(m => ({ default: m.PrintDialog })));
 const ExportStudioDialog = lazy(() => import('@/features/chart/components/ExportStudioDialog').then(m => ({ default: m.ExportStudioDialog })));
 const ShareTreeDialog = lazy(() => import('@/features/chart/components/ShareTreeDialog').then(m => ({ default: m.ShareTreeDialog })));
@@ -356,7 +349,13 @@ export default function ChartPage() {
 
   const handleExport = async (format: ExportFormat) => {
     if (!chartRef.current) return;
+    const { exportTreeAsImage } = await import('@/features/chart/utils/exportTreeAsImage');
     await exportTreeAsImage(chartRef.current, { format, filename: 'silsilah-keluarga' });
+  };
+
+  const handleExportCsv = async () => {
+    const { exportFamilyCsv } = await import('@/features/chart/utils/familyBookPdfExport');
+    exportFamilyCsv(scopedPersons, scopedRelationships);
   };
 
   const handleCenterOnSelected = useCallback(() => {
@@ -441,6 +440,7 @@ export default function ChartPage() {
 
   const handleCopyClipboard = async () => {
     if (!chartRef.current) return;
+    const { copyTreeToClipboard } = await import('@/features/chart/utils/exportTreeAsImage');
     await copyTreeToClipboard(chartRef.current);
   };
 
@@ -1002,7 +1002,7 @@ export default function ChartPage() {
                       Export SVG
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => exportFamilyCsv(scopedPersons, scopedRelationships)}
+                      onClick={() => { void handleExportCsv(); }}
                       disabled={scopedPersons.length === 0}
                     >
                       <FileSpreadsheet className="w-4 h-4 mr-2" />
@@ -1512,10 +1512,12 @@ export default function ChartPage() {
                     Relasi Keluarga
                   </h4>
                 </div>
-                <RelationshipInspector
-                  personId={selectedPerson.id}
-                  onPersonClick={setSelectedPerson}
-                />
+                <Suspense fallback={<div className="py-2 text-xs text-muted-foreground">Memuat relasi...</div>}>
+                  <RelationshipInspector
+                    personId={selectedPerson.id}
+                    onPersonClick={setSelectedPerson}
+                  />
+                </Suspense>
               </div>
 
               {/* Siblings */}
@@ -1748,10 +1750,12 @@ export default function ChartPage() {
                       Relasi Keluarga
                     </h4>
                   </div>
-                  <RelationshipInspector
-                    personId={selectedPerson.id}
-                    onPersonClick={setSelectedPerson}
-                  />
+                  <Suspense fallback={<div className="py-2 text-xs text-muted-foreground">Memuat relasi...</div>}>
+                    <RelationshipInspector
+                      personId={selectedPerson.id}
+                      onPersonClick={setSelectedPerson}
+                    />
+                  </Suspense>
                 </div>
 
                 {/* Siblings */}
@@ -1780,46 +1784,54 @@ export default function ChartPage() {
       </Drawer>
 
       {/* MyHeritage-style Add Relative Diagram & Quick Form Dialog */}
-      <AddRelativeWizardDialog
-        open={showAddRelativeWizard}
-        onOpenChange={setShowAddRelativeWizard}
-        anchorPersonId={
-          addRelativeWizardState.personId || selectedPersonId || defaultFocusPersonId
-        }
-        initialRole={addRelativeWizardState.initialRole}
-        onOpenManualLinkDialog={() => {
-          setAddRelationshipContext({
-            personId:
-              addRelativeWizardState.personId || selectedPersonId || undefined,
-          });
-          setShowAddRelationship(true);
-        }}
-      />
-
-      {/* Manual Link Existing Relationship Dialog */}
-      <Dialog open={showAddRelationship} onOpenChange={setShowAddRelationship}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Tambah Relasi Baru</DialogTitle>
-            <DialogDescription>
-              Buat relasi keluarga baru antara dua anggota
-            </DialogDescription>
-          </DialogHeader>
-          <RelationshipForm
-            key={`${addRelationshipContext.personId || selectedPersonId || 'none'}-${addRelationshipContext.suggestedType || 'default'}`}
-            preselectedPersonId={addRelationshipContext.personId || selectedPersonId || undefined}
-            suggestedType={addRelationshipContext.suggestedType}
-            onSuccess={() => {
-              setShowAddRelationship(false);
-              setAddRelationshipContext({});
-            }}
-            onCancel={() => {
-              setShowAddRelationship(false);
-              setAddRelationshipContext({});
+      {showAddRelativeWizard && (
+        <Suspense fallback={null}>
+          <AddRelativeWizardDialog
+            open={showAddRelativeWizard}
+            onOpenChange={setShowAddRelativeWizard}
+            anchorPersonId={
+              addRelativeWizardState.personId || selectedPersonId || defaultFocusPersonId
+            }
+            initialRole={addRelativeWizardState.initialRole}
+            onOpenManualLinkDialog={() => {
+              setAddRelationshipContext({
+                personId:
+                  addRelativeWizardState.personId || selectedPersonId || undefined,
+              });
+              setShowAddRelationship(true);
             }}
           />
-        </DialogContent>
-      </Dialog>
+        </Suspense>
+      )}
+
+      {/* Manual Link Existing Relationship Dialog */}
+      {showAddRelationship && (
+        <Dialog open={showAddRelationship} onOpenChange={setShowAddRelationship}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Tambah Relasi Baru</DialogTitle>
+              <DialogDescription>
+                Buat relasi keluarga baru antara dua anggota
+              </DialogDescription>
+            </DialogHeader>
+            <Suspense fallback={<div className="py-6 text-center text-sm text-muted-foreground">Memuat formulir...</div>}>
+              <RelationshipForm
+                key={`${addRelationshipContext.personId || selectedPersonId || 'none'}-${addRelationshipContext.suggestedType || 'default'}`}
+                preselectedPersonId={addRelationshipContext.personId || selectedPersonId || undefined}
+                suggestedType={addRelationshipContext.suggestedType}
+                onSuccess={() => {
+                  setShowAddRelationship(false);
+                  setAddRelationshipContext({});
+                }}
+                onCancel={() => {
+                  setShowAddRelationship(false);
+                  setAddRelationshipContext({});
+                }}
+              />
+            </Suspense>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Edit Person Dialog */}
       <Dialog open={showEditPerson} onOpenChange={setShowEditPerson}>
@@ -1891,13 +1903,15 @@ export default function ChartPage() {
 
       {/* Mini Map for navigation */}
       {showMiniMap && (
-        <MiniMap
-          persons={scopedPersons}
-          relationships={scopedRelationships}
-          selectedPersonId={effectiveSelectedPersonId}
-          onSelectPerson={setSelectedPerson}
-          onCenterSelected={handleCenterOnSelected}
-        />
+        <Suspense fallback={null}>
+          <MiniMap
+            persons={scopedPersons}
+            relationships={scopedRelationships}
+            selectedPersonId={effectiveSelectedPersonId}
+            onSelectPerson={setSelectedPerson}
+            onCenterSelected={handleCenterOnSelected}
+          />
+        </Suspense>
       )}
 
       <Sheet open={showMobileSearch} onOpenChange={setShowMobileSearch}>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   House,
@@ -32,10 +32,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useFamilyStore } from '@/store/familyStore';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PersonForm } from '@/features/people/PersonForm';
 import { checkDataQuality } from '@/lib/dataQuality';
 import { findAllDuplicates, IGNORED_DUPLICATES_EVENT } from '@/lib/duplicateDetection';
 import { usePendingSubmissionCount } from '@/hooks/usePendingSubmissionCount';
+
+const PersonForm = lazy(() =>
+  import('@/features/people/PersonForm').then((m) => ({ default: m.PersonForm }))
+);
 
 interface NavItem {
   title: string;
@@ -328,16 +331,20 @@ export function MobileNav() {
       </Sheet>
 
       {/* Add Person Dialog */}
-      <Dialog open={showAddPersonDialog} onOpenChange={setShowAddPersonDialog}>
-        <DialogContent className="max-w-2xl max-h-[88dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display">Tambah Anggota Keluarga</DialogTitle>
-          </DialogHeader>
-          <PersonForm
-            onSuccess={() => setShowAddPersonDialog(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {showAddPersonDialog && (
+        <Dialog open={showAddPersonDialog} onOpenChange={setShowAddPersonDialog}>
+          <DialogContent className="max-w-2xl max-h-[88dvh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-display">Tambah Anggota Keluarga</DialogTitle>
+            </DialogHeader>
+            <Suspense fallback={<div className="py-8 text-center text-sm text-muted-foreground">Memuat formulir...</div>}>
+              <PersonForm
+                onSuccess={() => setShowAddPersonDialog(false)}
+              />
+            </Suspense>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

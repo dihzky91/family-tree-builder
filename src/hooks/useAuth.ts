@@ -18,6 +18,109 @@ interface AuthState {
   isLoading: boolean;
 }
 
+// Module-level shared auth cache so multiple components calling useAuth()
+// (AuthGuard, UserMenu, FamilyView, ProfilePage) don't trigger duplicate network fetches.
+let cachedAuthState: AuthState = {
+  user: null,
+  session: null,
+  profile: null,
+  isLoading: true,
+};
+let authInitialized = false;
+let inFlightProfilePromise: Promise<Profile | null> | null = null;
+let inFlightProfileUserId: string | null = null;
+const authSubscribers = new Set<(state: AuthState) => void>();
+
+function notifyAuthSubscribers(next: AuthState) {
+  cachedAuthState = next;
+  authSubscribers.forEach((listener) => listener(next));
+}
+
+async function fetchProfileOnce(userId: string, force = false): Promise<Profile | null> {
+  if (!force && cachedAuthState.profile?.user_id === userId) {
+    return cachedAuthState.profile;
+  }
+  if (!force && inFlightProfilePromise && inFlightProfileUserId === userId) {
+    return inFlightProfilePromise;
+  }
+
+  inFlightProfileUserId = userId;
+  const supabase = getSupabaseClient();
+  inFlightProfilePromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      if (!error && data) {
+        const profile = data as Profile;
+        notifyAuthSubscribers({ ...cachedAuthState, profile });
+        return profile;
+      }
+      return null;
+    } finally {
+      inFlightProfilePromise = null;
+    }
+  })();
+
+  return inFlightProfilePromise;
+}
+
+function ensureAuthSubscription(hasSupabaseConfig: boolean) {
+  if (authInitialized) return;
+  authInitialized = true;
+
+  if (!hasSupabaseConfig) {
+    notifyAuthSubscribers({ ...cachedAuthState, isLoading: false });
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    const nextUser = session?.user ?? null;
+    const keepProfile =
+      nextUser && cachedAuthState.profile?.user_id === nextUser.id
+        ? cachedAuthState.profile
+        : null;
+
+    notifyAuthSubscribers({
+      ...cachedAuthState,
+      session,
+      user: nextUser,
+      profile: keepProfile,
+      isLoading: false,
+    });
+
+    if (nextUser) {
+      setTimeout(() => {
+        void fetchProfileOnce(nextUser.id);
+      }, 0);
+    }
+  });
+
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    const nextUser = session?.user ?? null;
+    const keepProfile =
+      nextUser && cachedAuthState.profile?.user_id === nextUser.id
+        ? cachedAuthState.profile
+        : null;
+
+    notifyAuthSubscribers({
+      ...cachedAuthState,
+      session,
+      user: nextUser,
+      profile: keepProfile,
+      isLoading: false,
+    });
+
+    if (nextUser) {
+      void fetchProfileOnce(nextUser.id);
+    }
+  });
+}
+
 function getAuthRedirectBaseUrl() {
   const configuredUrl = import.meta.env.VITE_APP_URL?.trim();
   if (configuredUrl) {
@@ -31,70 +134,21 @@ export function useAuth() {
   const hasSupabaseConfig = Boolean(
     import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
   );
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    session: null,
-    profile: null,
-    isLoading: true,
+  const [state, setState] = useState<AuthState>(() => {
+    if (!hasSupabaseConfig) {
+      return { user: null, session: null, profile: null, isLoading: false };
+    }
+    return cachedAuthState;
   });
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (!error && data) {
-      setState(prev => ({ ...prev, profile: data as Profile }));
-    }
-  }, []);
-
   useEffect(() => {
-    if (!hasSupabaseConfig) {
-      setState(prev => ({ ...prev, isLoading: false }));
-      return;
-    }
-
-    const supabase = getSupabaseClient();
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setState(prev => ({
-          ...prev,
-          session,
-          user: session?.user ?? null,
-          isLoading: false,
-        }));
-
-        // Defer profile fetch with setTimeout to prevent deadlock
-        if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
-        } else {
-          setState(prev => ({ ...prev, profile: null }));
-        }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setState(prev => ({
-        ...prev,
-        session,
-        user: session?.user ?? null,
-        isLoading: false,
-      }));
-
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchProfile, hasSupabaseConfig]);
+    ensureAuthSubscription(hasSupabaseConfig);
+    setState(cachedAuthState);
+    authSubscribers.add(setState);
+    return () => {
+      authSubscribers.delete(setState);
+    };
+  }, [hasSupabaseConfig]);
 
   const signUp = async (email: string, password: string, displayName?: string) => {
     if (!hasSupabaseConfig) {
@@ -180,7 +234,7 @@ export function useAuth() {
       .single();
 
     if (!error && data) {
-      setState(prev => ({ ...prev, profile: data as Profile }));
+      notifyAuthSubscribers({ ...cachedAuthState, profile: data as Profile });
     }
 
     return { data, error };

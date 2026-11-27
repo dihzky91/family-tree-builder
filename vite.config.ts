@@ -60,6 +60,30 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return;
+            if (id.includes("jspdf") || id.includes("html2canvas")) {
+              return "vendor-pdf";
+            }
+            if (id.includes("recharts")) {
+              return "vendor-recharts";
+            }
+            if (id.includes("family-chart") || id.includes("d3")) {
+              return "vendor-tree";
+            }
+            if (id.includes("@supabase")) {
+              return "vendor-supabase";
+            }
+            if (id.includes("framer-motion")) {
+              return "vendor-motion";
+            }
+          },
+        },
+      },
+    },
     // Explicitly define environment variables to ensure they're available in local and production builds
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL),

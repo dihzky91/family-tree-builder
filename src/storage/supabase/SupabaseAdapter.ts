@@ -16,14 +16,42 @@ import type { Json, Tables, TablesInsert } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 import { getAllBranches } from './branchQueries';
 
-// Helper to get current user id
+// Helper to get current user id without extra network roundtrip when session is cached
 async function getCurrentUserId(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user?.id) return session.user.id;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
   return user.id;
 }
 
 const STORIES_STORAGE_PREFIX = 'silsilah-stories';
+const STORIES_TABLE_UNAVAILABLE_KEY = 'silsilah-supabase-stories-unavailable-v1';
+
+function isStoriesTableUnavailable(): boolean {
+  if (typeof sessionStorage === 'undefined') return false;
+  try {
+    return sessionStorage.getItem(STORIES_TABLE_UNAVAILABLE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markStoriesTableUnavailable(error: unknown): void {
+  const errObj = error as { code?: string; status?: number; message?: string } | null;
+  const isMissingTable =
+    errObj?.code === 'PGRST205' ||
+    errObj?.code === '42P01' ||
+    errObj?.status === 404 ||
+    Boolean(errObj?.message && /stories|not found|404/i.test(errObj.message));
+  if (isMissingTable && typeof sessionStorage !== 'undefined') {
+    try {
+      sessionStorage.setItem(STORIES_TABLE_UNAVAILABLE_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+  }
+}
 
 async function getStoriesStorageKey(): Promise<string> {
   try {
@@ -481,6 +509,10 @@ export class SupabaseAdapter implements StorageAdapter {
 
   // Story operations
   async getAllStories(): Promise<Story[]> {
+    const storageKey = await getStoriesStorageKey();
+    if (isStoriesTableUnavailable()) {
+      return readStories(storageKey);
+    }
     try {
       const { data, error } = await storiesTable()
         .select('*')
@@ -490,13 +522,19 @@ export class SupabaseAdapter implements StorageAdapter {
       const rows = data || [];
       return rows.map((row) => dbToStory(row));
     } catch (error) {
-      console.warn('Stories table unavailable, using local storage.', error);
-      const storageKey = await getStoriesStorageKey();
+      markStoriesTableUnavailable(error);
       return readStories(storageKey);
     }
   }
 
   async createStory(story: Story): Promise<Story> {
+    const storageKey = await getStoriesStorageKey();
+    if (isStoriesTableUnavailable()) {
+      const stories = readStories(storageKey);
+      const next = stories.filter(s => s.id !== story.id).concat(story);
+      writeStories(storageKey, next);
+      return story;
+    }
     try {
       const userId = await getCurrentUserId();
       const { data, error } = await storiesTable()
@@ -507,8 +545,7 @@ export class SupabaseAdapter implements StorageAdapter {
       if (error) throw error;
       return dbToStory(data as DbStory);
     } catch (error) {
-      console.warn('Stories table unavailable, using local storage.', error);
-      const storageKey = await getStoriesStorageKey();
+      markStoriesTableUnavailable(error);
       const stories = readStories(storageKey);
       const next = stories.filter(s => s.id !== story.id).concat(story);
       writeStories(storageKey, next);
@@ -517,6 +554,13 @@ export class SupabaseAdapter implements StorageAdapter {
   }
 
   async updateStory(story: Story): Promise<Story> {
+    const storageKey = await getStoriesStorageKey();
+    if (isStoriesTableUnavailable()) {
+      const stories = readStories(storageKey);
+      const next = stories.map(s => s.id === story.id ? story : s);
+      writeStories(storageKey, next);
+      return story;
+    }
     try {
       const { data, error } = await storiesTable()
         .update({
@@ -535,8 +579,7 @@ export class SupabaseAdapter implements StorageAdapter {
       if (error) throw error;
       return dbToStory(data as DbStory);
     } catch (error) {
-      console.warn('Stories table unavailable, using local storage.', error);
-      const storageKey = await getStoriesStorageKey();
+      markStoriesTableUnavailable(error);
       const stories = readStories(storageKey);
       const next = stories.map(s => s.id === story.id ? story : s);
       writeStories(storageKey, next);
@@ -545,6 +588,13 @@ export class SupabaseAdapter implements StorageAdapter {
   }
 
   async deleteStory(id: string): Promise<void> {
+    const storageKey = await getStoriesStorageKey();
+    if (isStoriesTableUnavailable()) {
+      const stories = readStories(storageKey);
+      const next = stories.filter(s => s.id !== id);
+      writeStories(storageKey, next);
+      return;
+    }
     try {
       const { error } = await storiesTable()
         .delete()
@@ -552,8 +602,7 @@ export class SupabaseAdapter implements StorageAdapter {
 
       if (error) throw error;
     } catch (error) {
-      console.warn('Stories table unavailable, using local storage.', error);
-      const storageKey = await getStoriesStorageKey();
+      markStoriesTableUnavailable(error);
       const stories = readStories(storageKey);
       const next = stories.filter(s => s.id !== id);
       writeStories(storageKey, next);

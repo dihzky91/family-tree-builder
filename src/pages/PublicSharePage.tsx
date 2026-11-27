@@ -15,9 +15,7 @@ import {
   formatShortYearLabel,
   getEstimatedYear,
 } from '@/lib/flexibleDateUtils';
-import { GenerationView } from '@/features/chart/views/GenerationView';
 import { FamilyView } from '@/features/chart/views/FamilyView';
-import { PedigreeView } from '@/features/chart/views/PedigreeView';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -88,6 +86,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+const GenerationView = lazy(() =>
+  import('@/features/chart/views/GenerationView').then((m) => ({ default: m.GenerationView }))
+);
+const PedigreeView = lazy(() =>
+  import('@/features/chart/views/PedigreeView').then((m) => ({ default: m.PedigreeView }))
+);
 const TimelineView = lazy(() =>
   import('@/features/chart/views/TimelineView').then((m) => ({ default: m.TimelineView }))
 );

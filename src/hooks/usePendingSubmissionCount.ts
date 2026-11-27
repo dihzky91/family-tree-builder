@@ -10,9 +10,13 @@ export function notifySubmissionsChanged(): void {
   }
 }
 
+let cachedSubmissionCount = 0;
+let inFlightCountPromise: Promise<number> | null = null;
+let lastCountFetchedAt = 0;
+
 export function usePendingSubmissionCount(): number {
   const { isDemoMode } = useFamilyStore();
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState(cachedSubmissionCount);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -22,20 +26,33 @@ export function usePendingSubmissionCount(): number {
 
     let cancelled = false;
 
-    const refresh = async () => {
+    const refresh = async (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastCountFetchedAt < 15_000 && inFlightCountPromise === null && lastCountFetchedAt > 0) {
+        if (!cancelled) setCount(cachedSubmissionCount);
+        return;
+      }
       try {
-        const next = await getPendingSubmissionCount();
+        if (!inFlightCountPromise) {
+          inFlightCountPromise = getPendingSubmissionCount().finally(() => {
+            inFlightCountPromise = null;
+          });
+        }
+        const next = await inFlightCountPromise;
+        cachedSubmissionCount = next;
+        lastCountFetchedAt = Date.now();
         if (!cancelled) setCount(next);
       } catch {
         // Ignore network/offline errors
       }
     };
 
-    void refresh();
-    window.addEventListener(SUBMISSIONS_CHANGED_EVENT, refresh);
+    void refresh(false);
+    const onChanged = () => { void refresh(true); };
+    window.addEventListener(SUBMISSIONS_CHANGED_EVENT, onChanged);
     return () => {
       cancelled = true;
-      window.removeEventListener(SUBMISSIONS_CHANGED_EVENT, refresh);
+      window.removeEventListener(SUBMISSIONS_CHANGED_EVENT, onChanged);
     };
   }, [isDemoMode]);
 
